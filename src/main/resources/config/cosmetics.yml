@@ -1,0 +1,158 @@
+# Cosmetic catalog. Domain ids are stable; 'render' is renderer specific data (native renderer:
+# HAT material:<MATERIAL>[;model:<ns:key>], AURA/TRAIL/JOIN_EFFECT particle:<PARTICLE>[;count:n][;color:RRGGBB]).
+# unlock: DEFAULT | PRESTIGE_<n> | ACHIEVEMENT_<id> | ADMIN
+cosmetics:
+  # ---- profile frames
+  frame_classic:
+    category: PROFILE_FRAME
+    rarity: COMMON
+    preview: ITEM_FRAME
+    unlock: DEFAULT
+    sort: 1
+  royal_frame:
+    category: PROFILE_FRAME
+    rarity: LEGENDARY
+    preview: GLOW_ITEM_FRAME
+    unlock: PRESTIGE_5
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_5
+    sort: 50
+  ascendant_frame:
+    category: PROFILE_FRAME
+    rarity: MYTHIC
+    preview: NETHER_STAR
+    unlock: PRESTIGE_10
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_10
+    sort: 100
+  # ---- backgrounds
+  background_night:
+    category: PROFILE_BACKGROUND
+    rarity: COMMON
+    preview: BLACK_CONCRETE
+    unlock: DEFAULT
+    sort: 1
+  cocoa_profile_background:
+    category: PROFILE_BACKGROUND
+    rarity: RARE
+    preview: COCOA_BEANS
+    unlock: PRESTIGE_2
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_2
+    sort: 20
+  reality_background:
+    category: PROFILE_BACKGROUND
+    rarity: LEGENDARY
+    preview: END_CRYSTAL
+    unlock: PRESTIGE_9
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_9
+    sort: 90
+  ascendant_background:
+    category: PROFILE_BACKGROUND
+    rarity: MYTHIC
+    preview: BEACON
+    unlock: PRESTIGE_10
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_10
+    sort: 100
+  # ---- titles
+  title_newcomer:
+    category: TITLE
+    rarity: COMMON
+    preview: NAME_TAG
+    unlock: DEFAULT
+    sort: 1
+  factory_title:
+    category: TITLE
+    rarity: RARE
+    preview: PISTON
+    unlock: PRESTIGE_3
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_3
+    sort: 30
+  ascendant_title:
+    category: TITLE
+    rarity: MYTHIC
+    preview: DRAGON_HEAD
+    unlock: PRESTIGE_10
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_10
+    sort: 100
+  # ---- hats
+  hat_pumpkin:
+    category: HAT
+    rarity: COMMON
+    preview: CARVED_PUMPKIN
+    unlock: DEFAULT
+    render: "material:CARVED_PUMPKIN"
+    sort: 1
+  hat_cookie_crown:
+    category: HAT
+    rarity: EPIC
+    preview: GOLDEN_HELMET
+    unlock: ACHIEVEMENT_lifetime_1b
+    unlock-requirement-key: lobby.cosmetics.requirement.achievement_lifetime_1b
+    render: "material:GOLDEN_HELMET"
+    sort: 40
+  # ---- back items
+  chrono_back_item:
+    category: BACK_ITEM
+    rarity: EPIC
+    preview: CLOCK
+    unlock: PRESTIGE_7
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_7
+    render: "material:CLOCK"
+    sort: 70
+  # ---- auras
+  arcane_aura:
+    category: AURA
+    rarity: EPIC
+    preview: ENCHANTING_TABLE
+    unlock: PRESTIGE_4
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_4
+    render: "particle:ENCHANT;count:8"
+    sort: 40
+  stellar_aura:
+    category: AURA
+    rarity: MYTHIC
+    preview: NETHER_STAR
+    unlock: PRESTIGE_8
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_8
+    render: "particle:END_ROD;count:6"
+    sort: 80
+  ascendant_aura:
+    category: AURA
+    rarity: MYTHIC
+    preview: END_CRYSTAL
+    unlock: PRESTIGE_10
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_10
+    render: "particle:DUST;count:10;color:FF4FA3"
+    sort: 100
+  # ---- trails
+  sugar_trail:
+    category: TRAIL
+    rarity: UNCOMMON
+    preview: SUGAR
+    unlock: PRESTIGE_1
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_1
+    render: "particle:DUST;count:4;color:FFFFFF"
+    sort: 10
+  rift_trail:
+    category: TRAIL
+    rarity: LEGENDARY
+    preview: ENDER_EYE
+    unlock: PRESTIGE_6
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_6
+    render: "particle:PORTAL;count:6"
+    sort: 60
+  ascendant_trail:
+    category: TRAIL
+    rarity: MYTHIC
+    preview: DRAGON_BREATH
+    unlock: PRESTIGE_10
+    unlock-requirement-key: lobby.cosmetics.requirement.prestige_10
+    render: "particle:DRAGON_BREATH;count:5"
+    sort: 100
+  # ---- join effects
+  join_sparkle:
+    category: JOIN_EFFECT
+    rarity: UNCOMMON
+    preview: FIREWORK_STAR
+    unlock: ACHIEVEMENT_first_prestige
+    unlock-requirement-key: lobby.cosmetics.requirement.achievement_first_prestige
+    render: "particle:FIREWORK;count:40"
+    sort: 10

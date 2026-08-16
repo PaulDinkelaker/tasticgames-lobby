@@ -1,0 +1,354 @@
+package de.tasticgames.lobby.bootstrap;
+
+import de.tasticgames.TasticCorePlugin;
+import de.tasticgames.api.TasticCoreApi;
+import de.tasticgames.lobby.TasticLobbyPlugin;
+import de.tasticgames.lobby.api.LobbyApiService;
+import de.tasticgames.lobby.command.LobbyCommands;
+import de.tasticgames.lobby.command.TasticLobbyCommand;
+import de.tasticgames.lobby.config.LobbyConfigurationService;
+import de.tasticgames.lobby.cookie.CookieModule;
+import de.tasticgames.lobby.cosmetic.CosmeticCategory;
+import de.tasticgames.lobby.cosmetic.CosmeticService;
+import de.tasticgames.lobby.dialog.CosmeticsDialogService;
+import de.tasticgames.lobby.dialog.DialogSupport;
+import de.tasticgames.lobby.dialog.GatewayDialogService;
+import de.tasticgames.lobby.dialog.LanguageDialogService;
+import de.tasticgames.lobby.dialog.ProfileDialogService;
+import de.tasticgames.lobby.dialog.SettingsDialogService;
+import de.tasticgames.lobby.dialog.SocialDialogService;
+import de.tasticgames.lobby.dialog.WelcomeDialogService;
+import de.tasticgames.lobby.gateway.GatewayService;
+import de.tasticgames.lobby.hud.LobbyHudService;
+import de.tasticgames.lobby.item.LobbyItemListener;
+import de.tasticgames.lobby.item.LobbyItemService;
+import de.tasticgames.lobby.item.LobbyItemType;
+import de.tasticgames.lobby.locale.LobbyMessages;
+import de.tasticgames.lobby.movement.MovementListener;
+import de.tasticgames.lobby.music.MusicService;
+import de.tasticgames.lobby.placeholder.LobbyPlaceholders;
+import de.tasticgames.lobby.player.LobbyConnectionListener;
+import de.tasticgames.lobby.player.LobbyPlayer;
+import de.tasticgames.lobby.player.LobbyPlayerInitializationService;
+import de.tasticgames.lobby.player.LobbyPlayerService;
+import de.tasticgames.lobby.player.LobbySettingChangeListener;
+import de.tasticgames.lobby.settings.LobbySettingsRegistrar;
+import de.tasticgames.lobby.social.NetworkNotifier;
+import de.tasticgames.lobby.social.SocialActionService;
+import de.tasticgames.lobby.social.SocialSnapshotService;
+import de.tasticgames.lobby.sound.LobbySounds;
+import de.tasticgames.lobby.telemetry.LobbyTelemetryService;
+import de.tasticgames.lobby.util.LobbyThrowables;
+import de.tasticgames.lobby.util.MainThread;
+import de.tasticgames.lobby.visibility.PlayerVisibilityService;
+import de.tasticgames.lobby.world.LobbySpawnService;
+import de.tasticgames.lobby.world.VoidRescueListener;
+import de.tasticgames.lobby.world.WorldEnvironmentService;
+import de.tasticgames.lobby.world.WorldProtectionListener;
+import de.tasticgames.service.Service;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.logging.Logger;
+
+/**
+ * Composition root of TasticLobby: services are started in dependency order and stopped in
+ * reverse; a startup failure stops what already runs. Business logic lives in the services.
+ */
+public final class LobbyBootstrap {
+
+    private final TasticLobbyPlugin plugin;
+    private final Logger logger;
+    private final Deque<Service> started = new ArrayDeque<>();
+    private final List<Listener> listeners = new ArrayList<>();
+    private BukkitTask positionSampler;
+    private LobbyPlaceholders placeholders;
+
+    private TasticCoreApi coreApi;
+    private LobbyConfigurationService configurationService;
+    private LobbyApiService api;
+    private LobbyMessages messages;
+    private LobbyPlayerService players;
+    private LobbyTelemetryService telemetry;
+    private SocialSnapshotService social;
+    private LobbySpawnService spawn;
+    private WorldEnvironmentService environment;
+    private PlayerVisibilityService visibility;
+    private LobbyItemService items;
+    private LobbyPlayerInitializationService initialization;
+    private CosmeticService cosmetics;
+    private LobbyHudService hud;
+    private MusicService music;
+    private GatewayService gateway;
+    private SocialActionService socialActions;
+    private CookieModule cookie;
+
+    public LobbyBootstrap(TasticLobbyPlugin plugin) {
+        this.plugin = plugin;
+        this.logger = plugin.getLogger();
+    }
+
+    public void start() throws Exception {
+        long startNanos = System.nanoTime();
+        coreApi = TasticCorePlugin.instance().api();
+        logger.info("Connected to TasticCore API (" + coreApi.settingRegistry().size() + " settings, " + coreApi.playerManager().onlinePlayers().size() + " loaded players).");
+
+        MainThread mainThread = new MainThread(plugin);
+        LobbySounds sounds = new LobbySounds(coreApi);
+        DialogSupport dialogs = new DialogSupport(mainThread);
+
+        configurationService = start(new LobbyConfigurationService(plugin));
+        start(new LobbySettingsRegistrar(coreApi, logger));
+        messages = start(new LobbyMessages(plugin, coreApi, logger));
+        api = start(new LobbyApiService(configurationService, logger));
+        players = start(new LobbyPlayerService());
+        telemetry = start(new LobbyTelemetryService(plugin, configurationService, api, logger));
+        social = start(new SocialSnapshotService(api));
+        spawn = start(new LobbySpawnService(configurationService, players, logger));
+        Set<String> managedWorlds = new HashSet<>();
+        managedWorlds.add(configurationService.configuration().world().name());
+        environment = start(new WorldEnvironmentService(plugin, configurationService, () -> managedWorlds, logger));
+        visibility = start(new PlayerVisibilityService(plugin, coreApi, social));
+        items = start(new LobbyItemService(plugin, configurationService, messages, coreApi, visibility::modeOf));
+        initialization = start(new LobbyPlayerInitializationService(coreApi, configurationService, players, spawn, items, visibility, telemetry, logger));
+        cosmetics = start(new CosmeticService(plugin, coreApi, configurationService, api, telemetry, mainThread, logger));
+        hud = start(new LobbyHudService(plugin, coreApi, configurationService, players, social, messages));
+        music = start(new MusicService(plugin, coreApi, configurationService, players, logger));
+        gateway = start(new GatewayService(plugin, api, telemetry, logger));
+        NetworkNotifier notifier = new NetworkNotifier(api);
+        socialActions = start(new SocialActionService(api, social, notifier, messages, sounds, mainThread, telemetry, logger));
+
+        // dialogs
+        LanguageDialogService languageDialog = new LanguageDialogService(coreApi, messages, dialogs, mainThread, logger);
+        SettingsDialogService settingsDialog = new SettingsDialogService(coreApi, messages, dialogs, mainThread, sounds, languageDialog, logger);
+        GatewayDialogService gatewayDialog = new GatewayDialogService(gateway, social, messages, dialogs, mainThread, sounds, telemetry, logger);
+        ProfileDialogService profileDialog = new ProfileDialogService(coreApi, social, socialActions, cosmetics, messages, dialogs, mainThread, telemetry, logger);
+        SocialDialogService socialDialog = new SocialDialogService(api, social, socialActions, profileDialog, messages, dialogs, mainThread, telemetry, logger);
+        CosmeticsDialogService cosmeticsDialog = new CosmeticsDialogService(cosmetics, messages, dialogs, mainThread, sounds, telemetry, logger);
+        WelcomeDialogService welcomeDialog = new WelcomeDialogService(coreApi, api, messages, dialogs, mainThread, gatewayDialog::open, logger);
+        profileDialog.setCosmeticsOpener(cosmeticsDialog::openMain);
+
+        // cookie clicker
+        cookie = start(new CookieModule(plugin, coreApi, configurationService, api, players, items, spawn, messages, sounds, telemetry, dialogs, mainThread, hud, logger));
+        managedWorlds.add(cookie.world().configuration().world().name());
+        environment.apply();
+        profileDialog.setCookieSummary(cookie::profileSummary);
+        Function<Player, String> rank = this::rankOf;
+        hud.setRankResolver(rank::apply);
+        profileDialog.setRankResolver(rank::apply);
+        socialActions.setAfterAction(p -> {
+            visibility.apply(p);
+            hud.refresh(p);
+        });
+
+        // post-init hooks: HUD, music, cosmetics, social snapshot, cookie preload, join effect
+        initialization.addPostInitHook(hud::show);
+        initialization.addPostInitHook(music::play);
+        initialization.addPostInitHook(player -> {
+            if (cosmetics.available()) {
+                cosmetics.load(player.getUniqueId()).whenComplete((c, t) -> mainThread.run(() -> {
+                    if (t == null && player.isOnline()) {
+                        cosmetics.render(player);
+                    }
+                }));
+            }
+        });
+        initialization.addPostInitHook(player -> {
+            if (social.available()) {
+                social.load(player.getUniqueId(), true).whenComplete((s, t) -> mainThread.run(() -> {
+                    if (t == null && player.isOnline()) {
+                        visibility.applyAll();
+                        hud.refresh(player);
+                    }
+                }));
+            }
+        });
+        initialization.addPostInitHook(cookie::preload);
+
+        // listeners
+        LobbyConnectionListener connection = new LobbyConnectionListener(coreApi, configurationService, players, spawn, initialization, languageDialog, welcomeDialog, telemetry, logger);
+        connection.addQuitHook(cookie::onQuit);
+        connection.addQuitHook(music::stop);
+        connection.addQuitHook(hud::hide);
+        connection.addQuitHook(cosmetics::clear);
+        connection.addQuitHook(p -> social.invalidate(p.getUniqueId()));
+        connection.addQuitHook(p -> gateway.forget(p.getUniqueId()));
+        connection.addQuitHook(p -> welcomeDialog.forget(p.getUniqueId()));
+        register(connection);
+        register(new WorldProtectionListener(environment, players));
+        register(new VoidRescueListener(configurationService, environment, spawn, players, telemetry, cookie::rescue));
+        register(new MovementListener(configurationService, environment, spawn, players, coreApi, sounds, telemetry));
+        register(new LobbyItemListener(items, players, environment, configurationService, sounds, telemetry, (player, type) -> handleItem(player, type,
+                gatewayDialog, profileDialog, socialDialog, cosmeticsDialog, settingsDialog)));
+        register(new LobbySettingChangeListener(players, music, visibility, items, hud, cosmetics));
+
+        // commands
+        LobbyCommands commands = new LobbyCommands(messages, players, spawn, settingsDialog, gatewayDialog, profileDialog, socialDialog, cosmeticsDialog, api,
+                mainThread, cookie::command, cookie::leaveWorld);
+        for (String name : List.of("lobby", "spawn", "profile", "settings", "gateway", "cosmetics", "social", "cookie")) {
+            var command = plugin.getCommand(name);
+            if (command != null) {
+                command.setExecutor(commands);
+                command.setTabCompleter(commands);
+            }
+        }
+        TasticLobbyCommand admin = new TasticLobbyCommand(plugin, coreApi, configurationService, api, players, initialization, spawn, items, visibility, cosmetics,
+                hud, music, telemetry, messages, mainThread, cookie::status, cookie::playerInfo, this::applyReload);
+        plugin.getCommand("tasticlobby").setExecutor(admin);
+        plugin.getCommand("tasticlobby").setTabCompleter(admin);
+        plugin.getCommand("cookieadmin").setExecutor(cookie.adminCommand());
+        plugin.getCommand("cookieadmin").setTabCompleter(cookie.adminCommand());
+
+        // placeholders
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            try {
+                placeholders = new LobbyPlaceholders(plugin, social, visibility, cookie::placeholder);
+                placeholders.register();
+                logger.info("Registered PlaceholderAPI expansion 'tastic'.");
+            } catch (Throwable t) {
+                logger.warning("PlaceholderAPI expansion could not be registered: " + LobbyThrowables.rootMessage(t));
+                placeholders = null;
+            }
+        }
+
+        // position sampling (heatmap foundation)
+        int sample = Math.max(2, configurationService.configuration().telemetry().positionSampleSeconds());
+        positionSampler = Bukkit.getScheduler().runTaskTimer(plugin, this::samplePositions, 20L * sample, 20L * sample);
+
+        // players already online (reload / late enable)
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            coreApi.playerManager().find(player.getUniqueId()).filter(p -> p.ready()).ifPresent(p -> initialization.initialize(player, p));
+        }
+        logger.info("TasticLobby bootstrap finished in " + (System.nanoTime() - startNanos) / 1_000_000 + " ms (" + started.size() + " services, " + listeners.size() + " listeners).");
+    }
+
+    public void stop() throws Exception {
+        if (positionSampler != null) {
+            positionSampler.cancel();
+        }
+        if (placeholders != null) {
+            try {
+                placeholders.unregister();
+            } catch (Throwable ignored) {
+                // PlaceholderAPI may already be disabled
+            }
+        }
+        for (Listener listener : listeners) {
+            HandlerList.unregisterAll(listener);
+        }
+        listeners.clear();
+        Exception failure = null;
+        while (!started.isEmpty()) {
+            Service service = started.pop();
+            try {
+                service.stop();
+            } catch (Exception e) {
+                logger.warning("Service " + service.id() + " failed to stop: " + LobbyThrowables.rootMessage(e));
+                if (failure == null) failure = e;
+                else failure.addSuppressed(e);
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    private void handleItem(Player player, LobbyItemType type, GatewayDialogService gatewayDialog, ProfileDialogService profileDialog,
+                            SocialDialogService socialDialog, CosmeticsDialogService cosmeticsDialog, SettingsDialogService settingsDialog) {
+        switch (type) {
+            case GATEWAY -> gatewayDialog.open(player);
+            case PROFILE -> profileDialog.openOwn(player);
+            case SOCIAL -> socialDialog.openHub(player);
+            case COSMETICS -> cosmeticsDialog.openMain(player);
+            case SETTINGS -> settingsDialog.openMain(player);
+            case VISIBILITY -> visibility.cycle(player).whenComplete((mode, t) -> {
+                if (t == null) {
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (player.isOnline()) {
+                            messages.send(player, "lobby.visibility.changed", java.util.Map.of("mode",
+                                    messages.get(player, "lobby.visibility." + mode.name().toLowerCase(java.util.Locale.ROOT))));
+                        }
+                    });
+                }
+            });
+            default -> cookie.handleItem(player, type);
+        }
+    }
+
+    private String rankOf(Player player) {
+        // LuckPerms primary group via permission metadata is not exposed to Bukkit; use the highest known group permission
+        for (String group : List.of("owner", "admin", "developer", "moderator", "builder", "helper", "team", "vip", "premium")) {
+            if (player.hasPermission("group." + group)) {
+                return group.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + group.substring(1);
+            }
+        }
+        return "Player";
+    }
+
+    private void applyReload() {
+        try {
+            messages.stop();
+            messages.start();
+            environment.apply();
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                LobbyPlayer lobbyPlayer = players.getOrCreate(player);
+                items.refresh(player, lobbyPlayer);
+                hud.refresh(player);
+            }
+        } catch (Exception e) {
+            logger.warning("Reload post-processing failed: " + LobbyThrowables.rootMessage(e));
+        }
+    }
+
+    private void samplePositions() {
+        if (!api.enabled()) {
+            return;
+        }
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            LobbyPlayer lobbyPlayer = players.find(player.getUniqueId()).orElse(null);
+            if (lobbyPlayer == null || !environment.isManaged(player.getWorld())) {
+                continue;
+            }
+            var loc = player.getLocation();
+            telemetry.event("lobby.position_sample", player.getUniqueId(), java.util.Map.of(
+                    "world", loc.getWorld().getName(), "x", loc.getBlockX(), "y", loc.getBlockY(), "z", loc.getBlockZ(),
+                    "zone", String.valueOf(lobbyPlayer.currentZoneId()), "poi", String.valueOf(lobbyPlayer.currentPoiId())));
+        }
+    }
+
+    private <T extends Service> T start(T service) throws Exception {
+        service.start();
+        started.push(service);
+        return service;
+    }
+
+    private void register(Listener listener) {
+        Bukkit.getPluginManager().registerEvents(listener, plugin);
+        listeners.add(listener);
+    }
+
+    public TasticCoreApi coreApi() {
+        return coreApi;
+    }
+
+    public CookieModule cookie() {
+        return cookie;
+    }
+
+    @FunctionalInterface
+    private interface Function<A, B> {
+        B apply(A a);
+    }
+}

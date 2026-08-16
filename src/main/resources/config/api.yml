@@ -1,0 +1,11 @@
+# TasticGames API connection for TasticLobby (env overrides: TASTIC_API_BASE_URL, TASTIC_API_SERVICE, TASTIC_API_KEY, TASTIC_LOBBY_SERVER_ID)
+enabled: true
+base-url: "https://api.tasticgames.de/"
+authentication:
+  service-name: "tastic-core-lobby"
+  api-key: "CHANGE_ME"
+timeouts:
+  connect-seconds: 5
+  request-seconds: 10
+# id of this backend as registered in TasticProxy (used as telemetry source / transfer requester)
+server-id: "lobby"

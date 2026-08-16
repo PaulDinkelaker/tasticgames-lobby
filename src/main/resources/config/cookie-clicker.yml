@@ -1,0 +1,113 @@
+# Cookie Clicker – world layout, runtime and balancing. Coordinates are data: builders replace the
+# development layout (flat world, zones 120 blocks apart along X) with the final map without code changes.
+world:
+  name: "cookie"
+  # false: a flat development world is created automatically when missing
+  use-lobby-world: false
+  create-if-missing: true
+  entry: { x: 0.5, y: -60.0, z: 0.5, yaw: 0.0, pitch: 0.0 }
+  main-cookie: { x: 0.5, y: -59.0, z: 8.5 }
+
+zones:
+  bakery_square:
+    region: { min: { x: -60, y: -64, z: -60 }, max: { x: 59, y: 320, z: 60 } }
+    entry: { x: 0.5, y: -60.0, z: 0.5 }
+  sugar_fields:
+    region: { min: { x: 60, y: -64, z: -60 }, max: { x: 179, y: 320, z: 60 } }
+    entry: { x: 120.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 55.5, y: -60.0, z: 0.5 }
+  cocoa_caverns:
+    region: { min: { x: 180, y: -64, z: -60 }, max: { x: 299, y: 320, z: 60 } }
+    entry: { x: 240.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 175.5, y: -60.0, z: 0.5 }
+  factory_district:
+    region: { min: { x: 300, y: -64, z: -60 }, max: { x: 419, y: 320, z: 60 } }
+    entry: { x: 360.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 295.5, y: -60.0, z: 0.5 }
+  arcane_pantry:
+    region: { min: { x: 420, y: -64, z: -60 }, max: { x: 539, y: 320, z: 60 } }
+    entry: { x: 480.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 415.5, y: -60.0, z: 0.5 }
+  royal_frosting_keep:
+    region: { min: { x: 540, y: -64, z: -60 }, max: { x: 659, y: 320, z: 60 } }
+    entry: { x: 600.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 535.5, y: -60.0, z: 0.5 }
+  rift_bakery:
+    region: { min: { x: 660, y: -64, z: -60 }, max: { x: 779, y: 320, z: 60 } }
+    entry: { x: 720.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 655.5, y: -60.0, z: 0.5 }
+  chrono_kitchen:
+    region: { min: { x: 780, y: -64, z: -60 }, max: { x: 899, y: 320, z: 60 } }
+    entry: { x: 840.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 775.5, y: -60.0, z: 0.5 }
+  stellar_confectionery:
+    region: { min: { x: 900, y: -64, z: -60 }, max: { x: 1019, y: 320, z: 60 } }
+    entry: { x: 960.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 895.5, y: -60.0, z: 0.5 }
+  reality_crust:
+    region: { min: { x: 1020, y: -64, z: -60 }, max: { x: 1139, y: 320, z: 60 } }
+    entry: { x: 1080.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 1015.5, y: -60.0, z: 0.5 }
+  ascendant_sanctum:
+    region: { min: { x: 1140, y: -64, z: -60 }, max: { x: 1259, y: 320, z: 60 } }
+    entry: { x: 1200.5, y: -60.0, z: 0.5 }
+    gate-return: { x: 1135.5, y: -60.0, z: 0.5 }
+
+# POI ids are prefixed with "cookie." automatically (analytics ids: cookie.main_cookie, cookie.zone_sugar_fields, ...)
+pois:
+  main_cookie: { x: 0.5, y: -60.0, z: 8.5, radius: 5.0, type: MAIN_COOKIE }
+  prestige_altar: { x: -12.5, y: -60.0, z: 8.5, radius: 4.0, type: PRESTIGE }
+  leaderboard: { x: 12.5, y: -60.0, z: 8.5, radius: 4.0, type: LEADERBOARD }
+  zone_sugar_fields: { x: 120.5, y: -60.0, z: 0.5, radius: 6.0, type: ZONE_ENTRY }
+  zone_cocoa_caverns: { x: 240.5, y: -60.0, z: 0.5, radius: 6.0, type: ZONE_ENTRY }
+
+npcs:
+  mama_bakewell:
+    role: QUEST
+    quest: starter
+    location: { x: -6.5, y: -60.0, z: 4.5, yaw: -45.0 }
+    model: "mama_bakewell"
+  gustave:
+    role: QUEST
+    quest: explore
+    location: { x: 6.5, y: -60.0, z: 4.5, yaw: 45.0 }
+    model: "gustave_the_barrel"
+  babette:
+    role: QUEST
+    quest: timed
+    location: { x: 120.5, y: -60.0, z: 6.5 }
+    model: "babette_sharpblade"
+  king_frosting:
+    role: QUEST
+    quest: prestige
+    location: { x: 600.5, y: -60.0, z: 6.5 }
+    model: "king_frosting"
+
+golden-cookie:
+  enabled: true
+  max-per-player: 1
+  # empty = anywhere in the cookie world; otherwise only inside these regions
+  areas: {}
+
+npcs-enabled: true
+
+runtime:
+  save-interval-seconds: 10
+  max-dirty-age-seconds: 30
+  leaderboard-cache-seconds: 60
+  max-save-failures-before-pause: 30
+
+# balancing overrides (defaults live in the domain engine, see docs/cookie-clicker.md)
+balancing:
+  cost-growth: 1.15
+  max-clicks-per-second: 15
+  combo-window-millis: 800
+  combo-decay-millis: 3000
+  offline:
+    enabled: true
+    max-seconds: 28800
+    efficiency: 0.5
+  golden:
+    base-interval-seconds: 300
+    lifetime-seconds: 15
+    buff-seconds: 30

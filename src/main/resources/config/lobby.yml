@@ -1,0 +1,64 @@
+# TasticLobby – core lobby configuration
+world:
+  name: "world"
+  spawn:
+    world: "world"
+    x: 0.5
+    y: 100.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+  void-rescue-y: 0.0
+  fixed-time:
+    enabled: true
+    ticks: 6000
+  clear-weather: true
+  disable-mob-spawning: true
+  disable-player-collision: true
+  suppress-join-quit-messages: true
+  allow-staff-flight: true
+
+movement:
+  launchpads:
+    enabled: true
+    material: SLIME_BLOCK
+    vertical-velocity: 1.35
+    forward-velocity: 0.9
+    cooldown-millis: 600
+    sound: "minecraft:entity.firework_rocket.launch"
+    # optional directional pads: region -> fixed velocity
+    directional: {}
+    #  bridge-jump:
+    #    world: "world"
+    #    min: { x: 10, y: 99, z: 10 }
+    #    max: { x: 12, y: 100, z: 12 }
+    #    velocity: { x: 0.0, y: 1.4, z: 2.5 }
+  teleport-pads:
+    enabled: true
+    material: GOLD_BLOCK
+    # false = only gold blocks inside 'regions' teleport (decorative gold stays usable)
+    everywhere: false
+    regions: {}
+    #  spawn-ring:
+    #    world: "world"
+    #    min: { x: -30, y: 90, z: -30 }
+    #    max: { x: 30, y: 110, z: 30 }
+    cooldown-millis: 1500
+    sound: "minecraft:entity.enderman.teleport"
+  double-jump:
+    enabled: false
+    velocity: 0.9
+    cooldown-millis: 1500
+
+hud:
+  enabled: true
+  title: "<gold><bold>TasticGames</bold></gold>"
+  refresh-seconds: 5
+  show-cookie-line: true
+
+telemetry:
+  enabled: true
+  queue-capacity: 5000
+  batch-size: 200
+  flush-interval-seconds: 5
+  position-sample-seconds: 4

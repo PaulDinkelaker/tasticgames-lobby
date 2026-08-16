@@ -1,0 +1,19 @@
+# Resource-pack music. Replace the vanilla discs with tasticgames:music.* keys once the pack ships them.
+enabled: true
+shuffle: true
+gap-seconds: 8
+playlists:
+  lobby:
+    - id: lobby_1
+      sound: "minecraft:music_disc.otherside"
+      duration-seconds: 195
+      weight: 2
+    - id: lobby_2
+      sound: "minecraft:music_disc.relic"
+      duration-seconds: 218
+      weight: 1
+  cookie:
+    - id: cookie_1
+      sound: "minecraft:music_disc.wait"
+      duration-seconds: 238
+      weight: 1

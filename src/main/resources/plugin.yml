@@ -2,9 +2,76 @@ name: TasticLobby
 version: '${version}'
 main: de.tasticgames.lobby.TasticLobbyPlugin
 description: Lobby systems and gameplay for the TasticGames network
-author: Ctastic
+author: TasticGames
 website: https://tasticgames.de
 api-version: '1.21.11'
 
 depend:
   - TasticCore
+softdepend:
+  - PlaceholderAPI
+  - Multiverse-Core
+  - LuckPerms
+
+commands:
+  lobby:
+    description: Return to the lobby spawn
+    aliases: [hub, l]
+  spawn:
+    description: Teleport to the lobby spawn
+  profile:
+    description: Open a player profile
+    usage: /profile [player]
+  settings:
+    description: Open your settings
+  gateway:
+    description: Open the TasticGateway
+    aliases: [play, games]
+  cosmetics:
+    description: Open your cosmetics
+  social:
+    description: Open the social hub
+    aliases: [friends, party, clan]
+  cookie:
+    description: Cookie Clicker
+    usage: /cookie [stats|leaderboard|world|shop|prestige]
+  tasticlobby:
+    description: TasticLobby administration
+    usage: /tasticlobby status|reload|player <name>|setspawn|build|cosmetic ...
+    permission: tasticlobby.status
+  cookieadmin:
+    description: Cookie Clicker administration
+    usage: /cookieadmin status|addcookies|setcookies|setprestige|reset|unlock|balance|poi ...
+    permission: tasticlobby.cookie.admin
+
+permissions:
+  tasticlobby.admin:
+    description: All TasticLobby administration
+    default: op
+    children:
+      tasticlobby.status: true
+      tasticlobby.reload: true
+      tasticlobby.build: true
+      tasticlobby.setspawn: true
+      tasticlobby.cookie.admin: true
+      tasticlobby.cosmetic.admin: true
+      tasticlobby.fly: true
+      tasticlobby.visibility.always: true
+  tasticlobby.status:
+    default: op
+  tasticlobby.reload:
+    default: op
+  tasticlobby.build:
+    default: op
+  tasticlobby.setspawn:
+    default: op
+  tasticlobby.cookie.admin:
+    default: op
+  tasticlobby.cosmetic.admin:
+    default: op
+  tasticlobby.fly:
+    description: Flight in the lobby
+    default: op
+  tasticlobby.visibility.always:
+    description: Always visible for other players regardless of their visibility setting
+    default: false

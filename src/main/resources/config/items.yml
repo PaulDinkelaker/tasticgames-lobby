@@ -1,0 +1,69 @@
+# Lobby hotbar. Slots 0-8. asset-id = optional item model key from the resource pack (e.g. tasticgames:gateway_compass)
+interaction-cooldown-millis: 400
+items:
+  gateway:
+    slot: 0
+    material: COMPASS
+    asset-id: ""
+    enabled: true
+  profile:
+    slot: 1
+    material: PLAYER_HEAD
+    asset-id: ""
+    enabled: true
+  social:
+    slot: 2
+    material: TOTEM_OF_UNDYING
+    asset-id: ""
+    enabled: true
+  cookie:
+    slot: 4
+    material: COOKIE
+    asset-id: ""
+    enabled: true
+  cosmetics:
+    slot: 6
+    material: ENDER_CHEST
+    asset-id: ""
+    enabled: true
+  settings:
+    slot: 7
+    material: COMPARATOR
+    asset-id: ""
+    enabled: true
+  visibility:
+    slot: 8
+    material: LIME_DYE
+    asset-id: ""
+    enabled: true
+  # cookie world hotbar
+  cookie_stats:
+    slot: 0
+    material: COOKIE
+    asset-id: ""
+    enabled: true
+  cookie_shop:
+    slot: 1
+    material: EMERALD
+    asset-id: ""
+    enabled: true
+  cookie_upgrades:
+    slot: 2
+    material: ENCHANTED_BOOK
+    asset-id: ""
+    enabled: true
+  cookie_prestige:
+    slot: 4
+    material: NETHER_STAR
+    asset-id: ""
+    enabled: true
+  cookie_travel:
+    slot: 7
+    material: ENDER_PEARL
+    asset-id: ""
+    enabled: true
+  cookie_exit:
+    slot: 8
+    material: RED_BED
+    asset-id: ""
+    enabled: true
