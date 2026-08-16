@@ -1,0 +1,10 @@
+name: TasticLobby
+version: '${version}'
+main: de.tasticgames.lobby.TasticLobbyPlugin
+description: Lobby systems and gameplay for the TasticGames network
+author: Ctastic
+website: https://tasticgames.de
+api-version: '1.21.11'
+
+depend:
+  - TasticCore
