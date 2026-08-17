@@ -23,7 +23,7 @@ Zeilen: **Werte** (Titel + 4 Icon/Wert-Zellen), **Hinweis** (Steuerung/Befehle),
   (Standard: `cuboide:iconic_*`, `toxlyusefuliconsvol4:*`). Unbekannte IDs → Unicode-Icon (`unicode-icons`).
 * **Boxen**: dunkle abgerundete Hintergründe hinter jeder Zelle. Dafür exportiert TasticLobby beim Start ein
   ItemsAdder-Content-Paket nach `plugins/ItemsAdder/contents/tasticgames/`:
-  `configs/tasticgames_hud.yml` (Font-Images `tasticgames:hud_box_left|mid|right`, 14 px hoch),
+  `configs/tasticgames_hud.yml` (Font-Images `tasticgames:hud_box_left|mid|right`, 14 px hoch), Texturen in `textures/hud/` (IA 3.x) und
   `resourcepack/assets/tasticgames/textures/hud/box_*.png` und **transparente Bossbar-Texturen**
   (`resourcepack/assets/minecraft/textures/gui/sprites/boss_bar/pink_*.png`, Farbe = `itemsadder.bossbar-color`).
   Danach einmal **`/iazip`** ausführen und neu verbinden. Bestehende Dateien werden nie überschrieben.

@@ -96,6 +96,7 @@ public final class CookieClickService implements Service, Listener {
     private org.bukkit.scheduler.BukkitTask clickReportTask;
     private org.bukkit.scheduler.BukkitTask healTask;
     private long lastLoadWarningAt;
+    private volatile boolean modelWarningShown;
 
     public CookieClickService(Plugin plugin, TasticCoreApi coreApi, Supplier<CookieConfiguration> configuration, CookieRuntimeService runtime,
                               MobProvider mobs, ModelProvider models, LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry,
@@ -181,6 +182,7 @@ public final class CookieClickService implements Service, Listener {
             return;
         }
         removeMainCookie();
+        modelWarningShown = false;
         Location location = main.location().toLocation(w);
         Chunk chunk = w.getChunkAt(location);
         chunk.load();
@@ -339,13 +341,10 @@ public final class CookieClickService implements Service, Listener {
             living.setInvisible(!modeled && !hidden);
         }
         visual.setCustomNameVisible(false);
-        if (!hidden && models.available() && !modeled && "mythicmobs".equals(backend)) {
-            long now = System.currentTimeMillis();
-            if (now - lastLoadWarningAt > 60_000) {
-                lastLoadWarningAt = now;
-                logger.warning("MythicMobs mob '" + configuration.get().mainCookie().mythicMobsType()
-                        + "' carries no ModelEngine model – check its Skills: model{...} entry; the base entity is kept invisible.");
-            }
+        if (!hidden && models.available() && !modeled && "mythicmobs".equals(backend) && !modelWarningShown) {
+            modelWarningShown = true;
+            logger.info("MythicMobs mob '" + configuration.get().mainCookie().mythicMobsType()
+                    + "' is not registered as ModelEngine entity (yet) – base entity kept invisible; ignore this if the model renders.");
         }
     }
 

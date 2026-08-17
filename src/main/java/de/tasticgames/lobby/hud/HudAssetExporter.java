@@ -35,10 +35,13 @@ public final class HudAssetExporter {
     public List<File> export(String bossbarColor) throws IOException {
         File contents = new File(itemsAdderFolder, "contents" + File.separator + "tasticgames");
         File configs = new File(contents, "configs");
+        // ItemsAdder 3.x resolves font_image paths below contents/<pack>/textures/, 4.x below resourcepack/assets/<ns>/textures/ – write both
+        File texturesLegacy = new File(contents, "textures" + File.separator + "hud");
         File textures = new File(contents, "resourcepack" + File.separator + "assets" + File.separator + "tasticgames" + File.separator + "textures" + File.separator + "hud");
         File bossBar = new File(contents, "resourcepack" + File.separator + "assets" + File.separator + "minecraft" + File.separator + "textures"
                 + File.separator + "gui" + File.separator + "sprites" + File.separator + "boss_bar");
         Files.createDirectories(configs.toPath());
+        Files.createDirectories(texturesLegacy.toPath());
         Files.createDirectories(textures.toPath());
         Files.createDirectories(bossBar.toPath());
         List<File> created = new ArrayList<>();
@@ -69,9 +72,11 @@ public final class HudAssetExporter {
             Files.writeString(config.toPath(), yaml, StandardCharsets.UTF_8);
             created.add(config);
         }
-        created.addAll(writeBox(new File(textures, "box_left.png"), CAP_WIDTH, true, false));
-        created.addAll(writeBox(new File(textures, "box_mid.png"), MID_WIDTH, false, false));
-        created.addAll(writeBox(new File(textures, "box_right.png"), CAP_WIDTH, false, true));
+        for (File folder : List.of(texturesLegacy, textures)) {
+            created.addAll(writeBox(new File(folder, "box_left.png"), CAP_WIDTH, true, false));
+            created.addAll(writeBox(new File(folder, "box_mid.png"), MID_WIDTH, false, false));
+            created.addAll(writeBox(new File(folder, "box_right.png"), CAP_WIDTH, false, true));
+        }
 
         String color = bossbarColor.toLowerCase(Locale.ROOT);
         for (String name : List.of(color + "_background.png", color + "_progress.png")) {
