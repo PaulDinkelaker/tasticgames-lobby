@@ -61,7 +61,9 @@ import java.util.logging.Logger;
  * The physical MAIN COOKIE in the lobby: visual backend (MythicMobs mob → ModelEngine model →
  * native item display), a click hitbox, floating label, self-healing respawn (chunk ticket +
  * periodic check + world load), click handling with server-side rewards, combo feedback and the
- * proximity actionbar. Sneak-click (or the cookie item / {@code /cookie}) opens the cookie menu.
+ * proximity actionbar. Left click bakes, right click (or the cookie item / {@code /cookie}) opens the
+ * cookie menu. Generators only produce while the player stands inside the cookie zone
+ * ({@code main-cookie.zone-radius}) or in the open world.
  */
 public final class CookieClickService implements Service, Listener {
 
@@ -244,6 +246,12 @@ public final class CookieClickService implements Service, Listener {
         visual.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-visual");
         visualId = visual.getUniqueId();
         backend = usedBackend;
+        if (!"native".equals(usedBackend)) {
+            // MythicMobs applies its model a tick after spawning: hide the base entity (e.g. the pig) now and again shortly after
+            hideBase(visual);
+            mainThread.later(2L, () -> hideBase(visualId == null ? null : Bukkit.getEntity(visualId)));
+            mainThread.later(20L, () -> hideBase(visualId == null ? null : Bukkit.getEntity(visualId)));
+        }
 
         Interaction interaction = w.spawn(location.clone(), Interaction.class, e -> {
             e.setInteractionWidth((float) main.hitboxWidth());
@@ -300,6 +308,30 @@ public final class CookieClickService implements Service, Listener {
         backend = "none";
     }
 
+    /**
+     * The visual base entity (MythicMobs mob / ModelEngine base) must never be visible: the model
+     * plugin hides it when it knows the entity, and the entity itself is made invisible as a
+     * belt-and-braces measure (the ModelEngine model is rendered separately).
+     */
+    private void hideBase(Entity visual) {
+        if (visual == null || !visual.isValid() || "native".equals(backend)) {
+            return;
+        }
+        boolean hidden = models.available() && models.hideBase(visual);
+        if (visual instanceof LivingEntity living) {
+            living.setInvisible(true);
+        }
+        visual.setCustomNameVisible(false);
+        if (!hidden && models.available() && !models.isModeled(visual) && "mythicmobs".equals(backend)) {
+            long now = System.currentTimeMillis();
+            if (now - lastLoadWarningAt > 60_000) {
+                lastLoadWarningAt = now;
+                logger.warning("MythicMobs mob '" + configuration.get().mainCookie().mythicMobsType()
+                        + "' carries no ModelEngine model – check its Skills: model{...} entry; the base entity is kept invisible.");
+            }
+        }
+    }
+
     /** Self-heal: respawn when an entity vanished (chunk unload, /kill @e, world reload). */
     private void heal() {
         World w = Bukkit.getWorld(configuration.get().mainCookie().world());
@@ -307,11 +339,18 @@ public final class CookieClickService implements Service, Listener {
             return;
         }
         boolean interactionAlive = interactionId != null && Bukkit.getEntity(interactionId) != null;
-        boolean visualAlive = visualId != null && Bukkit.getEntity(visualId) != null;
-        if (!interactionAlive || !visualAlive) {
+        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
+        if (!interactionAlive || visual == null) {
             logger.info("Main cookie entities missing – respawning.");
             spawnMainCookie();
+            return;
         }
+        hideBase(visual);
+    }
+
+    /** Whether the player stands inside the cookie zone around the main cookie. */
+    public boolean inZone(Player player) {
+        return player != null && configuration.get().mainCookie().inZone(player.getLocation());
     }
 
     @EventHandler
@@ -350,11 +389,11 @@ public final class CookieClickService implements Service, Listener {
     }
 
     private void handleClick(Player player, boolean leftClick) {
-        if (player.isSneaking()) {
+        if (leftClick) {
+            click(player);
+        } else {
             menuOpener.accept(player);
-            return;
         }
-        click(player);
     }
 
     /** Server-side click: validate, reward, feedback. Works wherever the main cookie stands. */
@@ -446,9 +485,7 @@ public final class CookieClickService implements Service, Listener {
         if (now - session.lastActionbarAt() < main.actionbarIntervalMillis()) {
             return;
         }
-        Location cookie = mainCookieLocation();
-        if (cookie == null || !player.getWorld().equals(cookie.getWorld())
-                || player.getLocation().distanceSquared(cookie) > main.actionbarRadius() * main.actionbarRadius()) {
+        if (!main.inZone(player.getLocation())) {
             return;
         }
         boolean hudOn = coreApi.playerManager().find(player.getUniqueId()).map(p -> p.settings().get(LobbySettings.COOKIE_HUD)).orElse(true);

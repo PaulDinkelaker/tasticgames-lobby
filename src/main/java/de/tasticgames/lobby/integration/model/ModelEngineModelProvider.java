@@ -142,6 +142,22 @@ public final class ModelEngineModelProvider implements ModelProvider, Listener {
     }
 
     @Override
+    public boolean hideBase(Entity entity) {
+        if (!available || entity == null) return false;
+        try {
+            ModeledEntity modeled = ModelEngineAPI.getModeledEntity(entity.getUniqueId());
+            if (modeled == null) {
+                return false;
+            }
+            modeled.setBaseEntityVisible(false);
+            return true;
+        } catch (Throwable t) {
+            warnOnce("hide base", t);
+            return false;
+        }
+    }
+
+    @Override
     public void onInteract(InteractHandler handler) {
         handlers.add(Objects.requireNonNull(handler));
     }

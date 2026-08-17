@@ -60,11 +60,11 @@ public record CookieConfiguration(
      * @param location         position of the main cookie (world = lobby world by default)
      * @param mythicMobsType   MythicMobs mob type used as visual (empty = skip)
      * @param model            ModelEngine model id used when MythicMobs is not available (empty = skip)
-     * @param actionbarRadius  players within this radius get the cookie actionbar
+     * @param zoneRadius       cookie zone radius: generators produce and the actionbar shows only inside it
      * @param goldenAreas      golden cookies only spawn inside these regions (empty = anywhere in the cookie's world)
      */
     public record MainCookie(Point location, String mythicMobsType, String model, double hitboxWidth, double hitboxHeight, boolean label,
-                             double actionbarRadius, long actionbarIntervalMillis, boolean goldenEnabled, int goldenMaxPerPlayer,
+                             double zoneRadius, long actionbarIntervalMillis, boolean goldenEnabled, int goldenMaxPerPlayer,
                              List<LobbyConfiguration.Region> goldenAreas) {
         public MainCookie {
             Objects.requireNonNull(location);
@@ -74,8 +74,8 @@ public record CookieConfiguration(
             if (hitboxWidth <= 0 || hitboxHeight <= 0) {
                 throw new IllegalArgumentException("main-cookie.hitbox must be positive");
             }
-            if (actionbarRadius < 0) {
-                throw new IllegalArgumentException("main-cookie.actionbar.radius must not be negative");
+            if (zoneRadius <= 0) {
+                throw new IllegalArgumentException("main-cookie.zone-radius must be positive");
             }
             actionbarIntervalMillis = Math.max(250, actionbarIntervalMillis);
             goldenMaxPerPlayer = Math.max(1, goldenMaxPerPlayer);
@@ -84,15 +84,34 @@ public record CookieConfiguration(
         public String world() {
             return location.world();
         }
+
+        /** Whether the location lies inside the cookie zone (same world, within zoneRadius). */
+        public boolean inZone(org.bukkit.Location other) {
+            if (other == null || other.getWorld() == null || !other.getWorld().getName().equals(location.world())) {
+                return false;
+            }
+            double dx = other.getX() - location.x();
+            double dy = other.getY() - location.y();
+            double dz = other.getZ() - location.z();
+            return dx * dx + dy * dy + dz * dz <= zoneRadius * zoneRadius;
+        }
     }
 
-    public record Npc(String id, String role, String quest, Point location, EntityType entityType, String skin, String model, OptionalInt citizensId) {
+    /**
+     * @param skin          Minecraft player name whose skin is used (PLAYER type, fetched by Citizens)
+     * @param skinValue     Base64 texture value (PLAYER type, offline/persistent skin) – wins over {@code skin}
+     * @param skinSignature signature belonging to {@code skinValue}
+     */
+    public record Npc(String id, String role, String quest, Point location, EntityType entityType, String skin, String skinValue, String skinSignature,
+                      String model, OptionalInt citizensId) {
         public Npc {
             Objects.requireNonNull(id);
             Objects.requireNonNull(location);
             role = role == null ? "QUEST" : role.toUpperCase(Locale.ROOT);
             quest = quest == null ? "" : quest;
             skin = skin == null ? "" : skin.trim();
+            skinValue = skinValue == null ? "" : skinValue.trim();
+            skinSignature = skinSignature == null ? "" : skinSignature.trim();
             model = model == null ? "" : model.trim();
             entityType = entityType == null ? EntityType.VILLAGER : entityType;
             citizensId = citizensId == null ? OptionalInt.empty() : citizensId;
@@ -173,7 +192,7 @@ public record CookieConfiguration(
         MainCookie mainCookie = new MainCookie(mainLocation,
                 mainSection.getString("mythicmobs-type", ""), mainSection.getString("model", ""),
                 mainSection.getDouble("hitbox.width", 2.2), mainSection.getDouble("hitbox.height", 2.4), mainSection.getBoolean("label", true),
-                mainSection.getDouble("actionbar.radius", 12.0), mainSection.getLong("actionbar.interval-millis", 1000),
+                mainSection.getDouble("zone-radius", 8.0), mainSection.getLong("actionbar.interval-millis", 1000),
                 goldenMain == null || goldenMain.getBoolean("enabled", true), goldenMain == null ? 1 : goldenMain.getInt("max-per-player", 1),
                 regions(goldenMain == null ? null : goldenMain.getConfigurationSection("areas"), mainWorld));
 
@@ -192,7 +211,7 @@ public record CookieConfiguration(
                 EntityType type = entityType(n.getString("entity-type", "VILLAGER"), id);
                 OptionalInt citizensId = n.isInt("citizens-id") && n.getInt("citizens-id") >= 0 ? OptionalInt.of(n.getInt("citizens-id")) : OptionalInt.empty();
                 npcMap.put(key, new Npc(key, n.getString("role"), n.getString("quest"), point(req(n, "location"), mainWorld), type,
-                        n.getString("skin", ""), n.getString("model", ""), citizensId));
+                        n.getString("skin", ""), n.getString("skin-value", ""), n.getString("skin-signature", ""), n.getString("model", ""), citizensId));
             }
         }
         Npcs npcs = new Npcs(npcsEnabled, npcMap);

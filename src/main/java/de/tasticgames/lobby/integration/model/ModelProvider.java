@@ -35,5 +35,11 @@ public interface ModelProvider extends Integration {
     /** Whether the entity currently carries a model managed by the model plugin (ours or foreign). */
     boolean isModeled(Entity entity);
 
+    /**
+     * Hides the base entity of a modeled entity (also for models attached by other plugins such as
+     * MythicMobs); returns false when the entity carries no model or the plugin is unavailable.
+     */
+    boolean hideBase(Entity entity);
+
     void onInteract(InteractHandler handler);
 }

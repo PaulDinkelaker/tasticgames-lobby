@@ -107,7 +107,8 @@ public final class CookieNpcService implements Service, Listener {
         }
         Location location = npc.location().toLocation(world);
         Component name = messages.get(de.tasticgames.localization.SupportedLanguage.ENGLISH, "cookie.npc." + npc.id(), Map.of());
-        NpcProvider.NpcSpec spec = new NpcProvider.NpcSpec(npc.id(), name, location, npc.entityType(), npc.skin(), npc.model(), npc.citizensId());
+        NpcProvider.NpcSpec spec = new NpcProvider.NpcSpec(npc.id(), name, location, npc.entityType(), npc.skin(), npc.skinValue(), npc.skinSignature(),
+                npc.model(), npc.citizensId());
         npcs.spawn(spec).ifPresentOrElse(handle -> handles.put(npc.id(), handle),
                 () -> logger.warning("Cookie NPC '" + npc.id() + "' could not be spawned via " + npcs.pluginName() + "."));
     }

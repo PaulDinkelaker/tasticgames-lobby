@@ -34,6 +34,10 @@ Rohwerte ohne Farben – das Display-Plugin (UltimateUI/TAB) formatiert.
 | `party_size`, `party_leader` | Party-Größe / Leader-Name |
 | `clan`, `clan_tag` | Clan-Name / Kurzform |
 | `in_open_world` | true/false – Spieler ist in der Cookie-Open-World |
+| `kills`, `deaths` | Vanilla-Statistik dieses Servers |
+| `playtime`, `playtime_hours`, `playtime_minutes`, `session_playtime` | Spielzeit (Vanilla-Statistik) formatiert / Stunden / Minuten, aktuelle Session |
+| `cookies`, `cps`, `prestige` | Kurzformen von `cookie_balance`, `cookie_cps`, `cookie_prestige` |
+| `cookie_in_zone`, `cookie_producing` | true/false – in der Cookie-Zone / Generatoren aktiv |
 | `cookie_balance`, `cookie_balance_raw`, `cookie_cps`, `cookie_prestige`, `cookie_prestige_title`, `cookie_lifetime`, `cookie_crumbs`, `cookie_combo`, `cookie_buff`, `cookie_generators` | Cookie-Clicker-Werte (formatiert / roh) |
 
 Legacy-Aliase aus 1.0.0 (`lobby_party`, `lobby_clan`, `lobby_visibility`, `lobby_cookie_*`) funktionieren weiter.
@@ -51,8 +55,11 @@ lines:
   - "&7Party: &f%tastic_party_size%"
   - "&7Clan: &f%tastic_clan%"
   - ""
-  - "&6Cookies: &f%tastic_cookie_balance% &7(&f%tastic_cookie_cps% CPS&7)"
-  - "&dPrestige %tastic_cookie_prestige%"
+  - "&6Cookies: &f%tastic_cookies% &7(&f%tastic_cps% CPS&7)"
+  - "&dPrestige %tastic_prestige%"
+  - ""
+  - "&7Kills: &f%tastic_kills% &7Tode: &f%tastic_deaths%"
+  - "&7Spielzeit: &f%tastic_playtime%"
   - ""
   - "&etasticgames.de"
 conditions:
@@ -102,8 +109,12 @@ main-cookie:
 ```
 
 Reihenfolge: MythicMobs → ModelEngine → nativer Item-Display. Klicks werden über die Interaction-Hitbox,
-die Basis-Entity und `BaseEntityInteractEvent` erkannt (Links-/Rechtsklick = Cookie, **Sneak+Klick = Menü**).
+die Basis-Entity und `BaseEntityInteractEvent` erkannt (**Linksklick = backen, Rechtsklick = Menü**).
+Die Basis-Entity des MythicMobs-Mobs (z. B. das Schwein) wird per ModelEngine-API + Invisible ausgeblendet –
+sauberer ist `Type: ARMOR_STAND` + `Options: Invisible: true` im Mob und `model{...}` in den Skills.
 Der Chunk des Cookies wird per Plugin-Ticket geladen gehalten; verschwundene Entities werden alle 5 s neu gespawnt.
+**Cookie-Zone** (`main-cookie.zone-radius`, 8 Blöcke): Generatoren produzieren nur, während der Spieler in der Zone
+(oder in der Open-World) steht; außerhalb pausieren sie (Actionbar-Hinweis), Offline-Produktion ist standardmäßig aus.
 
 ## Citizens (NPCs)
 
@@ -114,8 +125,10 @@ npcs:
     mama_bakewell:
       quest: starter
       location: { x: -66.5, y: 35.0, z: 8.5, yaw: -45.0 }
-      entity-type: VILLAGER   # oder PLAYER + skin: "<Spielername>"
-      model: "mama_bakewell"  # optional ModelEngine
+      entity-type: PLAYER     # Spieler-NPC mit eigenem Skin (mitgeliefert: Bäckerin, Händler, Ritterin, König)
+      skin-value: "…"         # Base64-Textur (MineSkin) – alternativ skin: "<Spielername>"
+      skin-signature: "…"
+      model: "mama_bakewell"  # optional ModelEngine (überdeckt den Skin)
       # citizens-id: 12       # vorhandenen /npc create-NPC verknüpfen (wird nie gelöscht)
 ```
 

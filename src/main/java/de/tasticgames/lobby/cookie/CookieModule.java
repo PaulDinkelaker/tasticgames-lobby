@@ -128,6 +128,19 @@ public final class CookieModule implements Service {
         }
         world.onExit(player -> golden.remove(player.getUniqueId()));
         runtime.addTickListener(clicks::tickActionbar);
+        runtime.setProductionGate(session -> {
+            Player player = Bukkit.getPlayer(session.player());
+            return player != null && (clicks.inZone(player) || world.isOpenWorld(player.getWorld()));
+        });
+        runtime.setProductionStateListener((session, active) -> {
+            Player player = Bukkit.getPlayer(session.player());
+            if (player == null || session.profile().totalGenerators() == 0) return;
+            boolean notify = coreApi.playerManager().find(player.getUniqueId()).map(p -> p.settings().get(de.tasticgames.lobby.settings.LobbySettings.COOKIE_NOTIFICATIONS)).orElse(true);
+            if (notify) {
+                player.sendActionBar(messages.get(player, active ? "cookie.zone.entered" : "cookie.zone.left",
+                        Map.of("radius", (int) configuration.get().mainCookie().zoneRadius())));
+            }
+        });
         logger.info("Cookie Clicker module started (" + engine.catalog().generators().size() + " generators, " + engine.catalog().upgrades().size()
                 + " upgrades, prestige 0-" + engine.catalog().maxPrestigeLevel() + ", main cookie in '" + loaded.mainCookie().world() + "', open world '"
                 + loaded.openWorld().name() + "' at prestige " + loaded.openWorld().requiredPrestige() + "+).");
@@ -289,6 +302,8 @@ public final class CookieModule implements Service {
             case "buff" -> profile.activeBuffs().stream().findFirst().map(b -> b.type().name()).orElse("");
             case "generators" -> String.valueOf(profile.totalGenerators());
             case "in_open_world" -> String.valueOf(players.find(player.getUniqueId()).map(LobbyPlayer::inCookieWorld).orElse(false));
+            case "in_zone" -> String.valueOf(clicks.inZone(player));
+            case "producing" -> String.valueOf(session.productionActive());
             default -> "";
         };
     }

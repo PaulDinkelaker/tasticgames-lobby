@@ -48,6 +48,18 @@ public final class CookieRuntimeService implements Service {
     private final Map<UUID, CookieSession> sessions = new ConcurrentHashMap<>();
     private final Map<UUID, CompletableFuture<CookieSession>> loading = new ConcurrentHashMap<>();
     private final java.util.List<Consumer<CookieSession>> tickListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private volatile java.util.function.Predicate<CookieSession> productionGate = session -> true;
+    private volatile java.util.function.BiConsumer<CookieSession, Boolean> productionStateListener = (s, active) -> { };
+
+    /** Generators/passive production only run while the gate allows it (inside the cookie zone / open world). */
+    public void setProductionGate(java.util.function.Predicate<CookieSession> gate) {
+        this.productionGate = Objects.requireNonNull(gate);
+    }
+
+    /** Notified (main thread) when a session's production switches between active and paused. */
+    public void setProductionStateListener(java.util.function.BiConsumer<CookieSession, Boolean> listener) {
+        this.productionStateListener = Objects.requireNonNull(listener);
+    }
     private BukkitTask tickTask;
     private BukkitTask saveTask;
 
@@ -169,10 +181,17 @@ public final class CookieRuntimeService implements Service {
             }
             CookieProfile profile = session.profile();
             try {
-                engine.produce(profile, session.lastTickAt(), now);
+                boolean active = productionGate.test(session);
+                if (active != session.productionActive()) {
+                    session.productionActive(active);
+                    productionStateListener.accept(session, active);
+                }
+                if (active) {
+                    engine.produce(profile, session.lastTickAt(), now);
+                }
                 engine.expireBuffs(profile, now);
                 engine.decayCombo(profile, now);
-                session.lastTickAt(now);
+                session.lastTickAt(now); // outside the zone the elapsed time is dropped, never back-filled
                 if (profile.isDirty()) {
                     session.touchDirty();
                 }

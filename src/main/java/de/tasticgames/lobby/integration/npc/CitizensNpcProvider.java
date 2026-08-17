@@ -125,11 +125,16 @@ public final class CitizensNpcProvider implements NpcProvider, Listener {
                 } catch (Throwable ignored) {
                     // trait not available in this Citizens build
                 }
-                if (type == EntityType.PLAYER && !spec.skin().isBlank()) {
+                if (type == EntityType.PLAYER) {
                     try {
-                        npc.getOrAddTrait(SkinTrait.class).setSkinName(spec.skin());
-                    } catch (Throwable ignored) {
-                        // skin trait not available
+                        SkinTrait skinTrait = npc.getOrAddTrait(SkinTrait.class);
+                        if (spec.hasSkinData()) {
+                            skinTrait.setSkinPersistent(spec.id(), spec.skinSignature(), spec.skinValue());
+                        } else if (!spec.skin().isBlank()) {
+                            skinTrait.setSkinName(spec.skin());
+                        }
+                    } catch (Throwable t) {
+                        warnOnce("skin", t);
                     }
                 }
                 spec.location().getWorld().getChunkAt(spec.location()).load();

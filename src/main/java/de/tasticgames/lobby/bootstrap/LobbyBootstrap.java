@@ -296,11 +296,32 @@ public final class LobbyBootstrap {
         p.add("friends_online", player -> social.cached(player.getUniqueId()).map(s -> String.valueOf(s.friendUuids().stream().filter(s::online).count())).orElse(""));
         p.add("friends", player -> social.cached(player.getUniqueId()).map(s -> String.valueOf(s.friendUuids().size())).orElse(""));
         p.add("online", player -> String.valueOf(Bukkit.getOnlinePlayers().size()));
+        p.add("kills", player -> String.valueOf(player.getStatistic(org.bukkit.Statistic.PLAYER_KILLS)));
+        p.add("deaths", player -> String.valueOf(player.getStatistic(org.bukkit.Statistic.DEATHS)));
+        p.add("playtime", player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)));
+        p.add("playtime_hours", player -> String.valueOf(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 72_000L));
+        p.add("playtime_minutes", player -> String.valueOf(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 1_200L % 60));
+        p.add("session_playtime", player -> players.find(player.getUniqueId()).map(lp -> formatDuration(java.time.Duration.between(lp.joinedAt(), java.time.Instant.now()))).orElse(""));
+        p.add("cookies", player -> cookie.placeholder(player, "balance"));
+        p.add("cps", player -> cookie.placeholder(player, "cps"));
+        p.add("prestige", player -> cookie.placeholder(player, "prestige"));
+        p.add("cookie_in_zone", player -> cookie.placeholder(player, "in_zone"));
+        p.add("cookie_producing", player -> cookie.placeholder(player, "producing"));
         p.add("in_open_world", player -> cookie.placeholder(player, "in_open_world"));
         for (String key : List.of("balance", "balance_raw", "cookies", "cookies_raw", "cps", "prestige", "prestige_title", "lifetime", "crumbs", "combo", "buff", "generators")) {
             p.add("cookie_" + key, player -> cookie.placeholder(player, key));
         }
         return p;
+    }
+
+    private static String formatTicks(long ticks) {
+        return formatDuration(java.time.Duration.ofSeconds(ticks / 20L));
+    }
+
+    private static String formatDuration(java.time.Duration duration) {
+        long hours = duration.toHours();
+        long minutes = duration.toMinutesPart();
+        return hours > 0 ? hours + "h " + minutes + "m" : minutes + "m";
     }
 
     private void handleItem(Player player, LobbyItemType type, GatewayDialogService gatewayDialog, ProfileDialogService profileDialog,

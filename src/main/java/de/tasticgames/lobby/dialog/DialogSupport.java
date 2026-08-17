@@ -43,7 +43,7 @@ public final class DialogSupport {
             bodies.add(DialogBody.plainMessage(component));
         }
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(escapable).build())
+                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(escapable).afterAction(DialogBase.DialogAfterAction.NONE).build())
                 .type(DialogType.multiAction(buttons).exitAction(exit).columns(Math.max(1, columns)).build()));
     }
 
@@ -53,7 +53,7 @@ public final class DialogSupport {
             bodies.add(DialogBody.plainMessage(component));
         }
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(true).build())
+                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(true).afterAction(DialogBase.DialogAfterAction.NONE).build())
                 .type(DialogType.notice(ok)));
     }
 
@@ -63,7 +63,7 @@ public final class DialogSupport {
             bodies.add(DialogBody.plainMessage(component));
         }
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(true).build())
+                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(true).afterAction(DialogBase.DialogAfterAction.NONE).build())
                 .type(DialogType.confirmation(yes, no)));
     }
 
@@ -73,7 +73,7 @@ public final class DialogSupport {
             bodies.add(DialogBody.plainMessage(component));
         }
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(title).body(bodies).inputs(inputs).canCloseWithEscape(true).build())
+                .base(DialogBase.builder(title).body(bodies).inputs(inputs).canCloseWithEscape(true).afterAction(DialogBase.DialogAfterAction.NONE).build())
                 .type(DialogType.confirmation(submit, cancel)));
     }
 
@@ -122,9 +122,17 @@ public final class DialogSupport {
         return ActionButton.builder(label).width(width).action(DialogAction.customClick(callback, options())).build();
     }
 
-    /** Button that closes the dialog (no action). */
+    /**
+     * Button that closes the dialog. Dialogs use after_action NONE (no flicker between menus), so the
+     * close is done explicitly by the callback instead of relying on the client's default close.
+     */
     public ActionButton close(Component label) {
-        return ActionButton.builder(label).width(BUTTON_WIDTH).build();
+        DialogActionCallback callback = (view, audience) -> {
+            if (audience instanceof Player clicked && clicked.isOnline()) {
+                mainThread.run(clicked::closeDialog);
+            }
+        };
+        return ActionButton.builder(label).width(BUTTON_WIDTH).action(DialogAction.customClick(callback, options())).build();
     }
 
     public ActionButton command(Component label, String command) {

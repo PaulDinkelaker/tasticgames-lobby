@@ -21,12 +21,18 @@ public interface NpcProvider extends Integration {
      * @param displayName name shown above the NPC
      * @param location    spawn location (world must be loaded)
      * @param entityType  entity type when a new NPC is created (PLAYER for player-skinned NPCs)
-     * @param skin        optional Minecraft player name whose skin is used (PLAYER type only), may be empty
-     * @param model       optional ModelEngine model id to attach, may be empty
-     * @param externalId  optional id of an NPC created by an admin in the backend (Citizens id); when
-     *                    present the NPC is linked instead of created and never destroyed by us
+     * @param skin          optional Minecraft player name whose skin is used (PLAYER type only), may be empty
+     * @param skinValue     optional Base64 texture value (PLAYER type); with {@code skinSignature} it wins over {@code skin}
+     * @param skinSignature signature for {@code skinValue}
+     * @param model         optional ModelEngine model id to attach, may be empty
+     * @param externalId    optional id of an NPC created by an admin in the backend (Citizens id); when
+     *                      present the NPC is linked instead of created and never destroyed by us
      */
-    record NpcSpec(String id, Component displayName, Location location, EntityType entityType, String skin, String model, OptionalInt externalId) {
+    record NpcSpec(String id, Component displayName, Location location, EntityType entityType, String skin, String skinValue, String skinSignature,
+                   String model, OptionalInt externalId) {
+        public boolean hasSkinData() {
+            return skinValue != null && !skinValue.isBlank() && skinSignature != null && !skinSignature.isBlank();
+        }
     }
 
     /** @param externalId backend id (Citizens id) or -1 */

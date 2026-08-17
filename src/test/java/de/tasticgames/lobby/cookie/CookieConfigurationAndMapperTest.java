@@ -42,7 +42,9 @@ class CookieConfigurationAndMapperTest {
         assertTrue(configuration.pois().containsKey("cookie.main_cookie"));
         assertEquals("spawn", configuration.pois().get("cookie.main_cookie").location().world());
         assertEquals(1.15, configuration.balancing().costGrowth(), 1e-9);
-        assertTrue(configuration.balancing().offlineEnabled());
+        assertTrue(!configuration.balancing().offlineEnabled(), "offline production is disabled by default (generators only run inside the cookie zone)");
+        assertEquals(8.0, configuration.mainCookie().zoneRadius(), 1e-9);
+        assertTrue(configuration.npcs().list().values().stream().allMatch(n -> !n.skinValue().isBlank() && !n.skinSignature().isBlank()));
     }
 
     @Test
