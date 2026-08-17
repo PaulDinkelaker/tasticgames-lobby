@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,6 +41,28 @@ class HudConfigurationTest {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("itemsadder.bossbar-color", "RAINBOW");
         assertThrows(IllegalArgumentException.class, () -> HudConfiguration.load(yaml));
+    }
+
+    @Test
+    void pixelOffsetsComposeExactAdvances() {
+        assertEquals("", PixelOffsets.chars(0));
+        assertEquals(1, PixelOffsets.chars(-1).length());
+        assertEquals(2, PixelOffsets.chars(-3).length());   // -2 and -1
+        assertEquals(3, PixelOffsets.chars(7).length());    // 4 + 2 + 1
+        assertEquals(1, PixelOffsets.chars(-256).length());
+        assertEquals(2, PixelOffsets.chars(512).length());  // 256 + 256
+        // negative and positive glyphs never overlap
+        assertNotEquals(PixelOffsets.chars(4), PixelOffsets.chars(-4));
+        // every glyph an offset uses must be declared in the exported font
+        String json = PixelOffsets.fontJson();
+        assertTrue(json.contains("\"type\": \"space\""), json);
+        for (int pixels : new int[]{-511, -1, 1, 511}) {
+            for (char glyph : PixelOffsets.chars(pixels).toCharArray()) {
+                assertTrue(json.contains(String.format("\\u%04X", (int) glyph)), "font misses the glyph for " + pixels);
+            }
+        }
+        assertTrue(json.contains(": -256"), json);
+        assertTrue(json.contains(": 1"), json);
     }
 
     @Test

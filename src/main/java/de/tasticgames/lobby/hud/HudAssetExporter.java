@@ -40,6 +40,8 @@ public final class HudAssetExporter {
         File textures = new File(contents, "resourcepack" + File.separator + "assets" + File.separator + "tasticgames" + File.separator + "textures" + File.separator + "hud");
         File bossBar = new File(contents, "resourcepack" + File.separator + "assets" + File.separator + "minecraft" + File.separator + "textures"
                 + File.separator + "gui" + File.separator + "sprites" + File.separator + "boss_bar");
+        File fonts = new File(contents, "resourcepack" + File.separator + "assets" + File.separator + PixelOffsets.NAMESPACE + File.separator + "font");
+        Files.createDirectories(fonts.toPath());
         Files.createDirectories(configs.toPath());
         Files.createDirectories(texturesLegacy.toPath());
         Files.createDirectories(textures.toPath());
@@ -76,6 +78,12 @@ public final class HudAssetExporter {
             created.addAll(writeBox(new File(folder, "box_left.png"), CAP_WIDTH, true, false));
             created.addAll(writeBox(new File(folder, "box_mid.png"), MID_WIDTH, false, false));
             created.addAll(writeBox(new File(folder, "box_right.png"), CAP_WIDTH, false, true));
+        }
+
+        File spaceFont = new File(fonts, PixelOffsets.FONT_NAME + ".json");
+        if (!spaceFont.exists()) {
+            Files.writeString(spaceFont.toPath(), PixelOffsets.fontJson(), StandardCharsets.UTF_8);
+            created.add(spaceFont);
         }
 
         String color = bossbarColor.toLowerCase(Locale.ROOT);

@@ -33,10 +33,19 @@ import java.util.logging.Logger;
 /**
  * Native top-screen HUD: up to four boss bars (always drawn above the held item), each showing one
  * row of the context HUD ({@link HudContextProvider}). With ItemsAdder the cells get font-image
- * icons and dark rounded box glyphs behind them (offset-composed); otherwise unicode icons and
- * plain text. Per-player toggle: {@link LobbySettings#HUD_ENABLED}.
+ * icons and dark rounded box glyphs behind them – the boxes are drawn first, then the cursor is
+ * moved back with {@link PixelOffsets} so the text sits centered inside the box. Without
+ * ItemsAdder the HUD falls back to unicode icons and plain text. Per-player toggle:
+ * {@link LobbySettings#HUD_ENABLED}.
  */
 public final class HudService implements Service {
+
+    /** Text plus its exact pixel width (needed to centre it inside a box). */
+    private record Measured(Component component, int width) {
+        Measured append(Component other, int otherWidth) {
+            return new Measured(component.append(other), width + otherWidth);
+        }
+    }
 
     private final Plugin plugin;
     private final TasticCoreApi coreApi;
@@ -52,7 +61,8 @@ public final class HudService implements Service {
     private volatile HudConfiguration configuration;
     private BukkitTask task;
     private volatile boolean boxesAvailable;
-    private volatile long lastBoxWarning;
+    private volatile boolean boxesPendingPack;
+    private volatile long lastBoxNotice;
 
     public HudService(Plugin plugin, TasticCoreApi coreApi, LobbyConfigurationService configurationService, HudContextProvider context,
                       CustomItemProvider customItems, LobbyPlayerService players, Function<Player, String> rankDisplay,
@@ -96,15 +106,21 @@ public final class HudService implements Service {
         bars.clear();
     }
 
-    /** Re-reads hud.yml and re-exports assets (used by /tasticlobby reload). */
+    /** Re-reads hud.yml and re-exports missing assets (used by /tasticlobby reload). */
     public void reload() {
         configuration = HudConfiguration.load(configurationService.raw("hud"));
+        boxesPendingPack = false;
         exportAssets();
         for (Player player : Bukkit.getOnlinePlayers()) {
             hide(player);
         }
     }
 
+    /**
+     * Writes the ItemsAdder content (box glyphs, offset font, transparent boss bar). When files had
+     * to be created the pack does not contain them yet, so the boxes stay off until the operator ran
+     * {@code /iazip} and {@code /tasticlobby reload} – otherwise every box would render misaligned.
+     */
     private void exportAssets() {
         if (!configuration.iaExportContent() || !customItems.available()) {
             return;
@@ -114,7 +130,12 @@ public final class HudService implements Service {
             return;
         }
         try {
-            new HudAssetExporter(itemsAdder, logger).export(configuration.bossbarColor().name());
+            List<File> created = new HudAssetExporter(itemsAdder, logger).export(configuration.bossbarColor().name());
+            if (!created.isEmpty()) {
+                boxesPendingPack = true;
+                logger.warning("HUD background boxes stay disabled until the resource pack ships the new files: run /iazip, "
+                        + "then /tasticlobby reload (or restart).");
+            }
         } catch (Exception e) {
             logger.warning("HUD asset export failed: " + e.getMessage());
         }
@@ -141,12 +162,10 @@ public final class HudService implements Service {
         List<BossBar> list = bars.computeIfAbsent(player.getUniqueId(), ignored -> new ArrayList<>());
         int rows = rowCount();
         while (list.size() < rows) {
-            BossBar bar = BossBar.bossBar(Component.empty(), 0f, configuration.bossbarColor(), BossBar.Overlay.PROGRESS);
-            list.add(bar);
+            list.add(BossBar.bossBar(Component.empty(), 0f, configuration.bossbarColor(), BossBar.Overlay.PROGRESS));
         }
         while (list.size() > rows) {
-            BossBar removed = list.remove(list.size() - 1);
-            player.hideBossBar(removed);
+            player.hideBossBar(list.remove(list.size() - 1));
         }
         for (BossBar bar : list) {
             player.showBossBar(bar);
@@ -211,20 +230,22 @@ public final class HudService implements Service {
     }
 
     private boolean boxesReady() {
-        if (!configuration.iaBoxes() || !customItems.fontImagesSupported()) {
+        if (!configuration.iaBoxes() || boxesPendingPack || !customItems.fontImagesSupported()) {
             return false;
         }
-        boolean ready = customItems.fontImage(configuration.boxLeft()).isPresent()
-                && customItems.fontImage(configuration.boxMiddle()).isPresent()
-                && customItems.fontImage(configuration.boxRight()).isPresent();
+        boolean ready = width(configuration.boxLeft()) > 0 && width(configuration.boxMiddle()) > 0 && width(configuration.boxRight()) > 0;
         if (!ready) {
             long now = System.currentTimeMillis();
-            if (now - lastBoxWarning > 300_000) {
-                lastBoxWarning = now;
-                logger.info("HUD box glyphs (" + configuration.boxMiddle() + ") are not in the ItemsAdder pack yet – run /iazip after the export; rendering without boxes.");
+            if (now - lastBoxNotice > 300_000) {
+                lastBoxNotice = now;
+                logger.info("HUD box glyphs (" + configuration.boxMiddle() + ") are not in the ItemsAdder pack – run /iazip; rendering without boxes.");
             }
         }
         return ready;
+    }
+
+    private int width(String fontImageId) {
+        return customItems.fontImage(fontImageId).map(CustomItemProvider.FontGlyph::width).orElse(0);
     }
 
     // ------------------------------------------------------------------ rendering
@@ -235,114 +256,106 @@ public final class HudService implements Service {
         boolean icons = configuration.iaIcons() && customItems.fontImagesSupported();
         boolean boxes = boxesAvailable;
         if (configuration.rowValues()) {
-            List<Component> cells = new ArrayList<>();
-            cells.add(cell(context.contextIcon(ctx), context.title(player), configuration.titleColor(), icons, boxes, false));
+            List<Measured> cells = new ArrayList<>();
+            cells.add(cell(context.contextIcon(ctx), context.title(player), null, configuration.titleColor(), icons));
             for (int i = 1; i <= 4; i++) {
                 String label = context.label(player, i);
-                String value = context.value(player, i);
                 if (label.isEmpty()) continue;
-                cells.add(cell(context.valueIcon(ctx, i), label + ": " + value, configuration.valueColor(i), icons, boxes, true));
+                cells.add(cell(context.valueIcon(ctx, i), label + ":", context.value(player, i), configuration.valueColor(i), icons));
             }
-            rows.add(join(cells, boxes));
+            rows.add(row(cells, boxes));
         }
         if (configuration.rowHint()) {
             String hint = context.hint(player);
-            rows.add(hint.isEmpty() ? Component.empty() : join(List.of(cell(null, hint, configuration.hintColor(), icons, boxes, false)), boxes));
+            rows.add(hint.isEmpty() ? Component.empty() : row(List.of(cell(null, hint, null, configuration.hintColor(), icons)), boxes));
         }
         if (configuration.rowObjective()) {
             String objective = context.objective(player);
-            rows.add(objective.isEmpty() ? Component.empty() : join(List.of(cell(null, objective, configuration.objectiveColor(), icons, boxes, false)), boxes));
+            rows.add(objective.isEmpty() ? Component.empty() : row(List.of(cell(null, objective, null, configuration.objectiveColor(), icons)), boxes));
         }
         if (configuration.rowStatus()) {
-            List<Component> cells = new ArrayList<>();
-            cells.add(cell("rank", rankDisplay.apply(player), configuration.statusColor(), icons, boxes, false));
-            cells.add(cell("playtime", playtime.apply(player), configuration.statusColor(), icons, boxes, false));
-            cells.add(cell("online", String.valueOf(online.get()), configuration.statusColor(), icons, boxes, false));
-            rows.add(join(cells, boxes));
+            List<Measured> cells = List.of(
+                    cell("rank", null, rankDisplay.apply(player), configuration.statusColor(), icons),
+                    cell("playtime", null, playtime.apply(player), configuration.statusColor(), icons),
+                    cell("online", null, String.valueOf(online.get()), configuration.statusColor(), icons));
+            rows.add(row(cells, boxes));
         }
         return rows;
     }
 
-    private Component join(List<Component> cells, boolean boxes) {
+    /** One row: every cell optionally wrapped in a box, separated by a pixel gap (or a text divider). */
+    private Component row(List<Measured> cells, boolean boxes) {
         TextComponent.Builder row = Component.text();
         for (int i = 0; i < cells.size(); i++) {
             if (i > 0) {
-                row.append(boxes ? Component.text(customItems.pixelOffset(configuration.boxGap())) : Component.text("  ·  ", NamedTextColor.DARK_GRAY));
+                row.append(boxes ? PixelOffsets.of(configuration.boxGap()) : Component.text("  ·  ", NamedTextColor.DARK_GRAY));
             }
-            row.append(cells.get(i));
+            Measured cell = cells.get(i);
+            row.append(boxes ? boxed(cell) : cell.component());
         }
         return row.build();
     }
 
     /**
-     * One HUD cell: [box glyphs][back offset][icon] text[end offset]. Label/value cells colour the
-     * label grey and the value in the slot colour.
+     * Builds a measured cell: {@code [icon] label value}. {@code label} is drawn in the label colour,
+     * {@code value} in the cell colour; both are optional.
      */
-    private Component cell(String iconKey, String text, TextColor color, boolean icons, boolean boxes, boolean labelValue) {
-        TextComponent.Builder content = Component.text();
-        int contentWidth = 0;
+    private Measured cell(String iconKey, String label, String value, TextColor color, boolean icons) {
+        Measured measured = new Measured(Component.empty(), 0);
         if (iconKey != null && !iconKey.isEmpty()) {
             Optional<CustomItemProvider.FontGlyph> glyph = icons ? customItems.fontImage(configuration.iconId(iconKey)) : Optional.empty();
-            if (glyph.isPresent()) {
-                content.append(Component.text(glyph.get().text(), NamedTextColor.WHITE)).append(Component.text(" "));
-                contentWidth += glyph.get().width() + 1 + FontWidths.width(" ");
+            if (glyph.isPresent() && glyph.get().width() > 0) {
+                // bitmap glyphs advance width + 1 px
+                measured = measured.append(Component.text(glyph.get().text(), NamedTextColor.WHITE), glyph.get().width() + 1);
+                measured = measured.append(Component.text(" "), FontWidths.width(" "));
             } else {
                 String unicode = configuration.unicodeIcon(iconKey);
                 if (!unicode.isEmpty()) {
-                    content.append(Component.text(unicode + " ", color));
-                    contentWidth += FontWidths.width(unicode + " ");
+                    measured = measured.append(Component.text(unicode + " ", color), FontWidths.width(unicode + " "));
                 }
             }
         }
-        if (labelValue) {
-            int colon = text.indexOf(": ");
-            if (colon > 0) {
-                String label = text.substring(0, colon + 2);
-                String value = text.substring(colon + 2);
-                content.append(Component.text(label, configuration.labelColor())).append(Component.text(value, color));
-            } else {
-                content.append(Component.text(text, color));
+        if (label != null && !label.isEmpty()) {
+            measured = measured.append(Component.text(label, configuration.labelColor()), FontWidths.width(label));
+            if (value != null && !value.isEmpty()) {
+                measured = measured.append(Component.text(" "), FontWidths.width(" "));
             }
-        } else {
-            content.append(Component.text(text, color));
         }
-        contentWidth += FontWidths.width(text);
-        if (!boxes) {
-            return content.build();
+        if (value != null && !value.isEmpty()) {
+            measured = measured.append(Component.text(value, color), FontWidths.width(value));
         }
-        return boxed(content.build(), contentWidth);
+        return measured;
     }
 
-    /** Draws left cap + n middle tiles + right cap, moves back and draws the content on top. */
-    private Component boxed(Component content, int contentWidth) {
+    /**
+     * Draws left cap + middle tiles + right cap, then jumps back and renders the content centered on
+     * top of the box. Bitmap glyphs advance one pixel more than they are wide, so every glyph is
+     * followed by a -1 px offset – the box is then exactly {@code boxWidth} pixels wide.
+     */
+    private Component boxed(Measured content) {
         CustomItemProvider.FontGlyph left = customItems.fontImage(configuration.boxLeft()).orElse(null);
         CustomItemProvider.FontGlyph mid = customItems.fontImage(configuration.boxMiddle()).orElse(null);
         CustomItemProvider.FontGlyph right = customItems.fontImage(configuration.boxRight()).orElse(null);
         if (left == null || mid == null || right == null || mid.width() <= 0) {
-            return content;
+            return content.component();
         }
         int padding = configuration.boxPadding();
-        int inner = Math.max(mid.width(), contentWidth + 2 * padding - left.width() - right.width());
+        int inner = Math.max(mid.width(), content.width() + 2 * padding - left.width() - right.width());
         int tiles = (int) Math.ceil(inner / (double) mid.width());
         int boxWidth = left.width() + tiles * mid.width() + right.width();
+
         TextComponent.Builder box = Component.text();
-        // bitmap glyphs advance width+1: pull back one pixel after every glyph so the tiles touch
-        box.append(Component.text(left.text(), NamedTextColor.WHITE)).append(Component.text(customItems.pixelOffset(-1)));
-        StringBuilder mids = new StringBuilder();
-        String midShift = customItems.pixelOffset(-1);
+        Component back = PixelOffsets.of(-1);
+        box.append(Component.text(left.text(), NamedTextColor.WHITE)).append(back);
         for (int i = 0; i < tiles; i++) {
-            mids.append(mid.text()).append(midShift);
+            box.append(Component.text(mid.text(), NamedTextColor.WHITE)).append(back);
         }
-        box.append(Component.text(mids.toString(), NamedTextColor.WHITE));
-        box.append(Component.text(right.text(), NamedTextColor.WHITE)).append(Component.text(customItems.pixelOffset(-1)));
-        // cursor now sits at the right edge of the box: go back to the left padding, draw the content, jump to the end
-        int leftOffset = -(boxWidth) + (boxWidth - contentWidth) / 2;
-        box.append(Component.text(customItems.pixelOffset(leftOffset)));
-        box.append(content);
-        int rest = boxWidth - ((boxWidth - contentWidth) / 2) - contentWidth;
-        if (rest != 0) {
-            box.append(Component.text(customItems.pixelOffset(rest)));
-        }
+        box.append(Component.text(right.text(), NamedTextColor.WHITE)).append(back);
+
+        int leadIn = (boxWidth - content.width()) / 2;
+        box.append(PixelOffsets.of(leadIn - boxWidth));
+        box.append(content.component());
+        box.append(PixelOffsets.of(boxWidth - leadIn - content.width()));
         return box.build();
     }
 }

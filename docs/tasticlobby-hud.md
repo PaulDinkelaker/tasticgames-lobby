@@ -26,10 +26,14 @@ Zeilen: **Werte** (Titel + 4 Icon/Wert-Zellen), **Hinweis** (Steuerung/Befehle),
   `configs/tasticgames_hud.yml` (Font-Images `tasticgames:hud_box_left|mid|right`, 14 px hoch), Texturen in `textures/hud/` (IA 3.x) und
   `resourcepack/assets/tasticgames/textures/hud/box_*.png` und **transparente Bossbar-Texturen**
   (`resourcepack/assets/minecraft/textures/gui/sprites/boss_bar/pink_*.png`, Farbe = `itemsadder.bossbar-color`).
-  Danach einmal **`/iazip`** ausführen und neu verbinden. Bestehende Dateien werden nie überschrieben.
-  Solange die Glyphen fehlen, rendert das HUD ohne Boxen (`/tasticlobby status` → „HUD: … boxes missing – run /iazip“).
-* Layout: Boxbreite = Textbreite (Default-Font-Tabelle) + 2 × `box.padding`; Zellenabstand `box.gap`; Offsets über
-  ItemsAdder (`FontImageWrapper.applyPixelsOffsetToString`).
+  Zusätzlich wird die Offset-Font `assets/tasticgames/font/space.json` exportiert (vanilla `type: space`) – damit
+  positioniert das HUD pixelgenau (ItemsAdders `applyPixelsOffsetToString` liefert für leere Strings nichts und
+  hätte die Boxen neben statt hinter den Text gesetzt).
+  Nach dem Export einmal **`/iazip`** ausführen, dann `/tasticlobby reload` (oder Neustart) und neu verbinden.
+  Bestehende Dateien werden nie überschrieben. Solange die Dateien noch nicht im Pack sind, bleiben die Boxen
+  bewusst aus (`/tasticlobby status` → „boxes missing“), damit nichts verschoben gerendert wird.
+* Layout: Boxbreite = Textbreite (Default-Font-Tabelle) + 2 × `box.padding`; Zellenabstand `box.gap`; der Text wird
+  mittig in die Box gesetzt (Rück-Offsets aus der Space-Font, −1 px nach jedem Bitmap-Glyph gegen Lücken).
 * Ohne ItemsAdder: reiner Text mit Unicode-Icons und `·`-Trennern; die Bossbar-Leiste bleibt sichtbar
   (`itemsadder.bossbar-color` bestimmt die Farbe).
 
