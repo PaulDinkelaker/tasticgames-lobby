@@ -1,14 +1,15 @@
 # TasticLobby 1.0
 
 The TasticGames hub: onboarding, lobby gameplay (launchpads, teleport pads, void rescue, protection),
-lobby items, player visibility, settings, TasticGateway, profiles, social UI (friends/party/clan),
-cosmetics, HUD, music and the persistent open-world **Cookie Clicker** (Prestige 0–10).
+lobby items, player visibility, settings, `/lang`, TasticGateway, profiles, social UI (friends/party/clan),
+cosmetics (HMCCosmetics), music, placeholders for UltimateUI/TAB and the persistent **Cookie Clicker**
+(main cookie at spawn, Prestige 0–10, open world at Prestige 10).
 
 * Paper 1.21.11 · Java 25 · TasticCore 1.0 (backend platform) · TasticProxy 1.0 (network) · TasticGames API
-* Version `1.0.0`
+* Version `1.0.0` (1.0.1 layout: main cookie in the lobby, plugin integrations)
 
 Docs: [Architecture](docs/tasticlobby-architecture.md) · [Deployment](docs/tasticlobby-deployment.md) ·
-[Cookie Clicker](docs/cookie-clicker.md)
+[Cookie Clicker](docs/cookie-clicker.md) · [Integrations](docs/tasticlobby-integrations.md)
 
 ## Build
 
@@ -24,25 +25,26 @@ or `-PtasticCoreJar=<path>`. The api-client + Jackson are shaded and relocated t
 
 | File | Content |
 |---|---|
-| `lobby.yml` | world name/spawn, void rescue Y, fixed time/weather, mob spawning, collision, join/quit messages, staff flight, launchpads (material, velocities, cooldown, directional pads), teleport pads (material, everywhere/regions, cooldown), double jump, HUD, telemetry |
-| `items.yml` | hotbar slots/materials/asset ids for lobby items and the cookie-world hotbar |
-| `music.yml` | playlists (sound key, duration, weight) for lobby/cookie world |
-| `api.yml` | TasticGames API (env: `TASTIC_API_BASE_URL`, `TASTIC_API_SERVICE`, `TASTIC_API_KEY`, `TASTIC_LOBBY_SERVER_ID`) |
-| `cosmetics.yml` | cosmetic catalog (id, category, rarity, unlock, render data) |
-| `cookie-clicker.yml` | cookie world layout (zones, POIs, NPCs, golden areas), runtime, balancing overrides |
+| `lobby.yml` | world `spawn` + spawn (-23.5/37/-3.5), void rescue Y, fixed time/weather, mob spawning, collision, join/quit messages, staff flight, launchpads (material, velocities, cooldown, directional pads), teleport pads (material, everywhere/regions, cooldown), double jump, placeholder refresh, telemetry |
+| `items.yml` | hotbar slots/materials/asset ids/ItemsAdder ids for the lobby items (no cookie items) |
+| `music.yml` | playlists (sound key, duration, weight) for lobby/open world |
+| `api.yml` | TasticGames API – optional: without a key the lobby reuses `plugins/TasticCore/config/api.yml` (env overrides `TASTIC_API_BASE_URL`, `TASTIC_API_SERVICE`, `TASTIC_API_KEY`, `TASTIC_LOBBY_SERVER_ID`) |
+| `cosmetics.yml` | cosmetic catalog (id, category, rarity, unlock, render data – `hmc:<id>` = HMCCosmetics) |
+| `cookie-clicker.yml` | main cookie (world/location/MythicMobs type/model/hitbox/actionbar/golden areas), NPCs, prestige-10 open world (zones, POIs, golden areas), runtime, balancing |
 
-Secrets belong in environment variables; `CHANGE_ME` disables the API integration (degraded mode).
+Secrets belong in environment variables or TasticCore's api.yml; a lobby key is only needed when a dedicated service should be used.
 
 ## Commands
 
 | Command | Permission | Description |
 |---|---|---|
-| `/lobby` (`/hub`, `/l`), `/spawn` | – | back to spawn (also leaves the cookie world) |
+| `/lobby` (`/hub`, `/l`), `/spawn` | – | back to spawn (also leaves the open world); TasticProxy forwards `/lobby` to the lobby while you are on a lobby server |
+| `/lang [de|en|hi]` (`/language`, `/sprache`) | – | language dialog / direct switch (Deutsch, English, हिन्दी) |
 | `/profile [player]` | – | profile dialog |
-| `/settings`, `/gateway` (`/play`), `/cosmetics`, `/social` (`/friends`, `/party`, `/clan`) | – | dialogs |
-| `/cookie [stats|leaderboard|world|shop|prestige]` | – | cookie clicker |
-| `/tasticlobby status|reload|player <name>|setspawn|build|cosmetic catalog|inspect|grant|revoke` | `tasticlobby.status/reload/admin/setspawn/build/cosmetic.admin` | administration |
-| `/cookieadmin status|balance <player>`, `addcookies|setcookies <player> <amount>`, `setprestige <player> <0-10>`, `reset <player>`, `unlock <player> <achievement|zone> <id>`, `setspawn`, `setcookie`, `poi <id> [type]`, `zone` | `tasticlobby.cookie.admin` | cookie administration + builder tools |
+| `/settings`, `/gateway` (`/play`), `/cosmetics`, `/social` | – | dialogs (the text commands `/friend`, `/party`, `/clan` are TasticProxy commands) |
+| `/cookie [menu|stats|leaderboard|world|shop|upgrades|prestige]` | – | cookie menu / open world (prestige 10) |
+| `/tasticlobby status|reload|player <name>|setspawn|build|region <teleport|launchpad> <add|remove> <id>|cosmetic catalog|inspect|grant|revoke` | `tasticlobby.status/reload/admin/setspawn/build/cosmetic.admin` | administration (`region` uses the WorldEdit selection) |
+| `/cookieadmin status|balance <player>`, `addcookies|setcookies <player> <amount>`, `setprestige <player> <0-10>`, `reset <player>`, `unlock <player> <achievement|zone> <id>`, `setcookie`, `setspawn`, `npc <id> here|link|unlink`, `golden add|remove <id>`, `zone [<id> fromselection|entry|gate]`, `poi <id> [type]` | `tasticlobby.cookie.admin` | cookie administration + builder tools (live reload) |
 
 Permissions: `tasticlobby.admin` (parent), `tasticlobby.status`, `tasticlobby.reload`, `tasticlobby.build`,
 `tasticlobby.setspawn`, `tasticlobby.cookie.admin`, `tasticlobby.cosmetic.admin`, `tasticlobby.fly`,
@@ -59,23 +61,28 @@ Lobby: `lobby.items.enabled`, `lobby.player-visibility` (ALL/FRIENDS/PARTY/FRIEN
 
 ## Lobby items (default hotbar)
 
-0 Gateway · 1 Profile (player head) · 2 Social · 4 Cookie Clicker · 6 Cosmetics · 7 Settings · 8 Visibility (dye).
-Cookie world: 0 Stats · 1 Generators · 2 Upgrades · 4 Prestige · 7 Fast travel · 8 Back to lobby.
-Items are identified via PersistentDataContainer, cannot be dropped/moved/swapped and refresh on language/setting changes.
+0 Gateway · 1 Profile (player head) · 2 Social · 4 Cookie Clicker (menu) · 6 Cosmetics · 7 Settings · 8 Visibility (dye).
+The same hotbar is used inside the cookie open world. Items are identified via PersistentDataContainer, cannot be
+dropped/moved/swapped, may come from ItemsAdder and refresh on language/setting changes.
 
 ## Gateway
 
 The lobby only requests logical targets (`SURVIVAL`, …) through `POST /api/v1/network/transfers`; TasticProxy routes
 (region/health/capacity) and party leaders can take their party. Mode availability comes from the network registry snapshot.
 
-## Placeholders (PlaceholderAPI, optional)
+## Placeholders (UltimateUI via PlaceholderAPI, TAB native)
 
-`%tastic_lobby_party%`, `%tastic_lobby_clan%`, `%tastic_lobby_visibility%`, `%tastic_lobby_cookie_balance%`,
-`%tastic_lobby_cookie_cps%`, `%tastic_lobby_cookie_prestige%`.
+The lobby renders no scoreboard/tablist itself. `%tastic_rank%`, `%tastic_rank_display%`, `%tastic_rank_prefix%`,
+`%tastic_language%`, `%tastic_visibility%`, `%tastic_friends_online%`, `%tastic_party_size%`, `%tastic_clan%`,
+`%tastic_online%`, `%tastic_cookie_balance%`, `%tastic_cookie_cps%`, `%tastic_cookie_prestige%`, … – full list and
+sample UltimateUI/TAB configs in [docs/tasticlobby-integrations.md](docs/tasticlobby-integrations.md).
 
 ## Troubleshooting
 
-* "TasticGames API is not configured" → set `api.yml`/`TASTIC_API_KEY`; the lobby runs but cookie/cosmetics/social/gateway are unavailable.
-* "Cookie world … not found – creating a flat development world" → expected until the builder map exists (`world.name` in `cookie-clicker.yml`).
+* "TasticGames API is NOT configured" → no key in env, `config/api.yml` or `plugins/TasticCore/config/api.yml`; features answer "temporarily unavailable".
+* "The TasticGames API rejected the credentials" → the service key does not match `tasticgames.security.service-auth.services.<service>` on the API.
+* "does not know the 1.0 endpoints (404)" → the deployed API is older than 1.0 – deploy `tasticgames-api` with Flyway V5–V15.
+* "Cookie open world … not found – creating a flat development world" → expected until the builder map exists (`open-world.world`).
+* "cookie-clicker.yml uses the 1.0.0 layout" → delete the file, it is regenerated with the main cookie in the lobby.
 * Missing translation warnings list the keys per language – EN fallback is used.
-* `/tasticlobby status` shows Core/API health, loaded players, HUD/music sessions, telemetry backlog, cookie profiles/dirty/saving, world state.
+* `/tasticlobby status` shows Core/API health + credential source, integrations, loaded players, music sessions, telemetry backlog, main cookie/NPC/open-world state.

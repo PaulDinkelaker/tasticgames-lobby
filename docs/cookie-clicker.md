@@ -1,8 +1,21 @@
 # Cookie Clicker – Design & Balancing
 
-Persistent open-world lobby minigame, Prestige 0–10. Domain engine: `de.tasticgames.lobby.cookie.domain`
+Persistent lobby minigame, Prestige 0–10. Domain engine: `de.tasticgames.lobby.cookie.domain`
 (pure Java, 131 unit tests). Runtime/UI: `de.tasticgames.lobby.cookie`. Persistence: TasticGames API
 (`/api/v1/lobby/cookie/**`, MariaDB `cookie_*` tables, optimistic locking, idempotent operations).
+
+## Layout (config-version 2)
+* **Main cookie in the lobby** (`spawn` at -62.5/35/12.5): MythicMobs mob `CookieClicker` → ModelEngine model
+  `fv_cookie_clicker` → native item display. Left/right click = bake, **sneak+click = cookie menu** (also the
+  cookie hotbar item and `/cookie`). Actionbar shows cookies/CPS on every click and every second within 12 blocks.
+* **Sessions are per online player** (loaded after the lobby init, ticked everywhere, saved every 10 s, offline
+  production claimed via dialog) – no hotbar swap, no separate cookie items.
+* **Golden cookies** appear near the player inside the lobby area around the main cookie (`main-cookie.golden-cookies.areas`)
+  and anywhere in the open world.
+* **Quest NPCs** stand next to the main cookie (Citizens when installed, else native villagers).
+* **Open world** (`cookie`, flat dev world created when missing) is the **prestige-10 endgame** (`open-world.required-prestige`):
+  `/cookie world`, the menu button or fast travel; zones/gates/POIs/discovery live there. Leaving: `/lobby`, menu, world change.
+* Old 1.0.0 files (`world:` root key) are detected: the bundled layout is used and a warning asks to delete the file.
 
 ## Currencies
 * **Cookies** – active balance (reset on prestige)
@@ -74,7 +87,9 @@ Rewards: cosmetics (`ACHIEVEMENT_<id>` unlock in `cosmetics.yml`), crumbs (quest
 ## Admin tools
 `/cookieadmin status|balance <player>` (effective click/CPS incl. every multiplier and per-generator contribution),
 `addcookies|setcookies|setprestige|reset|unlock` (API `POST …/admin`, audited in `cookie_admin_audit`),
-`setspawn|setcookie|poi|zone` builder helpers.
+builder helpers (write cookie-clicker.yml + live reload): `setcookie` (main cookie here), `setspawn` (open-world entry),
+`npc <id> here|link|unlink` (Citizens), `golden add|remove <id>` and `zone <id> fromselection|entry|gate` (WorldEdit selection),
+`poi <id> [type]`.
 
 ## Exploit protection
 Server-side rewards only; click rate cap; bounded click history; optimistic locking (409 → reload); idempotent

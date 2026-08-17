@@ -1,5 +1,6 @@
-# Cosmetic catalog. Domain ids are stable; 'render' is renderer specific data (native renderer:
-# HAT material:<MATERIAL>[;model:<ns:key>], AURA/TRAIL/JOIN_EFFECT particle:<PARTICLE>[;count:n][;color:RRGGBB]).
+# Cosmetic catalog. Domain ids are stable; 'render' is renderer specific data:
+#   HMCCosmetics (preferred when installed): render: "hmc:<hmccosmetics-cosmetic-id>"  (slot/model come from HMCCosmetics)
+#   native renderer: HAT material:<MATERIAL>[;model:<ns:key>], AURA/TRAIL/JOIN_EFFECT particle:<PARTICLE>[;count:n][;color:RRGGBB]
 # unlock: DEFAULT | PRESTIGE_<n> | ACHIEVEMENT_<id> | ADMIN
 cosmetics:
   # ---- profile frames
