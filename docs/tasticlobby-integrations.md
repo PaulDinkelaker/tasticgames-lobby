@@ -34,6 +34,7 @@ Rohwerte ohne Farben – das Display-Plugin (UltimateUI/TAB) formatiert.
 | `party_size`, `party_leader` | Party-Größe / Leader-Name |
 | `clan`, `clan_tag` | Clan-Name / Kurzform |
 | `in_open_world` | true/false – Spieler ist in der Cookie-Open-World |
+| `held_item`, `held_slot` | gehaltenes Lobby-Item (GATEWAY, PROFILE, SOCIAL, COOKIE, COSMETICS, SETTINGS, VISIBILITY, NONE) / Hotbar-Slot 0-8 – für kontextabhängige Scoreboards |
 | `kills`, `deaths` | Vanilla-Statistik dieses Servers |
 | `playtime`, `playtime_hours`, `playtime_minutes`, `session_playtime` | Spielzeit (Vanilla-Statistik) formatiert / Stunden / Minuten, aktuelle Session |
 | `cookies`, `cps`, `prestige` | Kurzformen von `cookie_balance`, `cookie_cps`, `cookie_prestige` |

@@ -302,6 +302,8 @@ public final class LobbyBootstrap {
         p.add("playtime_hours", player -> String.valueOf(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 72_000L));
         p.add("playtime_minutes", player -> String.valueOf(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE) / 1_200L % 60));
         p.add("session_playtime", player -> players.find(player.getUniqueId()).map(lp -> formatDuration(java.time.Duration.between(lp.joinedAt(), java.time.Instant.now()))).orElse(""));
+        p.add("held_item", player -> items.typeOf(player.getInventory().getItemInMainHand()).map(t -> t.name()).orElse("NONE"));
+        p.add("held_slot", player -> String.valueOf(player.getInventory().getHeldItemSlot()));
         p.add("cookies", player -> cookie.placeholder(player, "balance"));
         p.add("cps", player -> cookie.placeholder(player, "cps"));
         p.add("prestige", player -> cookie.placeholder(player, "prestige"));
