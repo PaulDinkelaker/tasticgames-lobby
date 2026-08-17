@@ -7,8 +7,189 @@
 #   %tastic_ctx_hint%             Hinweiszeile (Steuerung/Befehle), %tastic_ctx_objective% Ziel-/Fortschrittszeile
 # Test: /papi parse me %tastic_ctx_title% – wechselt beim Item-Wechsel in der Hotbar.
 name: Stats Display
+behavior:
+  keep-open: true
+  reopen: false
+  close-on-death: false
+  close-on-damage: false
+  close-on-f: false
+  close-on-shift-f: true
+open-on-join:
+  enabled: true
+  type: hud
+  delay: 20
 blocks:
-# ---- obere Leiste: Kontext-Titel + 4 Wertepaare (Boxen von links nach rechts)
+# =========================================================== Hintergründe (Layer 1, wie im Scoreboard)
+- type: rounded
+  id: block
+  name: BG Kontext
+  layer: 1.0
+  opacity: 220
+  color: '000000'
+  unicode:
+  position:
+    x: 390.0
+    y: 23.0
+  size:
+    width: 190.0
+    height: 30.0
+  rounding:
+    unicode:
+      tl: <#000000>
+      tr: <#000000>
+      br: <#000000>
+      bl: <#000000>
+  visible: true
+  locked: false
+- type: rounded
+  id: block
+  name: BG Wert 1
+  layer: 1.0
+  opacity: 220
+  color: '000000'
+  unicode:
+  position:
+    x: 592.0
+    y: 23.0
+  size:
+    width: 240.0
+    height: 30.0
+  rounding:
+    unicode:
+      tl: <#000000>
+      tr: <#000000>
+      br: <#000000>
+      bl: <#000000>
+  visible: true
+  locked: false
+- type: rounded
+  id: block
+  name: BG Wert 2
+  layer: 1.0
+  opacity: 220
+  color: '000000'
+  unicode:
+  position:
+    x: 844.0
+    y: 23.0
+  size:
+    width: 240.0
+    height: 30.0
+  rounding:
+    unicode:
+      tl: <#000000>
+      tr: <#000000>
+      br: <#000000>
+      bl: <#000000>
+  visible: true
+  locked: false
+- type: rounded
+  id: block
+  name: BG Wert 3
+  layer: 1.0
+  opacity: 220
+  color: '000000'
+  unicode:
+  position:
+    x: 1096.0
+    y: 23.0
+  size:
+    width: 240.0
+    height: 30.0
+  rounding:
+    unicode:
+      tl: <#000000>
+      tr: <#000000>
+      br: <#000000>
+      bl: <#000000>
+  visible: true
+  locked: false
+- type: rounded
+  id: block
+  name: BG Wert 4
+  layer: 1.0
+  opacity: 220
+  color: '000000'
+  unicode:
+  position:
+    x: 1348.0
+    y: 23.0
+  size:
+    width: 200.0
+    height: 30.0
+  rounding:
+    unicode:
+      tl: <#000000>
+      tr: <#000000>
+      br: <#000000>
+      bl: <#000000>
+  visible: true
+  locked: false
+- type: rounded
+  id: block
+  name: BG Hinweis
+  layer: 1.0
+  opacity: 220
+  color: '000000'
+  unicode:
+  position:
+    x: 630.0
+    y: 59.0
+  size:
+    width: 660.0
+    height: 30.0
+  rounding:
+    unicode:
+      tl: <#000000>
+      tr: <#000000>
+      br: <#000000>
+      bl: <#000000>
+  visible: true
+  locked: false
+- type: rounded
+  id: block
+  name: BG Ziel
+  layer: 1.0
+  opacity: 220
+  color: '000000'
+  unicode:
+  position:
+    x: 710.0
+    y: 97.0
+  size:
+    width: 500.0
+    height: 30.0
+  rounding:
+    unicode:
+      tl: <#000000>
+      tr: <#000000>
+      br: <#000000>
+      bl: <#000000>
+  visible: true
+  locked: false
+- type: rounded
+  id: block
+  name: BG Status
+  layer: 1.0
+  opacity: 220
+  color: '000000'
+  unicode:
+  position:
+    x: 1600.0
+    y: 23.0
+  size:
+    width: 300.0
+    height: 30.0
+  rounding:
+    unicode:
+      tl: <#000000>
+      tr: <#000000>
+      br: <#000000>
+      bl: <#000000>
+  visible: true
+  locked: false
+  aligned: right
+# =========================================================== Texte (Layer 2)
 - type: text
   id: text
   name: Kontext
@@ -25,28 +206,6 @@ blocks:
     height: 128.57142857142856
   visible: true
   locked: false
-  children:
-  - type: rounded
-    id: block
-    name: Block
-    layer: 1.0
-    opacity: 106
-    color: '000000'
-    unicode:
-    position:
-      x: -12.0
-      y: -7.0
-    size:
-      width: 190.0
-      height: 30.0
-    rounding:
-      unicode:
-        tl: <#000000>
-        tr: <#000000>
-        br: <#000000>
-        bl: <#000000>
-    visible: true
-    locked: false
 - type: text
   id: text
   name: Wert 1
@@ -63,28 +222,6 @@ blocks:
     height: 128.57142857142856
   visible: true
   locked: false
-  children:
-  - type: rounded
-    id: block
-    name: Block
-    layer: 1.0
-    opacity: 106
-    color: '000000'
-    unicode:
-    position:
-      x: -12.0
-      y: -7.0
-    size:
-      width: 240.0
-      height: 30.0
-    rounding:
-      unicode:
-        tl: <#000000>
-        tr: <#000000>
-        br: <#000000>
-        bl: <#000000>
-    visible: true
-    locked: false
 - type: text
   id: text
   name: Wert 2
@@ -101,28 +238,6 @@ blocks:
     height: 128.57142857142856
   visible: true
   locked: false
-  children:
-  - type: rounded
-    id: block
-    name: Block
-    layer: 1.0
-    opacity: 106
-    color: '000000'
-    unicode:
-    position:
-      x: -12.0
-      y: -7.0
-    size:
-      width: 240.0
-      height: 30.0
-    rounding:
-      unicode:
-        tl: <#000000>
-        tr: <#000000>
-        br: <#000000>
-        bl: <#000000>
-    visible: true
-    locked: false
 - type: text
   id: text
   name: Wert 3
@@ -139,28 +254,6 @@ blocks:
     height: 128.57142857142856
   visible: true
   locked: false
-  children:
-  - type: rounded
-    id: block
-    name: Block
-    layer: 1.0
-    opacity: 106
-    color: '000000'
-    unicode:
-    position:
-      x: -12.0
-      y: -7.0
-    size:
-      width: 240.0
-      height: 30.0
-    rounding:
-      unicode:
-        tl: <#000000>
-        tr: <#000000>
-        br: <#000000>
-        bl: <#000000>
-    visible: true
-    locked: false
 - type: text
   id: text
   name: Wert 4
@@ -177,29 +270,6 @@ blocks:
     height: 128.57142857142856
   visible: true
   locked: false
-  children:
-  - type: rounded
-    id: block
-    name: Block
-    layer: 1.0
-    opacity: 106
-    color: '000000'
-    unicode:
-    position:
-      x: -12.0
-      y: -7.0
-    size:
-      width: 200.0
-      height: 30.0
-    rounding:
-      unicode:
-        tl: <#000000>
-        tr: <#000000>
-        br: <#000000>
-        bl: <#000000>
-    visible: true
-    locked: false
-# ---- zweite Zeile: Hinweis (Steuerung / Befehle)
 - type: text
   id: text
   name: Hinweis
@@ -216,30 +286,7 @@ blocks:
     height: 128.57142857142856
   visible: true
   locked: false
-  children:
-  - type: rounded
-    id: block
-    name: Block
-    layer: 1.0
-    opacity: 106
-    color: '000000'
-    unicode:
-    position:
-      x: -330.0
-      y: -7.0
-    size:
-      width: 660.0
-      height: 30.0
-    rounding:
-      unicode:
-        tl: <#000000>
-        tr: <#000000>
-        br: <#000000>
-        bl: <#000000>
-    visible: true
-    locked: false
   text-wrap: 660
-# ---- dritte Zeile: Ziel / Fortschritt
 - type: text
   id: text
   name: Ziel
@@ -256,30 +303,7 @@ blocks:
     height: 128.57142857142856
   visible: true
   locked: false
-  children:
-  - type: rounded
-    id: block
-    name: Block
-    layer: 1.0
-    opacity: 106
-    color: '000000'
-    unicode:
-    position:
-      x: -250.0
-      y: -7.0
-    size:
-      width: 500.0
-      height: 30.0
-    rounding:
-      unicode:
-        tl: <#000000>
-        tr: <#000000>
-        br: <#000000>
-        bl: <#000000>
-    visible: true
-    locked: false
   text-wrap: 500
-# ---- kleine Statuszeile oben rechts: Rang · Spielzeit · Online (immer sichtbar)
 - type: text
   id: text
   name: Status
@@ -289,32 +313,13 @@ blocks:
   text: '<font:default><#ffd82b>★ &f%tastic_rank_display% &7| <#ff5496>⌚ &f%tastic_playtime% &7| <#00a0fc>☀ &f%tastic_online%'
   align: right
   position:
-    x: 1900.0
+    x: 1888.0
     y: 30.0
   size:
     width: 128.0
     height: 128.57142857142856
   visible: true
   locked: false
-  children:
-  - type: rounded
-    id: block
-    name: Block
-    layer: 1.0
-    opacity: 106
-    color: '000000'
-    unicode:
-    position:
-      x: -288.0
-      y: -7.0
-    size:
-      width: 300.0
-      height: 30.0
-    rounding:
-      unicode:
-        tl: <#000000>
-        tr: <#000000>
-        br: <#000000>
-        bl: <#000000>
-    visible: true
-    locked: false
+  aligned: right
+editor_meta:
+  image_layout_offset_v1: true
