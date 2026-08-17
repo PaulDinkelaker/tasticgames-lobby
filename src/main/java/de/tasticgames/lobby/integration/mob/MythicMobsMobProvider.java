@@ -113,6 +113,17 @@ public final class MythicMobsMobProvider implements MobProvider {
         entity.remove();
     }
 
+    @Override
+    public boolean castSkill(Entity entity, String skill) {
+        if (!available || entity == null || skill == null || skill.isBlank()) return false;
+        try {
+            return MythicBukkit.inst().getAPIHelper().castSkill(entity, skill);
+        } catch (Throwable t) {
+            warnOnce("cast skill " + skill, t);
+            return false;
+        }
+    }
+
     private void warnOnce(String operation, Throwable t) {
         if (!warned) {
             warned = true;

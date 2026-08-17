@@ -183,6 +183,11 @@ public final class CookieClickService implements Service, Listener {
         for (Entity entity : w.getNearbyEntities(location, 6, 6, 6)) {
             if (entity.getPersistentDataContainer().has(markerKey, PersistentDataType.STRING)) {
                 entity.remove();
+            } else if (!main.mythicMobsType().isBlank() && mobs.available()
+                    && mobs.mobType(entity).map(t -> t.equalsIgnoreCase(main.mythicMobsType())).orElse(false)) {
+                // a manually spawned (persistent) copy of the cookie mob – the plugin owns the main cookie
+                logger.info("Removing manually spawned MythicMobs '" + main.mythicMobsType() + "' next to the main cookie.");
+                mobs.remove(entity);
             }
         }
 
@@ -469,6 +474,13 @@ public final class CookieClickService implements Service, Listener {
                 "cps", formatter.formatRate(stats.effectiveCps(), locale),
                 "combo", messages.mini(combo))));
         sounds.play(player, "minecraft:entity.item.pickup", 0.4f, result.comboAdvanced() ? 1.6f : 1.2f);
+        String clickSkill = configuration.get().mainCookie().clickSkill();
+        if ("mythicmobs".equals(backend) && !clickSkill.isBlank() && visualId != null) {
+            Entity visual = Bukkit.getEntity(visualId);
+            if (visual != null) {
+                mobs.castSkill(visual, clickSkill); // hit animation – damage itself is blocked by the lobby
+            }
+        }
         if (effects && !reduced) {
             Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
             Location at = visual == null ? player.getLocation().add(0, 1.5, 0) : visual.getLocation().add(0, 1.0, 0);

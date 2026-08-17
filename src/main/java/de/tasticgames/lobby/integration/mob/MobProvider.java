@@ -25,4 +25,7 @@ public interface MobProvider extends Integration {
 
     /** Removes the mob (despawn without drops/death effects where the API allows). */
     void remove(Entity entity);
+
+    /** Casts a MythicMobs skill with the entity as caster (e.g. a hit animation); false when unavailable. */
+    boolean castSkill(Entity entity, String skill);
 }

@@ -103,15 +103,18 @@ beim Ablegen `unequipCosmetic(slot)`. Alle anderen Einträge rendert weiterhin d
 main-cookie:
   world: "spawn"
   location: { x: -62.5, y: 35.0, z: 12.5 }
-  mythicmobs-type: "CookieClicker"   # 1. Wahl: MythicMobs-Mob (trägt das ModelEngine-Modell)
-  model: "fv_cookie_clicker"         # 2. Wahl: ModelEngine-Modell auf unsichtbarer Basis-Entity
+  mythicmobs-type: "fv_cookie_clicker"   # 1. Wahl: MythicMobs-Mob (trägt das ModelEngine-Modell)
+  click-skill: "fv_cookie_clicker_hit"   # MythicMobs-Skill pro Klick (Hit-Animation), Damage blockt die Lobby
+  model: "fv_cookie_clicker"             # 2. Wahl: ModelEngine-Modell auf unsichtbarer Basis-Entity
   hitbox: { width: 2.2, height: 2.4 }
 ```
 
 Reihenfolge: MythicMobs → ModelEngine → nativer Item-Display. Klicks werden über die Interaction-Hitbox,
 die Basis-Entity und `BaseEntityInteractEvent` erkannt (**Linksklick = backen, Rechtsklick = Menü**).
 Die Basis-Entity des MythicMobs-Mobs (z. B. das Schwein) wird per ModelEngine-API + Invisible ausgeblendet –
-sauberer ist `Type: ARMOR_STAND` + `Options: Invisible: true` im Mob und `model{...}` in den Skills.
+sauberer ist zusätzlich `Options: Invisible: true` im Mob. Manuell gespawnte Mobs dieses Typs am Cookie-Standort
+entfernt das Plugin beim Start (es besitzt den Main-Cookie). Der `~onDamaged`-Skill des Mobs feuert nicht, weil die
+Lobby jeden Schaden blockt – stattdessen castet sie `click-skill` bei jedem Klick.
 Der Chunk des Cookies wird per Plugin-Ticket geladen gehalten; verschwundene Entities werden alle 5 s neu gespawnt.
 **Cookie-Zone** (`main-cookie.zone-radius`, 8 Blöcke): Generatoren produzieren nur, während der Spieler in der Zone
 (oder in der Open-World) steht; außerhalb pausieren sie (Actionbar-Hinweis), Offline-Produktion ist standardmäßig aus.

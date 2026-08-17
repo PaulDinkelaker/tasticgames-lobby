@@ -12,7 +12,9 @@ main-cookie:
   #   1. MythicMobs mob type (carries the ModelEngine model configured by the builders)
   #   2. ModelEngine model attached to an invisible base entity
   #   3. native item display (vanilla cookie)
-  mythicmobs-type: "CookieClicker"
+  mythicmobs-type: "fv_cookie_clicker"
+  # MythicMobs skill cast on the mob for every bake click (hit animation); damage itself is blocked by the lobby
+  click-skill: "fv_cookie_clicker_hit"
   model: "fv_cookie_clicker"
   # click hitbox (an Interaction entity in front of the model – works with every backend)
   hitbox: { width: 2.2, height: 2.4 }

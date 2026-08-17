@@ -59,16 +59,18 @@ public record CookieConfiguration(
     /**
      * @param location         position of the main cookie (world = lobby world by default)
      * @param mythicMobsType   MythicMobs mob type used as visual (empty = skip)
+     * @param clickSkill       MythicMobs skill cast on the mob for every bake click (hit animation), empty = none
      * @param model            ModelEngine model id used when MythicMobs is not available (empty = skip)
      * @param zoneRadius       cookie zone radius: generators produce and the actionbar shows only inside it
      * @param goldenAreas      golden cookies only spawn inside these regions (empty = anywhere in the cookie's world)
      */
-    public record MainCookie(Point location, String mythicMobsType, String model, double hitboxWidth, double hitboxHeight, boolean label,
+    public record MainCookie(Point location, String mythicMobsType, String clickSkill, String model, double hitboxWidth, double hitboxHeight, boolean label,
                              double zoneRadius, long actionbarIntervalMillis, boolean goldenEnabled, int goldenMaxPerPlayer,
                              List<LobbyConfiguration.Region> goldenAreas) {
         public MainCookie {
             Objects.requireNonNull(location);
             mythicMobsType = mythicMobsType == null ? "" : mythicMobsType.trim();
+            clickSkill = clickSkill == null ? "" : clickSkill.trim();
             model = model == null ? "" : model.trim();
             goldenAreas = goldenAreas == null ? List.of() : List.copyOf(goldenAreas);
             if (hitboxWidth <= 0 || hitboxHeight <= 0) {
@@ -190,7 +192,7 @@ public record CookieConfiguration(
         Point mainLocation = point(req(mainSection, "location"), mainWorld);
         ConfigurationSection goldenMain = mainSection.getConfigurationSection("golden-cookies");
         MainCookie mainCookie = new MainCookie(mainLocation,
-                mainSection.getString("mythicmobs-type", ""), mainSection.getString("model", ""),
+                mainSection.getString("mythicmobs-type", ""), mainSection.getString("click-skill", ""), mainSection.getString("model", ""),
                 mainSection.getDouble("hitbox.width", 2.2), mainSection.getDouble("hitbox.height", 2.4), mainSection.getBoolean("label", true),
                 mainSection.getDouble("zone-radius", 8.0), mainSection.getLong("actionbar.interval-millis", 1000),
                 goldenMain == null || goldenMain.getBoolean("enabled", true), goldenMain == null ? 1 : goldenMain.getInt("max-per-player", 1),

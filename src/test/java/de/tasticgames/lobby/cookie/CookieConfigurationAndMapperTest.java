@@ -31,7 +31,8 @@ class CookieConfigurationAndMapperTest {
         assertEquals(-62.5, configuration.mainCookie().location().x(), 1e-9);
         assertEquals(35.0, configuration.mainCookie().location().y(), 1e-9);
         assertEquals(12.5, configuration.mainCookie().location().z(), 1e-9);
-        assertEquals("CookieClicker", configuration.mainCookie().mythicMobsType());
+        assertEquals("fv_cookie_clicker", configuration.mainCookie().mythicMobsType());
+        assertEquals("fv_cookie_clicker_hit", configuration.mainCookie().clickSkill());
         assertEquals(1, configuration.mainCookie().goldenAreas().size());
         assertTrue(!configuration.legacyFile());
         for (var zone : CookieCatalog.defaults().zones()) {
