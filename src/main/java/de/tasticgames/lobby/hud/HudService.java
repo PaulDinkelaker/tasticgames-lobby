@@ -62,6 +62,7 @@ public final class HudService implements Service {
     private BukkitTask task;
     private volatile boolean boxesAvailable;
     private volatile boolean boxesPendingPack;
+    private volatile boolean zipRequested;
     private volatile long lastBoxNotice;
 
     public HudService(Plugin plugin, TasticCoreApi coreApi, LobbyConfigurationService configurationService, HudContextProvider context,
@@ -93,7 +94,13 @@ public final class HudService implements Service {
         }
         exportAssets();
         customItems.onReady(() -> {
-            // ItemsAdder regenerated its pack (/iazip): the exported files are shipped now
+            if (boxesPendingPack && configuration.iaAutoZip() && !zipRequested) {
+                // ItemsAdder finished loading its content – regenerate the pack once so the exported files ship
+                zipRequested = true;
+                logger.info("Regenerating the ItemsAdder pack (/iazip) for the exported TasticLobby content...");
+                Bukkit.getScheduler().runTaskLater(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "iazip"), 40L);
+                return;
+            }
             if (boxesPendingPack) {
                 boxesPendingPack = false;
                 logger.info("ItemsAdder pack regenerated – HUD boxes enabled.");
@@ -143,8 +150,9 @@ public final class HudService implements Service {
             List<File> created = new HudAssetExporter(itemsAdder, logger).export(configuration.bossbarColor().name());
             if (!created.isEmpty()) {
                 boxesPendingPack = true;
-                logger.warning("HUD background boxes stay disabled until the resource pack ships the new files – run /iazip once "
-                        + "(they switch on automatically afterwards).");
+                zipRequested = false;
+                logger.warning("HUD background boxes stay disabled until the resource pack ships the new files"
+                        + (configuration.iaAutoZip() ? " – /iazip runs automatically once ItemsAdder is loaded." : " – run /iazip once."));
             }
         } catch (Exception e) {
             logger.warning("HUD asset export failed: " + e.getMessage());

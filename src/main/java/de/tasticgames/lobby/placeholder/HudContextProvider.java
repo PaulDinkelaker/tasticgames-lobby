@@ -137,7 +137,7 @@ public final class HudContextProvider {
             case COSMETICS -> switch (index) { case 1 -> "hat"; case 2 -> "aura"; case 3 -> "trail"; default -> "title"; };
             case SETTINGS -> switch (index) { case 1 -> "language"; case 2 -> "visibility"; case 3 -> "music"; default -> "sounds"; };
             case VISIBILITY -> switch (index) { case 1 -> "visibility"; case 2 -> "friends"; case 3 -> "party"; default -> "online"; };
-            default -> switch (index) { case 1 -> "rank"; case 2 -> "playtime"; case 3 -> "cookies"; default -> "online"; };
+            default -> switch (index) { case 1 -> "cookies"; case 2 -> "prestige"; case 3 -> "friends"; default -> "party"; };
         };
     }
 
@@ -227,11 +227,12 @@ public final class HudContextProvider {
                 };
             }
             default -> {
+                CookieSession session = cookie.runtime().session(player.getUniqueId()).orElse(null);
                 return switch (index) {
-                    case 1 -> ranks.rank(player).displayName();
-                    case 2 -> playtime.apply(player);
-                    case 3 -> cookie.runtime().session(player.getUniqueId()).map(s -> formatter.format(s.profile().cookies(), locale)).orElse(dash);
-                    case 4 -> String.valueOf(Bukkit.getOnlinePlayers().size());
+                    case 1 -> session == null ? dash : formatter.format(session.profile().cookies(), locale);
+                    case 2 -> session == null ? dash : String.valueOf(session.profile().prestigeLevel());
+                    case 3 -> snapshot == null ? dash : snapshot.friendUuids().stream().filter(snapshot::online).count() + "/" + snapshot.friendUuids().size();
+                    case 4 -> snapshot == null || snapshot.party() == null ? "0" : String.valueOf(snapshot.party().members().size());
                     default -> dash;
                 };
             }

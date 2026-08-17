@@ -16,6 +16,8 @@ itemsadder:
   icons: true
   boxes: true
   export-content: true
+  # run /iazip automatically (console) once ItemsAdder has loaded when the export wrote new files
+  auto-zip: true
   # boss bar colour whose textures are made transparent by the exported content (keep in sync with the export)
   bossbar-color: PINK
   # box glyphs (exported content); height 14 px, drawn behind the text
