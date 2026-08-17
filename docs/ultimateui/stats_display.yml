@@ -1,0 +1,320 @@
+# TasticGames – kontextabhängiges Top-Screen-HUD für UltimateUI (ersetzt das Scoreboard).
+# Alle Werte kommen aus TasticLobby (PlaceholderAPI-Expansion "tastic"); der Kontext wechselt automatisch mit dem
+# Item in der Hand: leer/sonstiges = Lobby, Cookie = Cookie Clicker, Social, Gateway, Profil, Cosmetics, Settings,
+# Sichtbarkeit. Keine %img_...%-Bilder – nur Standard-Schriftzeichen und Placeholders.
+#   %tastic_ctx_title%            Kontext-Titel (🍪 Cookie Clicker, ☻ Social, ✈ Gateway, ★ Profil, ✎ Cosmetics, ⚙ Einstellungen, 👁 Sichtbarkeit, ☀ TasticGames)
+#   %tastic_ctx_label_1..4%       Beschriftungen, %tastic_ctx_value_1..4% zugehörige Werte
+#   %tastic_ctx_hint%             Hinweiszeile (Steuerung/Befehle), %tastic_ctx_objective% Ziel-/Fortschrittszeile
+# Test: /papi parse me %tastic_ctx_title% – wechselt beim Item-Wechsel in der Hotbar.
+name: Stats Display
+blocks:
+# ---- obere Leiste: Kontext-Titel + 4 Wertepaare (Boxen von links nach rechts)
+- type: text
+  id: text
+  name: Kontext
+  layer: 2.0
+  opacity: 255
+  color: ffffff
+  text: '<font:default><#ffd82b>%tastic_ctx_title%'
+  align: left
+  position:
+    x: 402.0
+    y: 30.0
+  size:
+    width: 128.0
+    height: 128.57142857142856
+  visible: true
+  locked: false
+  children:
+  - type: rounded
+    id: block
+    name: Block
+    layer: 1.0
+    opacity: 106
+    color: '000000'
+    unicode:
+    position:
+      x: -12.0
+      y: -7.0
+    size:
+      width: 190.0
+      height: 30.0
+    rounding:
+      unicode:
+        tl: <#000000>
+        tr: <#000000>
+        br: <#000000>
+        bl: <#000000>
+    visible: true
+    locked: false
+- type: text
+  id: text
+  name: Wert 1
+  layer: 2.0
+  opacity: 255
+  color: ffffff
+  text: '<font:default>&7%tastic_ctx_label_1%: <#24ff2b>%tastic_ctx_value_1%'
+  align: left
+  position:
+    x: 604.0
+    y: 30.0
+  size:
+    width: 128.0
+    height: 128.57142857142856
+  visible: true
+  locked: false
+  children:
+  - type: rounded
+    id: block
+    name: Block
+    layer: 1.0
+    opacity: 106
+    color: '000000'
+    unicode:
+    position:
+      x: -12.0
+      y: -7.0
+    size:
+      width: 240.0
+      height: 30.0
+    rounding:
+      unicode:
+        tl: <#000000>
+        tr: <#000000>
+        br: <#000000>
+        bl: <#000000>
+    visible: true
+    locked: false
+- type: text
+  id: text
+  name: Wert 2
+  layer: 2.0
+  opacity: 255
+  color: ffffff
+  text: '<font:default>&7%tastic_ctx_label_2%: <#c4e4ff>%tastic_ctx_value_2%'
+  align: left
+  position:
+    x: 856.0
+    y: 30.0
+  size:
+    width: 128.0
+    height: 128.57142857142856
+  visible: true
+  locked: false
+  children:
+  - type: rounded
+    id: block
+    name: Block
+    layer: 1.0
+    opacity: 106
+    color: '000000'
+    unicode:
+    position:
+      x: -12.0
+      y: -7.0
+    size:
+      width: 240.0
+      height: 30.0
+    rounding:
+      unicode:
+        tl: <#000000>
+        tr: <#000000>
+        br: <#000000>
+        bl: <#000000>
+    visible: true
+    locked: false
+- type: text
+  id: text
+  name: Wert 3
+  layer: 2.0
+  opacity: 255
+  color: ffffff
+  text: '<font:default>&7%tastic_ctx_label_3%: <#f94fff>%tastic_ctx_value_3%'
+  align: left
+  position:
+    x: 1108.0
+    y: 30.0
+  size:
+    width: 128.0
+    height: 128.57142857142856
+  visible: true
+  locked: false
+  children:
+  - type: rounded
+    id: block
+    name: Block
+    layer: 1.0
+    opacity: 106
+    color: '000000'
+    unicode:
+    position:
+      x: -12.0
+      y: -7.0
+    size:
+      width: 240.0
+      height: 30.0
+    rounding:
+      unicode:
+        tl: <#000000>
+        tr: <#000000>
+        br: <#000000>
+        bl: <#000000>
+    visible: true
+    locked: false
+- type: text
+  id: text
+  name: Wert 4
+  layer: 2.0
+  opacity: 255
+  color: ffffff
+  text: '<font:default>&7%tastic_ctx_label_4%: <#f0d030>%tastic_ctx_value_4%'
+  align: left
+  position:
+    x: 1360.0
+    y: 30.0
+  size:
+    width: 128.0
+    height: 128.57142857142856
+  visible: true
+  locked: false
+  children:
+  - type: rounded
+    id: block
+    name: Block
+    layer: 1.0
+    opacity: 106
+    color: '000000'
+    unicode:
+    position:
+      x: -12.0
+      y: -7.0
+    size:
+      width: 200.0
+      height: 30.0
+    rounding:
+      unicode:
+        tl: <#000000>
+        tr: <#000000>
+        br: <#000000>
+        bl: <#000000>
+    visible: true
+    locked: false
+# ---- zweite Zeile: Hinweis (Steuerung / Befehle)
+- type: text
+  id: text
+  name: Hinweis
+  layer: 2.0
+  opacity: 255
+  color: ffffff
+  text: '<font:default>&7%tastic_ctx_hint%'
+  align: center
+  position:
+    x: 960.0
+    y: 66.0
+  size:
+    width: 128.0
+    height: 128.57142857142856
+  visible: true
+  locked: false
+  children:
+  - type: rounded
+    id: block
+    name: Block
+    layer: 1.0
+    opacity: 106
+    color: '000000'
+    unicode:
+    position:
+      x: -330.0
+      y: -7.0
+    size:
+      width: 660.0
+      height: 30.0
+    rounding:
+      unicode:
+        tl: <#000000>
+        tr: <#000000>
+        br: <#000000>
+        bl: <#000000>
+    visible: true
+    locked: false
+  text-wrap: 660
+# ---- dritte Zeile: Ziel / Fortschritt
+- type: text
+  id: text
+  name: Ziel
+  layer: 2.0
+  opacity: 255
+  color: ffffff
+  text: '<#dbb039><font:default>%tastic_ctx_objective%'
+  align: center
+  position:
+    x: 960.0
+    y: 104.0
+  size:
+    width: 128.0
+    height: 128.57142857142856
+  visible: true
+  locked: false
+  children:
+  - type: rounded
+    id: block
+    name: Block
+    layer: 1.0
+    opacity: 106
+    color: '000000'
+    unicode:
+    position:
+      x: -250.0
+      y: -7.0
+    size:
+      width: 500.0
+      height: 30.0
+    rounding:
+      unicode:
+        tl: <#000000>
+        tr: <#000000>
+        br: <#000000>
+        bl: <#000000>
+    visible: true
+    locked: false
+  text-wrap: 500
+# ---- kleine Statuszeile oben rechts: Rang · Spielzeit · Online (immer sichtbar)
+- type: text
+  id: text
+  name: Status
+  layer: 2.0
+  opacity: 255
+  color: ffffff
+  text: '<font:default><#ffd82b>★ &f%tastic_rank_display% &7| <#ff5496>⌚ &f%tastic_playtime% &7| <#00a0fc>☀ &f%tastic_online%'
+  align: right
+  position:
+    x: 1900.0
+    y: 30.0
+  size:
+    width: 128.0
+    height: 128.57142857142856
+  visible: true
+  locked: false
+  children:
+  - type: rounded
+    id: block
+    name: Block
+    layer: 1.0
+    opacity: 106
+    color: '000000'
+    unicode:
+    position:
+      x: -288.0
+      y: -7.0
+    size:
+      width: 300.0
+      height: 30.0
+    rounding:
+      unicode:
+        tl: <#000000>
+        tr: <#000000>
+        br: <#000000>
+        bl: <#000000>
+    visible: true
+    locked: false

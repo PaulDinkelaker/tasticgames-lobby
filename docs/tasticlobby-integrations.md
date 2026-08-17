@@ -34,6 +34,7 @@ Rohwerte ohne Farben – das Display-Plugin (UltimateUI/TAB) formatiert.
 | `party_size`, `party_leader` | Party-Größe / Leader-Name |
 | `clan`, `clan_tag` | Clan-Name / Kurzform |
 | `in_open_world` | true/false – Spieler ist in der Cookie-Open-World |
+| `ctx`, `ctx_title`, `ctx_label_1..4`, `ctx_value_1..4`, `ctx_hint`, `ctx_objective` | kontextabhängige HUD-Zeilen (Kontext = gehaltenes Item: LOBBY, COOKIE, SOCIAL, GATEWAY, PROFILE, COSMETICS, SETTINGS, VISIBILITY), lokalisiert – fertiges Top-Screen-HUD: `docs/ultimateui/stats_display.yml` |
 | `held_item`, `held_slot` | gehaltenes Lobby-Item (GATEWAY, PROFILE, SOCIAL, COOKIE, COSMETICS, SETTINGS, VISIBILITY, NONE) / Hotbar-Slot 0-8 – für kontextabhängige Scoreboards |
 | `kills`, `deaths` | Vanilla-Statistik dieses Servers |
 | `playtime`, `playtime_hours`, `playtime_minutes`, `session_playtime` | Spielzeit (Vanilla-Statistik) formatiert / Stunden / Minuten, aktuelle Session |

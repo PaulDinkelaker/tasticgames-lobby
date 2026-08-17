@@ -313,6 +313,10 @@ public final class LobbyBootstrap {
         for (String key : List.of("balance", "balance_raw", "cookies", "cookies_raw", "cps", "prestige", "prestige_title", "lifetime", "crumbs", "combo", "buff", "generators")) {
             p.add("cookie_" + key, player -> cookie.placeholder(player, key));
         }
+        new de.tasticgames.lobby.placeholder.HudContextProvider(coreApi, messages, items, players, ranks, social, gateway, cosmetics, visibility, cookie,
+                player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
+                player -> players.find(player.getUniqueId()).map(lp -> formatDuration(java.time.Duration.between(lp.joinedAt(), java.time.Instant.now()))).orElse(""))
+                .registerInto(p);
         return p;
     }
 
