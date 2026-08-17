@@ -128,16 +128,25 @@ public final class CookieDialogService {
                     messages.get(lang, "cookie.overview.stats", Map.of("cookies", fmt(player, profile.cookies()), "cps", fmt(player, stats.effectiveCps()),
                             "prestige", profile.prestigeLevel(), "lifetime", fmt(player, profile.lifetimeCookies()))));
             List<ActionButton> buttons = new ArrayList<>();
-            boolean inWorld = world.isCookieWorld(player.getWorld());
-            buttons.add(dialogs.button(player, messages.get(lang, inWorld ? "cookie.overview.continue" : "cookie.overview.enter", Map.of()), null,
-                    DialogSupport.BUTTON_WIDTH, p -> { if (!world.isCookieWorld(p.getWorld())) world.enter(p); }));
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.shop", Map.of()), this::openShop));
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.upgrades", Map.of()), this::openUpgrades));
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.prestige", Map.of()), this::openPrestige));
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.stats_button", Map.of()), this::openStats));
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.leaderboard", Map.of()), p -> openLeaderboard(p, CookieLeaderboardTypeResponse.PRESTIGE)));
-            if (inWorld) {
-                buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.exit", Map.of()), world::leave));
+            boolean inWorld = world.isOpenWorld(player.getWorld());
+            if (world.enabled()) {
+                if (inWorld) {
+                    buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.travel", Map.of()), this::openTravel));
+                    buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.exit", Map.of()), world::leave));
+                } else if (world.mayEnter(session)) {
+                    buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.enter", Map.of()), null, DialogSupport.BUTTON_WIDTH, world::enter));
+                } else {
+                    buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.enter_locked", Map.of("prestige", world.requiredPrestige())), null,
+                            DialogSupport.BUTTON_WIDTH, p -> {
+                                messages.send(p, "cookie.world.locked", Map.of("prestige", world.requiredPrestige()));
+                                sounds.error(p);
+                            }));
+                }
             }
             dialogs.show(player, dialogs.menu(messages.get(lang, "cookie.overview.title", Map.of()), body, buttons,
                     dialogs.close(messages.get(lang, "common.close", Map.of())), 2, true));

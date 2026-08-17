@@ -22,10 +22,9 @@ public final class LobbySettings {
     public static final SettingKey<Boolean> COOKIE_HUD = SettingKey.booleanKey("lobby.cookie-clicker.hud", true);
     public static final SettingKey<Boolean> COOKIE_EFFECTS = SettingKey.booleanKey("lobby.cookie-clicker.effects", true);
     public static final SettingKey<Boolean> COOKIE_NOTIFICATIONS = SettingKey.booleanKey("lobby.cookie-clicker.notifications", true);
-    public static final SettingKey<Boolean> HUD_ENABLED = SettingKey.booleanKey("lobby.hud.enabled", true);
 
     public static final List<SettingKey<?>> ALL = List.of(ITEMS_ENABLED, PLAYER_VISIBILITY, LAUNCHPADS_ENABLED,
-            TELEPORT_PADS_ENABLED, DOUBLE_JUMP_ENABLED, COOKIE_HUD, COOKIE_EFFECTS, COOKIE_NOTIFICATIONS, HUD_ENABLED);
+            TELEPORT_PADS_ENABLED, DOUBLE_JUMP_ENABLED, COOKIE_HUD, COOKIE_EFFECTS, COOKIE_NOTIFICATIONS);
 
     private LobbySettings() {
     }

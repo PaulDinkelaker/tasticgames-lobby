@@ -48,6 +48,7 @@ public final class CosmeticService implements Service {
     private final LobbyApiService api;
     private final LobbyTelemetryService telemetry;
     private final MainThread mainThread;
+    private final de.tasticgames.lobby.integration.LobbyIntegrations integrations;
     private final Logger logger;
     private final List<CosmeticRenderer> renderers = new ArrayList<>();
     private final Map<UUID, PlayerCosmetics> cache = new ConcurrentHashMap<>();
@@ -55,13 +56,14 @@ public final class CosmeticService implements Service {
     private BukkitTask tickTask;
 
     public CosmeticService(Plugin plugin, TasticCoreApi coreApi, LobbyConfigurationService configurationService, LobbyApiService api,
-                           LobbyTelemetryService telemetry, MainThread mainThread, Logger logger) {
+                           LobbyTelemetryService telemetry, MainThread mainThread, de.tasticgames.lobby.integration.LobbyIntegrations integrations, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin);
         this.coreApi = Objects.requireNonNull(coreApi);
         this.configurationService = Objects.requireNonNull(configurationService);
         this.api = Objects.requireNonNull(api);
         this.telemetry = Objects.requireNonNull(telemetry);
         this.mainThread = Objects.requireNonNull(mainThread);
+        this.integrations = Objects.requireNonNull(integrations);
         this.logger = Objects.requireNonNull(logger);
     }
 
@@ -73,8 +75,18 @@ public final class CosmeticService implements Service {
     @Override
     public void start() {
         catalog = CosmeticCatalog.load(configurationService.raw("cosmetics"));
+        renderers.clear();
+        var hmc = integrations.hmcCosmetics();
+        if (hmc.available()) {
+            renderers.add(hmc);
+            long mapped = catalog.all().stream().filter(de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer::handles).count();
+            long missing = catalog.all().stream().filter(de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer::handles)
+                    .filter(d -> !hmc.cosmeticExists(de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer.hmcId(d))).count();
+            logger.info("HMCCosmetics renderer active: " + mapped + " catalog entries mapped (render: hmc:<id>)"
+                    + (missing > 0 ? ", " + missing + " reference unknown HMCCosmetics ids" : "") + ".");
+        }
         renderers.add(new NativeCosmeticRenderer(plugin));
-        logger.info("Cosmetic catalog loaded: " + catalog.size() + " cosmetics, renderers: native");
+        logger.info("Cosmetic catalog loaded: " + catalog.size() + " cosmetics, renderers: " + renderers.stream().map(CosmeticRenderer::id).toList());
         tickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 10L, 10L);
     }
 
@@ -168,7 +180,7 @@ public final class CosmeticService implements Service {
             CosmeticDefinition definition = cosmetics == null || !visible ? null : catalog.find(cosmetics.equipped().get(category)).orElse(null);
             for (CosmeticRenderer renderer : renderers) {
                 if (renderer.supports(category)) {
-                    renderer.apply(player, category, definition, reduced);
+                    renderer.apply(player, category, definitionFor(renderer, definition), reduced);
                 }
             }
         }
@@ -190,12 +202,21 @@ public final class CosmeticService implements Service {
                 CosmeticDefinition definition = catalog.find(cosmetics.equipped().get(category)).orElse(null);
                 if (definition == null) continue;
                 for (CosmeticRenderer renderer : renderers) {
-                    if (renderer.supports(category)) {
+                    if (renderer.supports(category) && definitionFor(renderer, definition) != null) {
                         renderer.tick(player, definition, reduced);
                     }
                 }
             }
         }
+    }
+
+    /** HMCCosmetics renders {@code hmc:} entries, the native renderer everything else; the other one clears its state. */
+    private static CosmeticDefinition definitionFor(CosmeticRenderer renderer, CosmeticDefinition definition) {
+        if (definition == null) {
+            return null;
+        }
+        boolean hmcRenderer = renderer instanceof de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer;
+        return hmcRenderer == de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer.handles(definition) ? definition : null;
     }
 
     private boolean reducedEffects(Player player) {

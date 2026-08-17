@@ -1,34 +1,72 @@
 package de.tasticgames.lobby.placeholder;
 
-import de.tasticgames.lobby.social.SocialSnapshotService;
-import de.tasticgames.lobby.visibility.PlayerVisibilityService;
+import de.tasticgames.lobby.integration.placeholder.PlaceholderBridge;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
- * PlaceholderAPI expansion: %tastic_lobby_party%, %tastic_lobby_clan%, %tastic_lobby_visibility%,
- * %tastic_lobby_cookie_balance%, %tastic_lobby_cookie_cps%, %tastic_lobby_cookie_prestige%.
- * Only real data; empty string when unavailable.
+ * Lobby values for display plugins (UltimateUI scoreboard, TAB tablist/nametags) – the lobby renders
+ * no scoreboard itself. Registered as PlaceholderAPI expansion {@code tastic} (%tastic_<key>%) and,
+ * when TAB is present, as native TAB placeholders (%tastic_<key>%). Values are raw text (no colours)
+ * so the display plugin owns the styling; empty string when unknown.
+ * <p>
+ * Keys: rank, rank_display, rank_prefix, rank_suffix, language, language_code, visibility, party_size,
+ * party_leader, clan, clan_tag, friends_online, online (network), server, in_open_world,
+ * cookie_balance|cookies, cookie_balance_raw, cookie_cps, cookie_prestige, cookie_prestige_title,
+ * cookie_lifetime, cookie_crumbs, cookie_combo, cookie_buff, cookie_generators.
+ * Legacy aliases (lobby_party, lobby_clan, lobby_visibility, lobby_cookie_*) stay supported.
  */
 public final class LobbyPlaceholders extends PlaceholderExpansion {
 
     private final Plugin plugin;
-    private final SocialSnapshotService social;
-    private final PlayerVisibilityService visibility;
-    private final BiFunction<Player, String, String> cookiePlaceholder;
+    private final Map<String, Function<Player, String>> resolvers = new LinkedHashMap<>();
+    private final PlaceholderBridge bridge;
 
-    public LobbyPlaceholders(Plugin plugin, SocialSnapshotService social, PlayerVisibilityService visibility,
-                             BiFunction<Player, String, String> cookiePlaceholder) {
+    public LobbyPlaceholders(Plugin plugin, PlaceholderBridge bridge) {
         this.plugin = Objects.requireNonNull(plugin);
-        this.social = Objects.requireNonNull(social);
-        this.visibility = Objects.requireNonNull(visibility);
-        this.cookiePlaceholder = Objects.requireNonNull(cookiePlaceholder);
+        this.bridge = Objects.requireNonNull(bridge);
+    }
+
+    /** Registers a placeholder key (without prefix); call before {@link #register()} / {@link #registerBridge(int)}. */
+    public LobbyPlaceholders add(String key, Function<Player, String> resolver) {
+        resolvers.put(Objects.requireNonNull(key), Objects.requireNonNull(resolver));
+        return this;
+    }
+
+    public List<String> keys() {
+        return List.copyOf(resolvers.keySet());
+    }
+
+    /** Registers every key as native TAB placeholder %tastic_<key>% (no-op without TAB). */
+    public void registerBridge(int refreshMillis) {
+        if (!bridge.available()) {
+            return;
+        }
+        for (Map.Entry<String, Function<Player, String>> entry : resolvers.entrySet()) {
+            bridge.register("%tastic_" + entry.getKey() + "%", refreshMillis, entry.getValue());
+        }
+    }
+
+    public String resolve(Player player, String key) {
+        Function<Player, String> resolver = resolvers.get(key);
+        if (resolver == null) {
+            return null;
+        }
+        try {
+            String value = resolver.apply(player);
+            return value == null ? "" : value;
+        } catch (RuntimeException e) {
+            return "";
+        }
     }
 
     @Override
@@ -52,16 +90,26 @@ public final class LobbyPlaceholders extends PlaceholderExpansion {
     }
 
     @Override
+    public @NotNull List<String> getPlaceholders() {
+        return resolvers.keySet().stream().map(k -> "%tastic_" + k + "%").toList();
+    }
+
+    @Override
     public String onRequest(OfflinePlayer offlinePlayer, @NotNull String params) {
-        if (offlinePlayer == null || !(offlinePlayer instanceof Player player)) {
+        if (!(offlinePlayer instanceof Player player)) {
             return "";
         }
-        return switch (params) {
-            case "lobby_party" -> social.cached(player.getUniqueId()).map(s -> s.party() == null ? "" : String.valueOf(s.party().members().size())).orElse("");
-            case "lobby_clan" -> social.cached(player.getUniqueId()).map(s -> s.clan() == null ? "" : s.clan().name()).orElse("");
-            case "lobby_visibility" -> visibility.modeOf(player).name();
-            case "lobby_cookie_balance", "lobby_cookie_cps", "lobby_cookie_prestige" -> cookiePlaceholder.apply(player, params.substring("lobby_cookie_".length()));
-            default -> null;
+        String key = params.toLowerCase(java.util.Locale.ROOT);
+        String direct = resolve(player, key);
+        if (direct != null) {
+            return direct;
+        }
+        // legacy aliases from 1.0.0
+        return switch (key) {
+            case "lobby_party" -> resolve(player, "party_size");
+            case "lobby_clan" -> resolve(player, "clan");
+            case "lobby_visibility" -> resolve(player, "visibility");
+            default -> key.startsWith("lobby_cookie_") ? resolve(player, "cookie_" + key.substring("lobby_cookie_".length())) : null;
         };
     }
 }

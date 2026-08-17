@@ -1,7 +1,6 @@
 package de.tasticgames.lobby.player;
 
 import de.tasticgames.lobby.cosmetic.CosmeticService;
-import de.tasticgames.lobby.hud.LobbyHudService;
 import de.tasticgames.lobby.item.LobbyItemService;
 import de.tasticgames.lobby.music.MusicService;
 import de.tasticgames.lobby.settings.LobbySettings;
@@ -25,16 +24,14 @@ public final class LobbySettingChangeListener implements Listener {
     private final MusicService music;
     private final PlayerVisibilityService visibility;
     private final LobbyItemService items;
-    private final LobbyHudService hud;
     private final CosmeticService cosmetics;
 
     public LobbySettingChangeListener(LobbyPlayerService players, MusicService music, PlayerVisibilityService visibility,
-                                      LobbyItemService items, LobbyHudService hud, CosmeticService cosmetics) {
+                                      LobbyItemService items, CosmeticService cosmetics) {
         this.players = Objects.requireNonNull(players);
         this.music = Objects.requireNonNull(music);
         this.visibility = Objects.requireNonNull(visibility);
         this.items = Objects.requireNonNull(items);
-        this.hud = Objects.requireNonNull(hud);
         this.cosmetics = Objects.requireNonNull(cosmetics);
     }
 
@@ -53,8 +50,6 @@ public final class LobbySettingChangeListener implements Listener {
             items.refresh(player, lobbyPlayer);
         } else if (id.equals(LobbySettings.ITEMS_ENABLED.id())) {
             items.refresh(player, lobbyPlayer);
-        } else if (id.equals(LobbySettings.HUD_ENABLED.id()) || id.equals(LobbySettings.COOKIE_HUD.id())) {
-            hud.show(player);
         } else if (id.equals(CoreSettings.COSMETICS_VISIBLE.id()) || id.equals(CoreSettings.REDUCED_EFFECTS.id())) {
             cosmetics.render(player);
         }

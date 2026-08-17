@@ -16,7 +16,6 @@ public record LobbyConfiguration(
         Movement movement,
         Items items,
         Music music,
-        Hud hud,
         Api api,
         Telemetry telemetry
 ) {
@@ -26,7 +25,6 @@ public record LobbyConfiguration(
         Objects.requireNonNull(movement);
         Objects.requireNonNull(items);
         Objects.requireNonNull(music);
-        Objects.requireNonNull(hud);
         Objects.requireNonNull(api);
         Objects.requireNonNull(telemetry);
     }
@@ -110,10 +108,16 @@ public record LobbyConfiguration(
         }
     }
 
-    public record ItemSlot(String id, int slot, Material material, String assetId, boolean enabled) {
+    /**
+     * @param assetId      optional vanilla item model key (resource pack), e.g. {@code tasticgames:gateway_compass}
+     * @param customItemId optional ItemsAdder item id ({@code namespace:id}); used when ItemsAdder is present
+     */
+    public record ItemSlot(String id, int slot, Material material, String assetId, String customItemId, boolean enabled) {
         public ItemSlot {
             Objects.requireNonNull(id);
             Objects.requireNonNull(material);
+            assetId = assetId == null ? "" : assetId.trim();
+            customItemId = customItemId == null ? "" : customItemId.trim();
             if (slot < 0 || slot > 8) {
                 throw new IllegalArgumentException("Lobby item slot must be 0..8: " + id);
             }
@@ -149,19 +153,18 @@ public record LobbyConfiguration(
         }
     }
 
-    public record Hud(boolean enabled, String title, int refreshSeconds, boolean showCookieLine) {
-        public Hud {
-            Objects.requireNonNull(title);
-        }
-    }
-
+    /**
+     * @param credentialSource where base url/key came from: {@code environment}, {@code config/api.yml},
+     *                         {@code TasticCore/config/api.yml} or {@code none}
+     */
     public record Api(boolean enabled, String baseUrl, String serviceName, String apiKey, int connectTimeoutSeconds,
-                      int requestTimeoutSeconds, String backendServerId) {
+                      int requestTimeoutSeconds, String backendServerId, String credentialSource) {
         public Api {
             baseUrl = baseUrl == null ? "" : baseUrl.trim();
             serviceName = serviceName == null ? "" : serviceName.trim();
             apiKey = apiKey == null ? "" : apiKey.trim();
             backendServerId = backendServerId == null ? "lobby" : backendServerId.trim().toLowerCase(java.util.Locale.ROOT);
+            credentialSource = credentialSource == null ? "none" : credentialSource;
         }
 
         public boolean credentialsConfigured() {

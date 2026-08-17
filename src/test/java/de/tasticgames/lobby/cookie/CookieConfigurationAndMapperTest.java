@@ -24,13 +24,23 @@ class CookieConfigurationAndMapperTest {
     void defaultLayoutCoversEveryCatalogZone() throws Exception {
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(new InputStreamReader(
                 getClass().getClassLoader().getResourceAsStream("config/cookie-clicker.yml"), StandardCharsets.UTF_8));
-        CookieConfiguration configuration = CookieConfiguration.load(yaml, "world");
-        assertEquals("cookie", configuration.world().name());
+        CookieConfiguration configuration = CookieConfiguration.load(yaml, "spawn");
+        assertEquals("cookie", configuration.openWorld().name());
+        assertEquals(10, configuration.openWorld().requiredPrestige());
+        assertEquals("spawn", configuration.mainCookie().world());
+        assertEquals(-62.5, configuration.mainCookie().location().x(), 1e-9);
+        assertEquals(35.0, configuration.mainCookie().location().y(), 1e-9);
+        assertEquals(12.5, configuration.mainCookie().location().z(), 1e-9);
+        assertEquals("CookieClicker", configuration.mainCookie().mythicMobsType());
+        assertEquals(1, configuration.mainCookie().goldenAreas().size());
+        assertTrue(!configuration.legacyFile());
         for (var zone : CookieCatalog.defaults().zones()) {
             assertTrue(configuration.zones().containsKey(zone.id()), "layout missing zone " + zone.id());
         }
-        assertEquals(4, configuration.npcs().size());
+        assertEquals(4, configuration.npcs().list().size());
+        assertTrue(configuration.npcs().list().values().stream().allMatch(n -> n.location().world().equals("spawn")));
         assertTrue(configuration.pois().containsKey("cookie.main_cookie"));
+        assertEquals("spawn", configuration.pois().get("cookie.main_cookie").location().world());
         assertEquals(1.15, configuration.balancing().costGrowth(), 1e-9);
         assertTrue(configuration.balancing().offlineEnabled());
     }
@@ -38,8 +48,23 @@ class CookieConfigurationAndMapperTest {
     @Test
     void invalidLayoutFailsFast() {
         YamlConfiguration yaml = new YamlConfiguration();
-        yaml.set("world.name", "x");
+        yaml.set("main-cookie.world", "x");
         assertThrows(IllegalArgumentException.class, () -> CookieConfiguration.load(yaml, "world"));
+    }
+
+    @Test
+    void legacyFileFallsBackToBundledLayout() throws Exception {
+        YamlConfiguration bundled = YamlConfiguration.loadConfiguration(new InputStreamReader(
+                getClass().getClassLoader().getResourceAsStream("config/cookie-clicker.yml"), StandardCharsets.UTF_8));
+        YamlConfiguration legacy = new YamlConfiguration();
+        legacy.set("world.name", "cookie");
+        legacy.set("world.main-cookie.x", 0.5);
+        legacy.set("runtime.save-interval-seconds", 7);
+        legacy.setDefaults(bundled);
+        CookieConfiguration configuration = CookieConfiguration.load(legacy, "spawn");
+        assertTrue(configuration.legacyFile());
+        assertEquals("spawn", configuration.mainCookie().world());
+        assertEquals(7, configuration.runtime().saveIntervalSeconds());
     }
 
     @Test

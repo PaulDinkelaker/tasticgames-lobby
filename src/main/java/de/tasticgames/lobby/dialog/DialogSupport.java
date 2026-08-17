@@ -77,12 +77,27 @@ public final class DialogSupport {
                 .type(DialogType.confirmation(submit, cancel)));
     }
 
+    private volatile BiConsumer<Player, Throwable> errorHandler = (p, t) -> { };
+
+    /** Handler invoked (main thread) when a dialog action throws; the player must get feedback. */
+    public void setErrorHandler(BiConsumer<Player, Throwable> handler) {
+        this.errorHandler = java.util.Objects.requireNonNull(handler);
+    }
+
+    private void guarded(Player player, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException e) {
+            errorHandler.accept(player, e);
+        }
+    }
+
     /** Button executing {@code onClick} for the expected player only. */
     public ActionButton button(Player expected, Component label, Component tooltip, int width, Consumer<Player> onClick) {
         UUID uuid = expected.getUniqueId();
         DialogActionCallback callback = (view, audience) -> {
             if (audience instanceof Player clicked && clicked.getUniqueId().equals(uuid) && clicked.isOnline()) {
-                mainThread.run(() -> onClick.accept(clicked));
+                mainThread.run(() -> guarded(clicked, () -> onClick.accept(clicked)));
             }
         };
         ActionButton.Builder builder = ActionButton.builder(label).width(width).action(DialogAction.customClick(callback, options()));
@@ -101,7 +116,7 @@ public final class DialogSupport {
         UUID uuid = expected.getUniqueId();
         DialogActionCallback callback = (view, audience) -> {
             if (audience instanceof Player clicked && clicked.getUniqueId().equals(uuid) && clicked.isOnline()) {
-                mainThread.run(() -> onSubmit.accept(clicked, view));
+                mainThread.run(() -> guarded(clicked, () -> onSubmit.accept(clicked, view)));
             }
         };
         return ActionButton.builder(label).width(width).action(DialogAction.customClick(callback, options())).build();

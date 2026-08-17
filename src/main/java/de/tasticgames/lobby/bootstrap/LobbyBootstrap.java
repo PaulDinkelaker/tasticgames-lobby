@@ -8,7 +8,6 @@ import de.tasticgames.lobby.command.LobbyCommands;
 import de.tasticgames.lobby.command.TasticLobbyCommand;
 import de.tasticgames.lobby.config.LobbyConfigurationService;
 import de.tasticgames.lobby.cookie.CookieModule;
-import de.tasticgames.lobby.cosmetic.CosmeticCategory;
 import de.tasticgames.lobby.cosmetic.CosmeticService;
 import de.tasticgames.lobby.dialog.CosmeticsDialogService;
 import de.tasticgames.lobby.dialog.DialogSupport;
@@ -19,7 +18,8 @@ import de.tasticgames.lobby.dialog.SettingsDialogService;
 import de.tasticgames.lobby.dialog.SocialDialogService;
 import de.tasticgames.lobby.dialog.WelcomeDialogService;
 import de.tasticgames.lobby.gateway.GatewayService;
-import de.tasticgames.lobby.hud.LobbyHudService;
+import de.tasticgames.lobby.integration.LobbyIntegrations;
+import de.tasticgames.lobby.integration.rank.RankProvider;
 import de.tasticgames.lobby.item.LobbyItemListener;
 import de.tasticgames.lobby.item.LobbyItemService;
 import de.tasticgames.lobby.item.LobbyItemType;
@@ -50,7 +50,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayDeque;
@@ -58,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
 
@@ -73,9 +73,11 @@ public final class LobbyBootstrap {
     private final List<Listener> listeners = new ArrayList<>();
     private BukkitTask positionSampler;
     private LobbyPlaceholders placeholders;
+    private boolean placeholderApiRegistered;
 
     private TasticCoreApi coreApi;
     private LobbyConfigurationService configurationService;
+    private LobbyIntegrations integrations;
     private LobbyApiService api;
     private LobbyMessages messages;
     private LobbyPlayerService players;
@@ -87,7 +89,6 @@ public final class LobbyBootstrap {
     private LobbyItemService items;
     private LobbyPlayerInitializationService initialization;
     private CosmeticService cosmetics;
-    private LobbyHudService hud;
     private MusicService music;
     private GatewayService gateway;
     private SocialActionService socialActions;
@@ -108,8 +109,13 @@ public final class LobbyBootstrap {
         DialogSupport dialogs = new DialogSupport(mainThread);
 
         configurationService = start(new LobbyConfigurationService(plugin));
+        integrations = start(new LobbyIntegrations(plugin, logger));
         start(new LobbySettingsRegistrar(coreApi, logger));
         messages = start(new LobbyMessages(plugin, coreApi, logger));
+        dialogs.setErrorHandler((player, throwable) -> {
+            logger.warning("Dialog action failed for " + player.getName() + ": " + LobbyThrowables.rootMessage(throwable));
+            messages.send(player, "common.error");
+        });
         api = start(new LobbyApiService(configurationService, logger));
         players = start(new LobbyPlayerService());
         telemetry = start(new LobbyTelemetryService(plugin, configurationService, api, logger));
@@ -119,10 +125,9 @@ public final class LobbyBootstrap {
         managedWorlds.add(configurationService.configuration().world().name());
         environment = start(new WorldEnvironmentService(plugin, configurationService, () -> managedWorlds, logger));
         visibility = start(new PlayerVisibilityService(plugin, coreApi, social));
-        items = start(new LobbyItemService(plugin, configurationService, messages, coreApi, visibility::modeOf));
+        items = start(new LobbyItemService(plugin, configurationService, messages, coreApi, visibility::modeOf, integrations.customItems()));
         initialization = start(new LobbyPlayerInitializationService(coreApi, configurationService, players, spawn, items, visibility, telemetry, logger));
-        cosmetics = start(new CosmeticService(plugin, coreApi, configurationService, api, telemetry, mainThread, logger));
-        hud = start(new LobbyHudService(plugin, coreApi, configurationService, players, social, messages));
+        cosmetics = start(new CosmeticService(plugin, coreApi, configurationService, api, telemetry, mainThread, integrations, logger));
         music = start(new MusicService(plugin, coreApi, configurationService, players, logger));
         gateway = start(new GatewayService(plugin, api, telemetry, logger));
         NetworkNotifier notifier = new NetworkNotifier(api);
@@ -138,21 +143,19 @@ public final class LobbyBootstrap {
         WelcomeDialogService welcomeDialog = new WelcomeDialogService(coreApi, api, messages, dialogs, mainThread, gatewayDialog::open, logger);
         profileDialog.setCosmeticsOpener(cosmeticsDialog::openMain);
 
-        // cookie clicker
-        cookie = start(new CookieModule(plugin, coreApi, configurationService, api, players, items, spawn, messages, sounds, telemetry, dialogs, mainThread, hud, logger));
-        managedWorlds.add(cookie.world().configuration().world().name());
+        // cookie clicker (main cookie in the lobby, open world at prestige 10)
+        cookie = start(new CookieModule(plugin, coreApi, configurationService, api, players, spawn, messages, sounds, telemetry, dialogs, mainThread, integrations, logger));
+        managedWorlds.add(cookie.configuration().openWorld().name());
+        if (!cookie.configuration().mainCookie().world().equals(configurationService.configuration().world().name())) {
+            managedWorlds.add(cookie.configuration().mainCookie().world());
+        }
         environment.apply();
         profileDialog.setCookieSummary(cookie::profileSummary);
-        Function<Player, String> rank = this::rankOf;
-        hud.setRankResolver(rank::apply);
-        profileDialog.setRankResolver(rank::apply);
-        socialActions.setAfterAction(p -> {
-            visibility.apply(p);
-            hud.refresh(p);
-        });
+        RankProvider ranks = integrations.ranks();
+        profileDialog.setRankResolver(p -> ranks.rank(p).displayName());
+        socialActions.setAfterAction(visibility::apply);
 
-        // post-init hooks: HUD, music, cosmetics, social snapshot, cookie preload, join effect
-        initialization.addPostInitHook(hud::show);
+        // post-init hooks: music, cosmetics, social snapshot, cookie preload
         initialization.addPostInitHook(music::play);
         initialization.addPostInitHook(player -> {
             if (cosmetics.available()) {
@@ -168,18 +171,22 @@ public final class LobbyBootstrap {
                 social.load(player.getUniqueId(), true).whenComplete((s, t) -> mainThread.run(() -> {
                     if (t == null && player.isOnline()) {
                         visibility.applyAll();
-                        hud.refresh(player);
                     }
                 }));
             }
         });
         initialization.addPostInitHook(cookie::preload);
+        integrations.customItems().onReady(() -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                players.find(player.getUniqueId()).filter(LobbyPlayer::initialized).ifPresent(lp -> items.refresh(player, lp));
+            }
+        });
 
         // listeners
         LobbyConnectionListener connection = new LobbyConnectionListener(coreApi, configurationService, players, spawn, initialization, languageDialog, welcomeDialog, telemetry, logger);
+        languageDialog.setOnSelected(connection::continueAfterLanguage);
         connection.addQuitHook(cookie::onQuit);
         connection.addQuitHook(music::stop);
-        connection.addQuitHook(hud::hide);
         connection.addQuitHook(cosmetics::clear);
         connection.addQuitHook(p -> social.invalidate(p.getUniqueId()));
         connection.addQuitHook(p -> gateway.forget(p.getUniqueId()));
@@ -190,36 +197,39 @@ public final class LobbyBootstrap {
         register(new MovementListener(configurationService, environment, spawn, players, coreApi, sounds, telemetry));
         register(new LobbyItemListener(items, players, environment, configurationService, sounds, telemetry, (player, type) -> handleItem(player, type,
                 gatewayDialog, profileDialog, socialDialog, cosmeticsDialog, settingsDialog)));
-        register(new LobbySettingChangeListener(players, music, visibility, items, hud, cosmetics));
+        register(new LobbySettingChangeListener(players, music, visibility, items, cosmetics));
 
         // commands
-        LobbyCommands commands = new LobbyCommands(messages, players, spawn, settingsDialog, gatewayDialog, profileDialog, socialDialog, cosmeticsDialog, api,
-                mainThread, cookie::command, cookie::leaveWorld);
-        for (String name : List.of("lobby", "spawn", "profile", "settings", "gateway", "cosmetics", "social", "cookie")) {
+        LobbyCommands commands = new LobbyCommands(messages, players, spawn, settingsDialog, gatewayDialog, profileDialog, socialDialog, cosmeticsDialog,
+                languageDialog, api, mainThread, cookie::command, cookie::leaveWorld);
+        for (String name : List.of("lobby", "spawn", "profile", "settings", "gateway", "cosmetics", "social", "cookie", "lang")) {
             var command = plugin.getCommand(name);
-            if (command != null) {
-                command.setExecutor(commands);
-                command.setTabCompleter(commands);
+            if (command == null) {
+                logger.warning("Command '" + name + "' is missing from plugin.yml – not registered.");
+                continue;
             }
+            command.setExecutor(commands);
+            command.setTabCompleter(commands);
         }
         TasticLobbyCommand admin = new TasticLobbyCommand(plugin, coreApi, configurationService, api, players, initialization, spawn, items, visibility, cosmetics,
-                hud, music, telemetry, messages, mainThread, cookie::status, cookie::playerInfo, this::applyReload);
+                music, telemetry, messages, mainThread, this::extraStatus, cookie::playerInfo, this::applyReload, integrations.selections());
         plugin.getCommand("tasticlobby").setExecutor(admin);
         plugin.getCommand("tasticlobby").setTabCompleter(admin);
         plugin.getCommand("cookieadmin").setExecutor(cookie.adminCommand());
         plugin.getCommand("cookieadmin").setTabCompleter(cookie.adminCommand());
 
-        // placeholders
+        // placeholders for UltimateUI (PlaceholderAPI) and TAB
+        placeholders = buildPlaceholders(ranks);
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             try {
-                placeholders = new LobbyPlaceholders(plugin, social, visibility, cookie::placeholder);
                 placeholders.register();
-                logger.info("Registered PlaceholderAPI expansion 'tastic'.");
+                placeholderApiRegistered = true;
+                logger.info("Registered PlaceholderAPI expansion 'tastic' (" + placeholders.keys().size() + " placeholders).");
             } catch (Throwable t) {
                 logger.warning("PlaceholderAPI expansion could not be registered: " + LobbyThrowables.rootMessage(t));
-                placeholders = null;
             }
         }
+        placeholders.registerBridge(Math.max(250, configurationService.raw("lobby").getInt("placeholders.refresh-millis", 1000)));
 
         // position sampling (heatmap foundation)
         int sample = Math.max(2, configurationService.configuration().telemetry().positionSampleSeconds());
@@ -238,7 +248,9 @@ public final class LobbyBootstrap {
         }
         if (placeholders != null) {
             try {
-                placeholders.unregister();
+                if (placeholderApiRegistered) {
+                    placeholders.unregister();
+                }
             } catch (Throwable ignored) {
                 // PlaceholderAPI may already be disabled
             }
@@ -265,6 +277,32 @@ public final class LobbyBootstrap {
 
     // ------------------------------------------------------------------ helpers
 
+    private LobbyPlaceholders buildPlaceholders(RankProvider ranks) {
+        LobbyPlaceholders p = new LobbyPlaceholders(plugin, integrations.tab());
+        p.add("rank", player -> ranks.rank(player).group());
+        p.add("rank_display", player -> ranks.rank(player).displayName());
+        p.add("rank_prefix", player -> ranks.rank(player).prefix());
+        p.add("rank_suffix", player -> ranks.rank(player).suffix());
+        p.add("language", player -> messages.languageOf(player).displayName());
+        p.add("language_code", player -> messages.languageOf(player).code());
+        p.add("visibility", player -> visibility.modeOf(player).name());
+        p.add("server", player -> api.serverId());
+        p.add("party_size", player -> social.cached(player.getUniqueId()).map(s -> s.party() == null ? "0" : String.valueOf(s.party().members().size())).orElse(""));
+        p.add("party_leader", player -> social.cached(player.getUniqueId()).map(s -> s.party() == null ? "" : s.party().members().stream()
+                .filter(m -> m.leader()).map(m -> m.name()).findFirst().orElse("")).orElse(""));
+        p.add("clan", player -> social.cached(player.getUniqueId()).map(s -> s.clan() == null ? "" : s.clan().name()).orElse(""));
+        p.add("clan_tag", player -> social.cached(player.getUniqueId()).map(s -> s.clan() == null ? "" : s.clan().name().length() <= 5 ? s.clan().name()
+                : s.clan().name().substring(0, 4).toUpperCase(java.util.Locale.ROOT)).orElse(""));
+        p.add("friends_online", player -> social.cached(player.getUniqueId()).map(s -> String.valueOf(s.friendUuids().stream().filter(s::online).count())).orElse(""));
+        p.add("friends", player -> social.cached(player.getUniqueId()).map(s -> String.valueOf(s.friendUuids().size())).orElse(""));
+        p.add("online", player -> String.valueOf(Bukkit.getOnlinePlayers().size()));
+        p.add("in_open_world", player -> cookie.placeholder(player, "in_open_world"));
+        for (String key : List.of("balance", "balance_raw", "cookies", "cookies_raw", "cps", "prestige", "prestige_title", "lifetime", "crumbs", "combo", "buff", "generators")) {
+            p.add("cookie_" + key, player -> cookie.placeholder(player, key));
+        }
+        return p;
+    }
+
     private void handleItem(Player player, LobbyItemType type, GatewayDialogService gatewayDialog, ProfileDialogService profileDialog,
                             SocialDialogService socialDialog, CosmeticsDialogService cosmeticsDialog, SettingsDialogService settingsDialog) {
         switch (type) {
@@ -277,7 +315,7 @@ public final class LobbyBootstrap {
                 if (t == null) {
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         if (player.isOnline()) {
-                            messages.send(player, "lobby.visibility.changed", java.util.Map.of("mode",
+                            messages.send(player, "lobby.visibility.changed", Map.of("mode",
                                     messages.get(player, "lobby.visibility." + mode.name().toLowerCase(java.util.Locale.ROOT))));
                         }
                     });
@@ -287,14 +325,13 @@ public final class LobbyBootstrap {
         }
     }
 
-    private String rankOf(Player player) {
-        // LuckPerms primary group via permission metadata is not exposed to Bukkit; use the highest known group permission
-        for (String group : List.of("owner", "admin", "developer", "moderator", "builder", "helper", "team", "vip", "premium")) {
-            if (player.hasPermission("group." + group)) {
-                return group.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + group.substring(1);
-            }
-        }
-        return "Player";
+    private Map<String, String> extraStatus() {
+        Map<String, String> status = new java.util.LinkedHashMap<>();
+        status.put("API credentials", api.credentialSource() + (api.credentialsRejected() ? " (REJECTED by the API – check service key)" : "")
+                + (api.apiOutdated() ? " (API OUTDATED – deploy tasticgames-api 1.0)" : ""));
+        status.putAll(integrations.status());
+        status.putAll(cookie.status());
+        return status;
     }
 
     private void applyReload() {
@@ -302,10 +339,10 @@ public final class LobbyBootstrap {
             messages.stop();
             messages.start();
             environment.apply();
+            cookie.reloadLayout();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 LobbyPlayer lobbyPlayer = players.getOrCreate(player);
                 items.refresh(player, lobbyPlayer);
-                hud.refresh(player);
             }
         } catch (Exception e) {
             logger.warning("Reload post-processing failed: " + LobbyThrowables.rootMessage(e));
@@ -322,7 +359,7 @@ public final class LobbyBootstrap {
                 continue;
             }
             var loc = player.getLocation();
-            telemetry.event("lobby.position_sample", player.getUniqueId(), java.util.Map.of(
+            telemetry.event("lobby.position_sample", player.getUniqueId(), Map.of(
                     "world", loc.getWorld().getName(), "x", loc.getBlockX(), "y", loc.getBlockY(), "z", loc.getBlockZ(),
                     "zone", String.valueOf(lobbyPlayer.currentZoneId()), "poi", String.valueOf(lobbyPlayer.currentPoiId())));
         }
@@ -345,10 +382,5 @@ public final class LobbyBootstrap {
 
     public CookieModule cookie() {
         return cookie;
-    }
-
-    @FunctionalInterface
-    private interface Function<A, B> {
-        B apply(A a);
     }
 }

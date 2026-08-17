@@ -1,13 +1,15 @@
 # TasticLobby – core lobby configuration
 world:
-  name: "world"
+  # name of the lobby world (loaded by the server / Multiverse before TasticLobby starts)
+  name: "spawn"
   spawn:
-    world: "world"
-    x: 0.5
-    y: 100.0
-    z: 0.5
+    world: "spawn"
+    x: -23.5
+    y: 37.0
+    z: -3.5
     yaw: 0.0
     pitch: 0.0
+  # players falling below this Y are teleported back to spawn
   void-rescue-y: 0.0
   fixed-time:
     enabled: true
@@ -26,23 +28,24 @@ movement:
     forward-velocity: 0.9
     cooldown-millis: 600
     sound: "minecraft:entity.firework_rocket.launch"
-    # optional directional pads: region -> fixed velocity
+    # optional directional pads: region -> fixed velocity (define with /tasticlobby region launchpad <id> from a WorldEdit selection)
     directional: {}
     #  bridge-jump:
-    #    world: "world"
-    #    min: { x: 10, y: 99, z: 10 }
-    #    max: { x: 12, y: 100, z: 12 }
+    #    world: "spawn"
+    #    min: { x: 10, y: 36, z: 10 }
+    #    max: { x: 12, y: 37, z: 12 }
     #    velocity: { x: 0.0, y: 1.4, z: 2.5 }
   teleport-pads:
     enabled: true
     material: GOLD_BLOCK
     # false = only gold blocks inside 'regions' teleport (decorative gold stays usable)
     everywhere: false
+    # define with /tasticlobby region teleport <id> from a WorldEdit selection
     regions: {}
     #  spawn-ring:
-    #    world: "world"
-    #    min: { x: -30, y: 90, z: -30 }
-    #    max: { x: 30, y: 110, z: 30 }
+    #    world: "spawn"
+    #    min: { x: -30, y: 30, z: -30 }
+    #    max: { x: 30, y: 45, z: 30 }
     cooldown-millis: 1500
     sound: "minecraft:entity.enderman.teleport"
   double-jump:
@@ -50,11 +53,11 @@ movement:
     velocity: 0.9
     cooldown-millis: 1500
 
-hud:
-  enabled: true
-  title: "<gold><bold>TasticGames</bold></gold>"
-  refresh-seconds: 5
-  show-cookie-line: true
+# The scoreboard/tablist are rendered by UltimateUI and TAB. TasticLobby only provides the data as
+# placeholders (%tastic_...% via PlaceholderAPI and TAB) – see docs/tasticlobby-integrations.md.
+placeholders:
+  # refresh interval used for TAB placeholders (milliseconds)
+  refresh-millis: 1000
 
 telemetry:
   enabled: true

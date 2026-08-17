@@ -7,9 +7,7 @@ import java.util.Optional;
  * Logical lobby items (slots/materials come from items.yml).
  */
 public enum LobbyItemType {
-    GATEWAY, PROFILE, SOCIAL, COOKIE, COSMETICS, SETTINGS, VISIBILITY,
-    // cookie world hotbar
-    COOKIE_STATS, COOKIE_SHOP, COOKIE_UPGRADES, COOKIE_PRESTIGE, COOKIE_TRAVEL, COOKIE_EXIT;
+    GATEWAY, PROFILE, SOCIAL, COOKIE, COSMETICS, SETTINGS, VISIBILITY;
 
     public String key() {
         return name().toLowerCase(Locale.ROOT);

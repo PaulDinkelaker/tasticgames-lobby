@@ -24,6 +24,7 @@ public final class CookieSession {
     private volatile long lastActionbarAt;
     private volatile int clicksSinceReport;
     private volatile Instant sessionStartedAt = Instant.now();
+    private volatile java.util.concurrent.CompletableFuture<Boolean> inFlightSave;
 
     public CookieSession(UUID player, CookieProfile profile) {
         this.player = player;
@@ -49,4 +50,6 @@ public final class CookieSession {
     public int takeClicks() { int c = clicksSinceReport; clicksSinceReport = 0; return c; }
     public void countClick() { clicksSinceReport++; }
     public Instant sessionStartedAt() { return sessionStartedAt; }
+    public java.util.concurrent.CompletableFuture<Boolean> inFlightSave() { return inFlightSave; }
+    public void inFlightSave(java.util.concurrent.CompletableFuture<Boolean> value) { inFlightSave = value; }
 }

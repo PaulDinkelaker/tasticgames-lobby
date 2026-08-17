@@ -5,7 +5,6 @@ import de.tasticgames.lobby.config.LobbyConfiguration;
 import de.tasticgames.lobby.cookie.domain.model.GoldenCookieReward;
 import de.tasticgames.lobby.cookie.domain.model.GoldenCookieRoll;
 import de.tasticgames.lobby.locale.LobbyMessages;
-import de.tasticgames.lobby.player.LobbyPlayerService;
 import de.tasticgames.lobby.settings.LobbySettings;
 import de.tasticgames.lobby.sound.LobbySounds;
 import de.tasticgames.lobby.telemetry.LobbyTelemetryService;
@@ -40,10 +39,12 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
- * Player-specific golden cookies: rolled per second by the engine, spawned near the player
+ * Player-specific golden cookies: rolled per second by the engine for players standing in a
+ * golden area (lobby areas around the main cookie, or the open world), spawned near the player
  * (visible only to them), limited lifetime, ownership-validated click, cleanup on quit/exit.
  */
 public final class GoldenCookieService implements Service, Listener {
@@ -53,10 +54,9 @@ public final class GoldenCookieService implements Service, Listener {
 
     private final Plugin plugin;
     private final TasticCoreApi coreApi;
-    private final CookieConfiguration configuration;
+    private final Supplier<CookieConfiguration> configuration;
     private final CookieRuntimeService runtime;
     private final CookieWorldService world;
-    private final LobbyPlayerService players;
     private final LobbyMessages messages;
     private final LobbySounds sounds;
     private final LobbyTelemetryService telemetry;
@@ -65,14 +65,13 @@ public final class GoldenCookieService implements Service, Listener {
     private final Map<UUID, Instant> lastRoll = new ConcurrentHashMap<>();
     private org.bukkit.scheduler.BukkitTask task;
 
-    public GoldenCookieService(Plugin plugin, TasticCoreApi coreApi, CookieConfiguration configuration, CookieRuntimeService runtime, CookieWorldService world,
-                               LobbyPlayerService players, LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry, Logger logger) {
+    public GoldenCookieService(Plugin plugin, TasticCoreApi coreApi, Supplier<CookieConfiguration> configuration, CookieRuntimeService runtime,
+                               CookieWorldService world, LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin);
         this.coreApi = Objects.requireNonNull(coreApi);
         this.configuration = Objects.requireNonNull(configuration);
         this.runtime = Objects.requireNonNull(runtime);
         this.world = Objects.requireNonNull(world);
-        this.players = Objects.requireNonNull(players);
         this.messages = Objects.requireNonNull(messages);
         this.sounds = Objects.requireNonNull(sounds);
         this.telemetry = Objects.requireNonNull(telemetry);
@@ -95,16 +94,30 @@ public final class GoldenCookieService implements Service, Listener {
         for (UUID owner : List.copyOf(active.keySet())) {
             remove(owner);
         }
+        lastRoll.clear();
     }
 
     public int activeCount() {
         return active.size();
     }
 
-    private void tick() {
-        if (!configuration.runtime().goldenEnabled()) {
-            return;
+    /** Whether the player currently stands where golden cookies may appear. */
+    boolean eligible(Player player) {
+        CookieConfiguration config = configuration.get();
+        Location location = player.getLocation();
+        String worldName = player.getWorld().getName();
+        if (config.mainCookie().goldenEnabled() && worldName.equals(config.mainCookie().world())) {
+            List<LobbyConfiguration.Region> areas = config.mainCookie().goldenAreas();
+            return areas.isEmpty() || areas.stream().anyMatch(r -> r.contains(location));
         }
+        if (config.openWorld().goldenEnabled() && world.isOpenWorld(player.getWorld())) {
+            List<LobbyConfiguration.Region> areas = config.openWorld().goldenAreas();
+            return areas.isEmpty() || areas.stream().anyMatch(r -> r.contains(location));
+        }
+        return false;
+    }
+
+    private void tick() {
         Instant now = Instant.now();
         for (Golden golden : List.copyOf(active.values())) {
             if (!golden.expiresAt().isAfter(now)) {
@@ -112,11 +125,15 @@ public final class GoldenCookieService implements Service, Listener {
             }
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (!world.isCookieWorld(player.getWorld()) || active.containsKey(player.getUniqueId())) {
+            if (active.containsKey(player.getUniqueId())) {
                 continue;
             }
             CookieSession session = runtime.session(player.getUniqueId()).orElse(null);
             if (session == null || session.paused()) {
+                continue;
+            }
+            if (!eligible(player)) {
+                lastRoll.remove(player.getUniqueId());
                 continue;
             }
             Instant previous = lastRoll.put(player.getUniqueId(), now);
@@ -133,11 +150,11 @@ public final class GoldenCookieService implements Service, Listener {
         Location target = null;
         for (int attempt = 0; attempt < 8; attempt++) {
             double angle = ThreadLocalRandom.current().nextDouble(Math.PI * 2);
-            double distance = 4 + ThreadLocalRandom.current().nextDouble(6);
+            double distance = 3 + ThreadLocalRandom.current().nextDouble(5);
             Location candidate = base.clone().add(Math.cos(angle) * distance, 0, Math.sin(angle) * distance);
-            candidate.setY(candidate.getWorld().getHighestBlockYAt(candidate) + 1.5);
-            boolean allowed = configuration.goldenAreas().isEmpty() || configuration.goldenAreas().stream().anyMatch(r -> r.contains(candidate));
-            if (allowed && Math.abs(candidate.getY() - base.getY()) < 8) {
+            int highest = candidate.getWorld().getHighestBlockYAt(candidate);
+            candidate.setY(highest > candidate.getWorld().getMinHeight() ? highest + 1.5 : base.getY() + 1.0);
+            if (Math.abs(candidate.getY() - base.getY()) < 6 && candidate.getBlock().getType().isAir()) {
                 target = candidate;
                 break;
             }
@@ -198,10 +215,9 @@ public final class GoldenCookieService implements Service, Listener {
     private void handle(Player player, Entity entity, java.util.function.Consumer<Boolean> cancel) {
         Golden golden = active.get(player.getUniqueId());
         if (golden == null || !golden.interaction().equals(entity.getUniqueId())) {
-            // clicking someone else's golden cookie does nothing (ownership validation)
             for (Golden other : active.values()) {
                 if (other.interaction().equals(entity.getUniqueId())) {
-                    cancel.accept(true);
+                    cancel.accept(true); // someone else's golden cookie: ownership validation
                     return;
                 }
             }
@@ -209,11 +225,10 @@ public final class GoldenCookieService implements Service, Listener {
         }
         cancel.accept(true);
         CookieSession session = runtime.session(player.getUniqueId()).orElse(null);
+        remove(player.getUniqueId());
         if (session == null) {
-            remove(player.getUniqueId());
             return;
         }
-        remove(player.getUniqueId());
         Instant now = Instant.now();
         GoldenCookieReward reward = runtime.engine().rewardFor(session.profile(), ThreadLocalRandom.current(), now);
         runtime.engine().applyGoldenReward(session.profile(), reward, now);
@@ -234,6 +249,6 @@ public final class GoldenCookieService implements Service, Listener {
         }
         telemetry.event("cookie.golden_clicked", player.getUniqueId(), Map.of("type", reward.type()));
         runtime.engine().evaluateAchievements(session.profile()).forEach(a ->
-                messages.send(player, "cookie.achievement.unlocked", Map.of("name", world.achievementName(player, a))));
+                messages.send(player, "cookie.achievement.unlocked", Map.of("name", CookieNames.achievement(messages, runtime.engine(), player, a))));
     }
 }

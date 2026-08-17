@@ -97,6 +97,33 @@ public final class LobbyConnectionListener implements Listener {
         }
     }
 
+    /** Core could not load the account (API down / wrong key): neutral lobby state + feedback instead of a raw player. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onLoadFailed(de.tasticgames.player.event.TasticPlayerLoadFailedEvent event) {
+        Player player = event.player() != null ? event.player() : Bukkit.getPlayer(event.minecraftUuid());
+        if (player == null || !player.isOnline()) {
+            return;
+        }
+        LobbyPlayer lobbyPlayer = players.getOrCreate(player);
+        initialization.applyLobbyState(player, lobbyPlayer, true);
+        player.sendMessage(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(
+                "<red>Your TasticGames account could not be loaded right now. Please rejoin in a moment.</red>"));
+        logger.warning("TasticCore could not load " + player.getName() + ": " + (event.cause() == null ? "unknown" : event.cause().getMessage()));
+        telemetry.event("lobby.load_failed", player.getUniqueId(), Map.of("cause", event.cause() == null ? "unknown" : String.valueOf(event.cause().getMessage())));
+    }
+
+    /** Continuation used by the language dialog when the selection did not change the language (no Core event). */
+    public void continueAfterLanguage(Player player, TasticPlayer tasticPlayer) {
+        if (player == null || !player.isOnline()) {
+            return;
+        }
+        boolean onboarding = coreApi.playerOnboardingService().find(player.getUniqueId()).map(o -> !o.completed()).orElse(false);
+        initialization.initialize(player, tasticPlayer);
+        if (onboarding) {
+            welcomeDialog.openIfNeeded(player, tasticPlayer);
+        }
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onLanguageChanged(TasticPlayerLanguageChangedEvent event) {
         Player player = Bukkit.getPlayer(event.tasticPlayer().minecraftUuid());

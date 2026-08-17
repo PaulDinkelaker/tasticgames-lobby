@@ -24,21 +24,27 @@ import java.util.function.Function;
  * Loads config/*.yml (copies defaults from the JAR on first start), validates fail-fast
  * and exposes typed configuration. Secrets can be supplied via environment variables
  * (TASTIC_API_BASE_URL, TASTIC_API_SERVICE, TASTIC_API_KEY, TASTIC_LOBBY_SERVER_ID).
+ * When the lobby has no API key of its own, the credentials of TasticCore
+ * ({@code plugins/TasticCore/config/api.yml}) are reused so both plugins talk to the same API.
  */
 public final class LobbyConfigurationService implements Service {
 
     private final TasticLobbyPlugin plugin;
     private final Function<String, String> environment;
+    private final File coreApiFile;
     private final Map<String, YamlConfiguration> files = new LinkedHashMap<>();
     private volatile LobbyConfiguration configuration;
+    private YamlConfiguration coreApi;
 
     public LobbyConfigurationService(TasticLobbyPlugin plugin) {
-        this(plugin, System::getenv);
+        this(plugin, System::getenv, new File(plugin.getDataFolder().getParentFile(),
+                "TasticCore" + File.separator + "config" + File.separator + "api.yml"));
     }
 
-    public LobbyConfigurationService(TasticLobbyPlugin plugin, Function<String, String> environment) {
+    public LobbyConfigurationService(TasticLobbyPlugin plugin, Function<String, String> environment, File coreApiFile) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.environment = Objects.requireNonNull(environment, "environment");
+        this.coreApiFile = coreApiFile;
     }
 
     @Override
@@ -59,6 +65,7 @@ public final class LobbyConfigurationService implements Service {
 
     public synchronized void reload() throws IOException {
         files.clear();
+        coreApi = null;
         for (String name : List.of("lobby", "items", "music", "api", "cookie-clicker", "cosmetics")) {
             files.put(name, load(name));
         }
@@ -152,7 +159,7 @@ public final class LobbyConfigurationService implements Service {
                 ConfigurationSection s = slotSection.getConfigurationSection(id);
                 if (s == null) continue;
                 slots.put(id, new LobbyConfiguration.ItemSlot(id, s.getInt("slot"), material(s.getString("material", "STONE"), Material.STONE),
-                        s.getString("asset-id", ""), s.getBoolean("enabled", true)));
+                        s.getString("asset-id", ""), s.getString("itemsadder", ""), s.getBoolean("enabled", true)));
             }
         }
         LobbyConfiguration.Items itemConfig = new LobbyConfiguration.Items(slots, items.getLong("interaction-cooldown-millis", 400));
@@ -161,23 +168,71 @@ public final class LobbyConfigurationService implements Service {
                 music.getBoolean("enabled", true), tracks(music, "playlists.lobby"), tracks(music, "playlists.cookie"),
                 music.getInt("gap-seconds", 8), music.getBoolean("shuffle", true));
 
-        LobbyConfiguration.Hud hud = new LobbyConfiguration.Hud(lobby.getBoolean("hud.enabled", true),
-                lobby.getString("hud.title", "<gold><bold>TasticGames</bold></gold>"), lobby.getInt("hud.refresh-seconds", 5),
-                lobby.getBoolean("hud.show-cookie-line", true));
-
-        LobbyConfiguration.Api apiConfig = new LobbyConfiguration.Api(
-                api.getBoolean("enabled", true),
-                firstNonBlank(env("TASTIC_API_BASE_URL"), api.getString("base-url", "")),
-                firstNonBlank(env("TASTIC_API_SERVICE"), api.getString("authentication.service-name", "tastic-core-lobby")),
-                firstNonBlank(env("TASTIC_API_KEY"), api.getString("authentication.api-key", "")),
-                api.getInt("timeouts.connect-seconds", 5), api.getInt("timeouts.request-seconds", 10),
-                firstNonBlank(env("TASTIC_LOBBY_SERVER_ID"), api.getString("server-id", "lobby")));
+        LobbyConfiguration.Api apiConfig = apiConfiguration(api);
 
         LobbyConfiguration.Telemetry telemetry = new LobbyConfiguration.Telemetry(lobby.getBoolean("telemetry.enabled", true),
                 lobby.getInt("telemetry.queue-capacity", 5000), lobby.getInt("telemetry.batch-size", 200),
                 lobby.getInt("telemetry.flush-interval-seconds", 5), lobby.getInt("telemetry.position-sample-seconds", 4));
 
-        return new LobbyConfiguration(world, movement, itemConfig, musicConfig, hud, apiConfig, telemetry);
+        return new LobbyConfiguration(world, movement, itemConfig, musicConfig, apiConfig, telemetry);
+    }
+
+    /**
+     * Credential precedence: environment → config/api.yml → TasticCore/config/api.yml. The
+     * TasticCore fallback is what makes a freshly installed lobby work without a second key.
+     */
+    private LobbyConfiguration.Api apiConfiguration(YamlConfiguration api) {
+        boolean enabled = api.getBoolean("enabled", true);
+        int connect = api.getInt("timeouts.connect-seconds", 5);
+        int request = api.getInt("timeouts.request-seconds", 10);
+        String serverId = firstNonBlank(env("TASTIC_LOBBY_SERVER_ID"), api.getString("server-id", "lobby"));
+        String ownBase = api.getString("base-url", "");
+        String ownService = api.getString("authentication.service-name", "");
+        String ownKey = api.getString("authentication.api-key", "");
+        if (ownKey != null && ownKey.trim().equalsIgnoreCase("CHANGE_ME")) {
+            ownKey = "";
+        }
+
+        String envKey = env("TASTIC_API_KEY");
+        if (!envKey.isBlank()) {
+            return new LobbyConfiguration.Api(enabled,
+                    firstNonBlank(env("TASTIC_API_BASE_URL"), ownBase, coreValue("base-url")),
+                    firstNonBlank(env("TASTIC_API_SERVICE"), ownService, coreValue("authentication.service-name"), "tastic-core-lobby"),
+                    envKey, connect, request, serverId, "environment");
+        }
+        if (ownKey != null && !ownKey.isBlank()) {
+            return new LobbyConfiguration.Api(enabled,
+                    firstNonBlank(env("TASTIC_API_BASE_URL"), ownBase),
+                    firstNonBlank(env("TASTIC_API_SERVICE"), ownService, "tastic-core-lobby"),
+                    ownKey, connect, request, serverId, "config/api.yml");
+        }
+        String coreKey = coreValue("authentication.api-key");
+        if (!coreKey.isBlank()) {
+            return new LobbyConfiguration.Api(enabled,
+                    firstNonBlank(env("TASTIC_API_BASE_URL"), coreValue("base-url"), ownBase),
+                    firstNonBlank(env("TASTIC_API_SERVICE"), coreValue("authentication.service-name"), "tastic-core-lobby"),
+                    coreKey, connect, request, serverId, "TasticCore/config/api.yml");
+        }
+        return new LobbyConfiguration.Api(enabled,
+                firstNonBlank(env("TASTIC_API_BASE_URL"), ownBase),
+                firstNonBlank(env("TASTIC_API_SERVICE"), ownService, "tastic-core-lobby"),
+                "", connect, request, serverId, "none");
+    }
+
+    /** Value from TasticCore's api.yml (empty when the file is missing/unreadable). Read lazily per reload. */
+    private String coreValue(String path) {
+        if (coreApi == null) {
+            coreApi = new YamlConfiguration();
+            if (coreApiFile != null && coreApiFile.isFile()) {
+                try (var reader = Files.newBufferedReader(coreApiFile.toPath(), StandardCharsets.UTF_8)) {
+                    coreApi.load(reader);
+                } catch (IOException | org.bukkit.configuration.InvalidConfigurationException e) {
+                    plugin.getLogger().warning("TasticCore api.yml could not be read for the credential fallback: " + e.getMessage());
+                }
+            }
+        }
+        String value = coreApi.getString(path, "");
+        return value == null ? "" : value.trim();
     }
 
     private static List<LobbyConfiguration.Track> tracks(YamlConfiguration music, String path) {

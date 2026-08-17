@@ -19,6 +19,13 @@ repositories {
         name = "placeholderapi"
         url = uri("https://repo.extendedclip.com/releases/")
     }
+
+    // integrations (all compileOnly / soft dependencies at runtime)
+    maven { name = "citizens"; url = uri("https://maven.citizensnpcs.co/repo") }
+    maven { name = "lumine"; url = uri("https://mvn.lumine.io/repository/maven-public/") }   // ModelEngine, MythicMobs
+    maven { name = "hibiscusmc"; url = uri("https://repo.hibiscusmc.com/releases") }         // HMCCosmetics
+    maven { name = "enginehub"; url = uri("https://maven.enginehub.org/repo/") }             // WorldEdit API (FAWE compatible)
+    maven { name = "jitpack"; url = uri("https://jitpack.io") }                               // TAB API, ItemsAdder API
 }
 
 /*
@@ -48,6 +55,17 @@ val coreJarFiles = if (coreJarProperty.isPresent) {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
+
+    // ---- soft integrations (present on the server as separate plugins, never shaded)
+    compileOnly("net.luckperms:api:5.5")
+    compileOnly("net.citizensnpcs:citizens-main:2.0.40-SNAPSHOT") { isTransitive = false }
+    compileOnly("com.ticxo.modelengine:ModelEngine:R4.0.9") { isTransitive = false }
+    compileOnly("io.lumine:Mythic-Dist:5.13.0") { isTransitive = false }
+    compileOnly("com.hibiscusmc:HMCCosmetics:2.9.2") { isTransitive = false }
+    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.4.5") { isTransitive = false }
+    compileOnly("com.sk89q.worldedit:worldedit-core:7.4.5") { isTransitive = false }
+    compileOnly("com.github.NEZNAMY:TAB-API:5.2.4") { isTransitive = false }
+    compileOnly("com.github.LoneDev6:API-ItemsAdder:3.6.3-beta-14") { isTransitive = false }
 
     compileOnly(coreJarFiles)
 

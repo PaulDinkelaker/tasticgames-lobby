@@ -25,7 +25,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
- * Player commands: /lobby, /spawn, /profile [player], /settings, /gateway, /cosmetics, /social, /cookie.
+ * Player commands: /lobby, /spawn, /profile [player], /settings, /gateway, /cosmetics, /social, /cookie, /lang [de|en|hi].
  */
 public final class LobbyCommands implements CommandExecutor, TabCompleter {
 
@@ -37,6 +37,7 @@ public final class LobbyCommands implements CommandExecutor, TabCompleter {
     private final ProfileDialogService profile;
     private final SocialDialogService social;
     private final CosmeticsDialogService cosmetics;
+    private final de.tasticgames.lobby.dialog.LanguageDialogService language;
     private final LobbyApiService api;
     private final MainThread mainThread;
     private final BiConsumer<Player, String[]> cookieCommand;
@@ -44,7 +45,8 @@ public final class LobbyCommands implements CommandExecutor, TabCompleter {
 
     public LobbyCommands(LobbyMessages messages, LobbyPlayerService players, LobbySpawnService spawn, SettingsDialogService settings,
                          GatewayDialogService gateway, ProfileDialogService profile, SocialDialogService social, CosmeticsDialogService cosmetics,
-                         LobbyApiService api, MainThread mainThread, BiConsumer<Player, String[]> cookieCommand, Consumer<Player> leaveCookieWorld) {
+                         de.tasticgames.lobby.dialog.LanguageDialogService language, LobbyApiService api, MainThread mainThread,
+                         BiConsumer<Player, String[]> cookieCommand, Consumer<Player> leaveCookieWorld) {
         this.messages = Objects.requireNonNull(messages);
         this.players = Objects.requireNonNull(players);
         this.spawn = Objects.requireNonNull(spawn);
@@ -53,6 +55,7 @@ public final class LobbyCommands implements CommandExecutor, TabCompleter {
         this.profile = Objects.requireNonNull(profile);
         this.social = Objects.requireNonNull(social);
         this.cosmetics = Objects.requireNonNull(cosmetics);
+        this.language = Objects.requireNonNull(language);
         this.api = Objects.requireNonNull(api);
         this.mainThread = Objects.requireNonNull(mainThread);
         this.cookieCommand = Objects.requireNonNull(cookieCommand);
@@ -80,6 +83,22 @@ public final class LobbyCommands implements CommandExecutor, TabCompleter {
             case "cosmetics" -> cosmetics.openMain(player);
             case "social" -> social.openHub(player);
             case "cookie" -> cookieCommand.accept(player, args);
+            case "lang" -> {
+                if (args.length == 0) {
+                    language.open(player, true);
+                    return true;
+                }
+                var selected = parseLanguage(args[0]);
+                if (selected == null) {
+                    messages.send(player, "language.unknown", Map.of("codes", String.join(", ", supportedLanguageCodes())));
+                    return true;
+                }
+                if (selected == language.current(player)) {
+                    messages.send(player, "language.already", Map.of("language", selected.displayName()));
+                    return true;
+                }
+                language.select(player, selected, null, null);
+            }
             case "profile" -> {
                 if (args.length == 0) {
                     profile.openOwn(player);
@@ -121,9 +140,34 @@ public final class LobbyCommands implements CommandExecutor, TabCompleter {
                     .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(args[0].toLowerCase(java.util.Locale.ROOT))).toList();
         }
         if (command.getName().equalsIgnoreCase("cookie") && args.length == 1) {
-            return List.of("stats", "leaderboard", "world", "shop", "prestige").stream()
+            return List.of("stats", "leaderboard", "world", "shop", "upgrades", "prestige", "menu").stream()
                     .filter(n -> n.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))).toList();
         }
+        if (command.getName().equalsIgnoreCase("lang") && args.length == 1) {
+            return supportedLanguageCodes().stream().filter(n -> n.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))).toList();
+        }
         return List.of();
+    }
+
+    /** Accepts codes (de/en/hi), enum names and display names (deutsch, english, hindi). */
+    static de.tasticgames.localization.SupportedLanguage parseLanguage(String raw) {
+        if (raw == null) return null;
+        String value = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        var byCode = de.tasticgames.localization.SupportedLanguage.find(value).orElse(null);
+        if (byCode != null) return byCode;
+        for (var language : de.tasticgames.localization.SupportedLanguage.values()) {
+            if (language.name().equalsIgnoreCase(value) || language.displayName().equalsIgnoreCase(value)
+                    || (language == de.tasticgames.localization.SupportedLanguage.GERMAN && (value.equals("deutsch") || value.equals("german")))
+                    || (language == de.tasticgames.localization.SupportedLanguage.ENGLISH && (value.equals("english") || value.equals("englisch")))
+                    || (language == de.tasticgames.localization.SupportedLanguage.HINDI && value.equals("hindi"))) {
+                return language;
+            }
+        }
+        return null;
+    }
+
+    private static List<String> supportedLanguageCodes() {
+        return java.util.Arrays.stream(de.tasticgames.localization.SupportedLanguage.values())
+                .map(l -> l.code().toLowerCase(java.util.Locale.ROOT)).toList();
     }
 }

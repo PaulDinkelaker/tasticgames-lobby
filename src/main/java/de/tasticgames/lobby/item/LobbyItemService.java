@@ -28,7 +28,8 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Typed lobby items identified via PersistentDataContainer (never by name/lore).
+ * Typed lobby items identified via PersistentDataContainer (never by name/lore). Items may come
+ * from ItemsAdder ({@code itemsadder: namespace:id} in items.yml) with a vanilla fallback.
  */
 public final class LobbyItemService implements Service {
 
@@ -37,14 +38,16 @@ public final class LobbyItemService implements Service {
     private final LobbyMessages messages;
     private final TasticCoreApi coreApi;
     private final Function<Player, VisibilityMode> visibility;
+    private final de.tasticgames.lobby.integration.item.CustomItemProvider customItems;
 
     public LobbyItemService(Plugin plugin, LobbyConfigurationService configurationService, LobbyMessages messages, TasticCoreApi coreApi,
-                            Function<Player, VisibilityMode> visibility) {
+                            Function<Player, VisibilityMode> visibility, de.tasticgames.lobby.integration.item.CustomItemProvider customItems) {
         this.itemKey = new NamespacedKey(plugin, "lobby-item");
         this.configurationService = Objects.requireNonNull(configurationService);
         this.messages = Objects.requireNonNull(messages);
         this.coreApi = Objects.requireNonNull(coreApi);
         this.visibility = Objects.requireNonNull(visibility);
+        this.customItems = Objects.requireNonNull(customItems);
     }
 
     @Override
@@ -76,7 +79,7 @@ public final class LobbyItemService implements Service {
         return typeOf(stack).isPresent();
     }
 
-    /** Gives the hotbar for the player's current mode (lobby or cookie world). */
+    /** Gives the lobby hotbar (idempotent; the same hotbar is used inside the cookie open world). */
     public void giveItems(Player player, LobbyPlayer lobbyPlayer) {
         if (lobbyPlayer.buildMode()) {
             return;
@@ -99,10 +102,6 @@ public final class LobbyItemService implements Service {
         for (LobbyConfiguration.ItemSlot slot : configurationService.configuration().items().slots().values()) {
             LobbyItemType type = LobbyItemType.find(slot.id()).orElse(null);
             if (type == null || !slot.enabled()) {
-                continue;
-            }
-            boolean cookieItem = type.name().startsWith("COOKIE_");
-            if (cookieItem != lobbyPlayer.inCookieWorld()) {
                 continue;
             }
             inventory.setItem(slot.slot(), build(type, slot, player, language));
@@ -128,7 +127,13 @@ public final class LobbyItemService implements Service {
         if (type == LobbyItemType.VISIBILITY) {
             material = visibility.apply(player).material();
         }
-        ItemStack stack = new ItemStack(material);
+        ItemStack stack = null;
+        if (!slot.customItemId().isBlank() && type != LobbyItemType.VISIBILITY) {
+            stack = customItems.item(slot.customItemId()).orElse(null);
+        }
+        if (stack == null) {
+            stack = new ItemStack(material);
+        }
         ItemMeta meta = stack.getItemMeta();
         String nameKey = "lobby.item." + type.key().replace('_', '-') + ".name";
         String loreKey = "lobby.item." + type.key().replace('_', '-') + ".lore";

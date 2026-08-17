@@ -5,7 +5,6 @@ import de.tasticgames.lobby.TasticLobbyPlugin;
 import de.tasticgames.lobby.api.LobbyApiService;
 import de.tasticgames.lobby.config.LobbyConfigurationService;
 import de.tasticgames.lobby.cosmetic.CosmeticService;
-import de.tasticgames.lobby.hud.LobbyHudService;
 import de.tasticgames.lobby.item.LobbyItemService;
 import de.tasticgames.lobby.locale.LobbyMessages;
 import de.tasticgames.lobby.music.MusicService;
@@ -57,7 +56,6 @@ public final class TasticLobbyCommand implements CommandExecutor, TabCompleter {
     private final LobbyItemService items;
     private final PlayerVisibilityService visibility;
     private final CosmeticService cosmetics;
-    private final LobbyHudService hud;
     private final MusicService music;
     private final LobbyTelemetryService telemetry;
     private final LobbyMessages messages;
@@ -66,12 +64,14 @@ public final class TasticLobbyCommand implements CommandExecutor, TabCompleter {
     private final Supplier<Map<String, String>> extraStatus;
     private final Function<Player, List<String>> extraPlayerInfo;
     private final Runnable reloadHook;
+    private final de.tasticgames.lobby.integration.selection.SelectionProvider selections;
 
     public TasticLobbyCommand(TasticLobbyPlugin plugin, TasticCoreApi coreApi, LobbyConfigurationService configurationService, LobbyApiService api,
                               LobbyPlayerService players, LobbyPlayerInitializationService initialization, LobbySpawnService spawn, LobbyItemService items,
-                              PlayerVisibilityService visibility, CosmeticService cosmetics, LobbyHudService hud, MusicService music,
+                              PlayerVisibilityService visibility, CosmeticService cosmetics, MusicService music,
                               LobbyTelemetryService telemetry, LobbyMessages messages, MainThread mainThread,
-                              Supplier<Map<String, String>> extraStatus, Function<Player, List<String>> extraPlayerInfo, Runnable reloadHook) {
+                              Supplier<Map<String, String>> extraStatus, Function<Player, List<String>> extraPlayerInfo, Runnable reloadHook,
+                              de.tasticgames.lobby.integration.selection.SelectionProvider selections) {
         this.plugin = Objects.requireNonNull(plugin);
         this.coreApi = Objects.requireNonNull(coreApi);
         this.configurationService = Objects.requireNonNull(configurationService);
@@ -82,7 +82,6 @@ public final class TasticLobbyCommand implements CommandExecutor, TabCompleter {
         this.items = Objects.requireNonNull(items);
         this.visibility = Objects.requireNonNull(visibility);
         this.cosmetics = Objects.requireNonNull(cosmetics);
-        this.hud = Objects.requireNonNull(hud);
         this.music = Objects.requireNonNull(music);
         this.telemetry = Objects.requireNonNull(telemetry);
         this.messages = Objects.requireNonNull(messages);
@@ -90,6 +89,7 @@ public final class TasticLobbyCommand implements CommandExecutor, TabCompleter {
         this.extraStatus = Objects.requireNonNull(extraStatus);
         this.extraPlayerInfo = Objects.requireNonNull(extraPlayerInfo);
         this.reloadHook = Objects.requireNonNull(reloadHook);
+        this.selections = Objects.requireNonNull(selections);
     }
 
     @Override
@@ -138,6 +138,10 @@ public final class TasticLobbyCommand implements CommandExecutor, TabCompleter {
             case "build" -> {
                 if (!permit(sender, PERM_BUILD) || !requirePlayer(sender)) return true;
                 toggleBuild((Player) sender);
+            }
+            case "region" -> {
+                if (!permit(sender, PERM_SETSPAWN) || !requirePlayer(sender)) return true;
+                region((Player) sender, args);
             }
             case "cosmetic" -> {
                 if (!permit(sender, PERM_COSMETIC_ADMIN)) return true;
@@ -225,7 +229,7 @@ public final class TasticLobbyCommand implements CommandExecutor, TabCompleter {
         line(sender, "Core", "connected, " + coreApi.playerManager().onlinePlayers().size() + " loaded players, " + coreApi.settingRegistry().size() + " settings");
         line(sender, "API", !api.enabled() ? "DISABLED (degraded)" : api.healthy() ? "OK" : "DEGRADED (" + api.consecutiveFailures() + " failures: " + api.lastFailure() + ")");
         line(sender, "Lobby players", players.size() + " loaded, " + players.initializedCount() + " initialized");
-        line(sender, "HUD / Music", hud.activeBoards() + " boards, " + music.activeSessions() + " music sessions");
+        line(sender, "Music", music.activeSessions() + " music sessions");
         line(sender, "Cosmetics", cosmetics.catalog().size() + " in catalog, renderers " + cosmetics.renderers().stream().map(r -> r.id()).toList());
         line(sender, "Telemetry", "queue=" + telemetry.queueSize() + " published=" + telemetry.published() + " dropped=" + telemetry.dropped());
         line(sender, "World", configurationService.configuration().world().name() + (Bukkit.getWorld(configurationService.configuration().world().name()) == null ? " (NOT LOADED)" : " loaded"));
@@ -264,6 +268,59 @@ public final class TasticLobbyCommand implements CommandExecutor, TabCompleter {
 
     private void usage(CommandSender sender) {
         sender.sendMessage(Component.text("/tasticlobby status|reload|player <name>|setspawn|build|cosmetic <catalog|inspect|grant|revoke> [player] [id]", NamedTextColor.YELLOW));
+        sender.sendMessage(Component.text("/tasticlobby region <teleport|launchpad> <add|remove> <id> [vx vy vz]  (WorldEdit selection)", NamedTextColor.YELLOW));
+    }
+
+    /**
+     * Writes launchpad / teleport-pad regions from the player's WorldEdit selection into lobby.yml
+     * (movement.teleport-pads.regions.<id> / movement.launchpads.directional.<id>) and reloads.
+     */
+    private void region(Player player, String[] args) {
+        String kind = args.length > 1 ? args[1].toLowerCase(java.util.Locale.ROOT) : "";
+        String action = args.length > 2 ? args[2].toLowerCase(java.util.Locale.ROOT) : "";
+        String id = args.length > 3 ? args[3].toLowerCase(java.util.Locale.ROOT) : null;
+        if (!(kind.equals("teleport") || kind.equals("launchpad")) || !(action.equals("add") || action.equals("remove")) || id == null || !id.matches("[a-z0-9_-]{1,64}")) {
+            usage(player);
+            return;
+        }
+        String base = kind.equals("teleport") ? "movement.teleport-pads.regions." + id : "movement.launchpads.directional." + id;
+        try {
+            java.io.File file = new java.io.File(configurationService.configDirectory(), "lobby.yml");
+            org.bukkit.configuration.file.YamlConfiguration yaml = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+            if (action.equals("remove")) {
+                yaml.set(base, null);
+            } else {
+                var region = selections.selection(player).orElse(null);
+                if (region == null) {
+                    player.sendMessage(Component.text("Make a WorldEdit selection first (//wand)" + (selections.available() ? "" : " - WorldEdit/FAWE is not installed") + ".", NamedTextColor.RED));
+                    return;
+                }
+                yaml.set(base + ".world", region.world());
+                yaml.set(base + ".min.x", region.minX());
+                yaml.set(base + ".min.y", region.minY());
+                yaml.set(base + ".min.z", region.minZ());
+                yaml.set(base + ".max.x", region.maxX());
+                yaml.set(base + ".max.y", region.maxY());
+                yaml.set(base + ".max.z", region.maxZ());
+                if (kind.equals("launchpad")) {
+                    double vx = args.length > 4 ? Double.parseDouble(args[4]) : 0.0;
+                    double vy = args.length > 5 ? Double.parseDouble(args[5]) : 1.4;
+                    double vz = args.length > 6 ? Double.parseDouble(args[6]) : 0.0;
+                    yaml.set(base + ".velocity.x", vx);
+                    yaml.set(base + ".velocity.y", vy);
+                    yaml.set(base + ".velocity.z", vz);
+                }
+            }
+            yaml.save(file);
+            configurationService.reload();
+            reloadHook.run();
+            line(player, "Saved", kind + " region '" + id + "' -> lobby.yml (reloaded)");
+            telemetry.event("lobby.admin_command", player.getUniqueId(), Map.of("command", "region", "kind", kind, "action", action, "id", id));
+        } catch (NumberFormatException e) {
+            player.sendMessage(Component.text("Velocity must be numeric: vx vy vz", NamedTextColor.RED));
+        } catch (Exception e) {
+            player.sendMessage(Component.text("Could not save region: " + e.getMessage(), NamedTextColor.RED));
+        }
     }
 
     private static void line(CommandSender sender, String label, Object value) {
@@ -278,7 +335,12 @@ public final class TasticLobbyCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return List.of("status", "reload", "player", "setspawn", "build", "cosmetic").stream().filter(s -> s.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))).toList();
+            return List.of("status", "reload", "player", "setspawn", "build", "cosmetic", "region").stream().filter(s -> s.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))).toList();
+        }
+        if (args[0].equalsIgnoreCase("region")) {
+            if (args.length == 2) return List.of("teleport", "launchpad");
+            if (args.length == 3) return List.of("add", "remove");
+            return List.of();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("cosmetic")) {
             return List.of("catalog", "inspect", "grant", "revoke");

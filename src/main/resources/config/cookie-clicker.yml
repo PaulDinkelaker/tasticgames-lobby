@@ -1,13 +1,86 @@
-# Cookie Clicker – world layout, runtime and balancing. Coordinates are data: builders replace the
-# development layout (flat world, zones 120 blocks apart along X) with the final map without code changes.
-world:
-  name: "cookie"
-  # false: a flat development world is created automatically when missing
-  use-lobby-world: false
-  create-if-missing: true
-  entry: { x: 0.5, y: -60.0, z: 0.5, yaw: 0.0, pitch: 0.0 }
-  main-cookie: { x: 0.5, y: -59.0, z: 8.5 }
+# Cookie Clicker – layout, runtime and balancing. Coordinates are data: builders adjust them
+# without code changes (/cookieadmin setcookie|npc|zone|golden ... write into this file).
+# config-version 2: main cookie in the lobby world, cookie world = prestige-10 open world.
+config-version: 2
 
+# ---------------------------------------------------------------------------------------------
+# The MAIN COOKIE stands in the lobby. Clicking it earns cookies; the actionbar shows the balance.
+main-cookie:
+  world: "spawn"
+  location: { x: -62.5, y: 35.0, z: 12.5, yaw: 0.0, pitch: 0.0 }
+  # Visual backend, first available wins:
+  #   1. MythicMobs mob type (carries the ModelEngine model configured by the builders)
+  #   2. ModelEngine model attached to an invisible base entity
+  #   3. native item display (vanilla cookie)
+  mythicmobs-type: "CookieClicker"
+  model: "fv_cookie_clicker"
+  # click hitbox (an Interaction entity in front of the model – works with every backend)
+  hitbox: { width: 2.2, height: 2.4 }
+  # floating label above the cookie
+  label: true
+  actionbar:
+    # while a player is within this radius of the main cookie the actionbar shows cookies/CPS
+    radius: 12.0
+    interval-millis: 1000
+  golden-cookies:
+    enabled: true
+    max-per-player: 1
+    # golden cookies spawn near the player, only inside these areas (lobby: around the main cookie)
+    areas:
+      bakery_plaza:
+        world: "spawn"
+        min: { x: -82, y: 30, z: -8 }
+        max: { x: -42, y: 46, z: 32 }
+
+# Quest NPCs (Citizens when installed, otherwise native villagers). "world" defaults to the main-cookie world.
+# citizens-id links an NPC created by an admin with /npc create instead of spawning one.
+npcs:
+  enabled: true
+  list:
+    mama_bakewell:
+      role: QUEST
+      quest: starter
+      location: { x: -66.5, y: 35.0, z: 8.5, yaw: -45.0 }
+      entity-type: VILLAGER
+      skin: ""
+      model: "mama_bakewell"
+    gustave:
+      role: QUEST
+      quest: explore
+      location: { x: -58.5, y: 35.0, z: 8.5, yaw: 45.0 }
+      entity-type: VILLAGER
+      skin: ""
+      model: "gustave_the_barrel"
+    babette:
+      role: QUEST
+      quest: timed
+      location: { x: -66.5, y: 35.0, z: 16.5, yaw: -135.0 }
+      entity-type: VILLAGER
+      skin: ""
+      model: "babette_sharpblade"
+    king_frosting:
+      role: QUEST
+      quest: prestige
+      location: { x: -58.5, y: 35.0, z: 16.5, yaw: 135.0 }
+      entity-type: VILLAGER
+      skin: ""
+      model: "king_frosting"
+
+# ---------------------------------------------------------------------------------------------
+# The OPEN WORLD is the endgame area for players who reached prestige 10 (/cookie world, cookie menu).
+open-world:
+  enabled: true
+  world: "cookie"
+  # a flat development world is created automatically when the world does not exist
+  create-if-missing: true
+  required-prestige: 10
+  entry: { x: 0.5, y: -60.0, z: 0.5, yaw: 0.0, pitch: 0.0 }
+  golden-cookies:
+    enabled: true
+    # empty = anywhere in the open world
+    areas: {}
+
+# Zones inside the open world (regions/entries relative to the development layout: 120 blocks apart along X)
 zones:
   bakery_square:
     region: { min: { x: -60, y: -64, z: -60 }, max: { x: 59, y: 320, z: 60 } }
@@ -53,43 +126,12 @@ zones:
     entry: { x: 1200.5, y: -60.0, z: 0.5 }
     gate-return: { x: 1135.5, y: -60.0, z: 0.5 }
 
-# POI ids are prefixed with "cookie." automatically (analytics ids: cookie.main_cookie, cookie.zone_sugar_fields, ...)
+# POIs (analytics/telemetry; ids are prefixed with "cookie." automatically). "world" defaults to the open world;
+# the main cookie POI lives in the lobby.
 pois:
-  main_cookie: { x: 0.5, y: -60.0, z: 8.5, radius: 5.0, type: MAIN_COOKIE }
-  prestige_altar: { x: -12.5, y: -60.0, z: 8.5, radius: 4.0, type: PRESTIGE }
-  leaderboard: { x: 12.5, y: -60.0, z: 8.5, radius: 4.0, type: LEADERBOARD }
+  main_cookie: { world: "spawn", x: -62.5, y: 35.0, z: 12.5, radius: 6.0, type: MAIN_COOKIE }
   zone_sugar_fields: { x: 120.5, y: -60.0, z: 0.5, radius: 6.0, type: ZONE_ENTRY }
   zone_cocoa_caverns: { x: 240.5, y: -60.0, z: 0.5, radius: 6.0, type: ZONE_ENTRY }
-
-npcs:
-  mama_bakewell:
-    role: QUEST
-    quest: starter
-    location: { x: -6.5, y: -60.0, z: 4.5, yaw: -45.0 }
-    model: "mama_bakewell"
-  gustave:
-    role: QUEST
-    quest: explore
-    location: { x: 6.5, y: -60.0, z: 4.5, yaw: 45.0 }
-    model: "gustave_the_barrel"
-  babette:
-    role: QUEST
-    quest: timed
-    location: { x: 120.5, y: -60.0, z: 6.5 }
-    model: "babette_sharpblade"
-  king_frosting:
-    role: QUEST
-    quest: prestige
-    location: { x: 600.5, y: -60.0, z: 6.5 }
-    model: "king_frosting"
-
-golden-cookie:
-  enabled: true
-  max-per-player: 1
-  # empty = anywhere in the cookie world; otherwise only inside these regions
-  areas: {}
-
-npcs-enabled: true
 
 runtime:
   save-interval-seconds: 10

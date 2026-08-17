@@ -43,11 +43,15 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
     private final MainThread mainThread;
     private final File configFile;
     private final Runnable reloadHook;
+    private final de.tasticgames.lobby.integration.selection.SelectionProvider selections;
+    private final java.util.function.Function<Player, java.util.OptionalInt> selectedCitizensNpc;
     private final Logger logger;
     private final CookieNumberFormatter formatter = new CookieNumberFormatter();
 
     public CookieAdminCommand(LobbyApiService api, CookieRuntimeService runtime, CookieWorldService world, CookieClickService clicks,
-                              LobbyTelemetryService telemetry, MainThread mainThread, File configFile, Runnable reloadHook, Logger logger) {
+                              LobbyTelemetryService telemetry, MainThread mainThread, File configFile, Runnable reloadHook,
+                              de.tasticgames.lobby.integration.selection.SelectionProvider selections,
+                              java.util.function.Function<Player, java.util.OptionalInt> selectedCitizensNpc, Logger logger) {
         this.api = Objects.requireNonNull(api);
         this.runtime = Objects.requireNonNull(runtime);
         this.world = Objects.requireNonNull(world);
@@ -56,6 +60,8 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
         this.mainThread = Objects.requireNonNull(mainThread);
         this.configFile = Objects.requireNonNull(configFile);
         this.reloadHook = Objects.requireNonNull(reloadHook);
+        this.selections = Objects.requireNonNull(selections);
+        this.selectedCitizensNpc = Objects.requireNonNull(selectedCitizensNpc);
         this.logger = Objects.requireNonNull(logger);
     }
 
@@ -71,7 +77,7 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
-            case "poi", "zone", "setspawn", "setcookie" -> builder(sender, args);
+            case "poi", "zone", "setspawn", "setcookie", "npc", "golden" -> builder(sender, args);
             case "status", "balance" -> {
                 Player target = target(sender, args);
                 if (target == null) return true;
@@ -162,7 +168,11 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
                 }));
     }
 
-    /** Builder helpers: write POI/zone/spawn coordinates into cookie-clicker.yml without editing Java. */
+    /**
+     * Builder helpers: write coordinates/regions into cookie-clicker.yml without editing Java.
+     * setcookie (main cookie here) · setspawn (open-world entry here) · npc <id> here|link|unlink ·
+     * golden add|remove <id> (WorldEdit selection) · zone [<id> fromselection|entry|gate] · poi <id> [type].
+     */
     private void builder(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(Component.text("Players only.", NamedTextColor.RED));
@@ -171,35 +181,120 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
         String sub = args[0].toLowerCase(Locale.ROOT);
         try {
             YamlConfiguration yaml = YamlConfiguration.loadConfiguration(configFile);
+            if (yaml.getInt("config-version", 1) < CookieConfiguration.CURRENT_VERSION) {
+                yaml.set("config-version", CookieConfiguration.CURRENT_VERSION);
+            }
             var loc = player.getLocation();
+            boolean inOpenWorld = world.isOpenWorld(player.getWorld());
             switch (sub) {
-                case "setspawn" -> writePoint(yaml, "world.entry", loc);
-                case "setcookie" -> writePoint(yaml, "world.main-cookie", loc);
+                case "setspawn" -> writePoint(yaml, "open-world.entry", loc);
+                case "setcookie" -> {
+                    yaml.set("main-cookie.world", loc.getWorld().getName());
+                    writePoint(yaml, "main-cookie.location", loc);
+                }
                 case "poi" -> {
-                    String id = arg(args, 2);
+                    String id = arg(args, 1);
                     if (id == null || !id.matches("[a-z0-9_-]{1,64}")) {
                         usage(sender);
                         return;
                     }
                     writePoint(yaml, "pois." + id, loc);
                     if (!yaml.contains("pois." + id + ".radius")) yaml.set("pois." + id + ".radius", 4.0);
-                    if (!yaml.contains("pois." + id + ".type")) yaml.set("pois." + id + ".type", arg(args, 3) == null ? "GENERIC" : arg(args, 3).toUpperCase(Locale.ROOT));
+                    if (!yaml.contains("pois." + id + ".type")) yaml.set("pois." + id + ".type", arg(args, 2) == null ? "GENERIC" : arg(args, 2).toUpperCase(Locale.ROOT));
+                }
+                case "npc" -> {
+                    String id = arg(args, 1);
+                    String action = arg(args, 2) == null ? "here" : arg(args, 2).toLowerCase(Locale.ROOT);
+                    if (id == null || !id.matches("[a-z0-9_-]{1,64}")) {
+                        usage(sender);
+                        return;
+                    }
+                    String base = "npcs.list." + id;
+                    switch (action) {
+                        case "here" -> {
+                            writePoint(yaml, base + ".location", loc);
+                            yaml.set(base + ".citizens-id", null);
+                        }
+                        case "link" -> {
+                            java.util.OptionalInt selected = selectedCitizensNpc.apply(player);
+                            if (selected.isEmpty()) {
+                                sender.sendMessage(Component.text("Select a Citizens NPC first (/npc select) - Citizens must be installed.", NamedTextColor.RED));
+                                return;
+                            }
+                            yaml.set(base + ".citizens-id", selected.getAsInt());
+                            if (!yaml.contains(base + ".location")) writePoint(yaml, base + ".location", loc);
+                        }
+                        case "unlink" -> yaml.set(base + ".citizens-id", null);
+                        default -> { usage(sender); return; }
+                    }
+                    if (!yaml.contains(base + ".role")) yaml.set(base + ".role", "QUEST");
+                    if (!yaml.contains(base + ".quest")) yaml.set(base + ".quest", id);
+                }
+                case "golden" -> {
+                    String action = arg(args, 1) == null ? "" : arg(args, 1).toLowerCase(Locale.ROOT);
+                    String id = arg(args, 2);
+                    if (!(action.equals("add") || action.equals("remove")) || id == null || !id.matches("[a-z0-9_-]{1,64}")) {
+                        usage(sender);
+                        return;
+                    }
+                    String base = (inOpenWorld ? "open-world" : "main-cookie") + ".golden-cookies.areas." + id;
+                    if (action.equals("remove")) {
+                        yaml.set(base, null);
+                    } else {
+                        var region = selections.selection(player).orElse(null);
+                        if (region == null) {
+                            sender.sendMessage(Component.text("Make a WorldEdit selection first (//wand) - " + selections.pluginName()
+                                    + (selections.available() ? "" : " is not installed") + ".", NamedTextColor.RED));
+                            return;
+                        }
+                        writeRegion(yaml, base, region);
+                    }
                 }
                 case "zone" -> {
-                    line(sender, "Zone", String.valueOf(world.zoneAt(loc)));
-                    return;
+                    String id = arg(args, 1);
+                    String action = arg(args, 2) == null ? "" : arg(args, 2).toLowerCase(Locale.ROOT);
+                    if (id == null) {
+                        line(sender, "Zone here", String.valueOf(world.zoneAt(loc)));
+                        return;
+                    }
+                    if (!id.matches("[a-z0-9_-]{1,64}")) {
+                        usage(sender);
+                        return;
+                    }
+                    String base = "zones." + id;
+                    switch (action) {
+                        case "fromselection" -> {
+                            var region = selections.selection(player).orElse(null);
+                            if (region == null) {
+                                sender.sendMessage(Component.text("Make a WorldEdit selection first (//wand).", NamedTextColor.RED));
+                                return;
+                            }
+                            writeRegion(yaml, base + ".region", region);
+                            if (!yaml.contains(base + ".entry")) writePoint(yaml, base + ".entry", loc);
+                        }
+                        case "entry" -> writePoint(yaml, base + ".entry", loc);
+                        case "gate" -> writePoint(yaml, base + ".gate-return", loc);
+                        default -> { usage(sender); return; }
+                    }
                 }
                 default -> { usage(sender); return; }
             }
             yaml.save(configFile);
             reloadHook.run();
-            if (sub.equals("setcookie")) {
-                clicks.spawnMainCookie();
-            }
-            line(sender, "Saved", sub + " -> cookie-clicker.yml");
+            line(sender, "Saved", sub + " -> cookie-clicker.yml (layout reloaded)");
         } catch (Exception e) {
             sender.sendMessage(Component.text("Failed: " + LobbyThrowables.rootMessage(e), NamedTextColor.RED));
         }
+    }
+
+    private static void writeRegion(YamlConfiguration yaml, String path, de.tasticgames.lobby.config.LobbyConfiguration.Region region) {
+        yaml.set(path + ".world", region.world());
+        yaml.set(path + ".min.x", region.minX());
+        yaml.set(path + ".min.y", region.minY());
+        yaml.set(path + ".min.z", region.minZ());
+        yaml.set(path + ".max.x", region.maxX());
+        yaml.set(path + ".max.y", region.maxY());
+        yaml.set(path + ".max.z", region.maxZ());
     }
 
     private static void writePoint(YamlConfiguration yaml, String path, org.bukkit.Location loc) {
@@ -239,16 +334,27 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void usage(CommandSender sender) {
-        sender.sendMessage(Component.text("/cookieadmin status|balance <player> | addcookies|setcookies <player> <amount> | setprestige <player> <0-10> | reset <player> | unlock <player> <achievement|zone> <id> | setspawn | setcookie | poi <id> [type] | zone", NamedTextColor.YELLOW));
+        sender.sendMessage(Component.text("/cookieadmin status|balance <player> | addcookies|setcookies <player> <amount> | setprestige <player> <0-10> | reset <player> | unlock <player> <achievement|zone> <id>", NamedTextColor.YELLOW));
+        sender.sendMessage(Component.text("/cookieadmin setcookie (main cookie here) | setspawn (open-world entry here) | npc <id> here|link|unlink | golden add|remove <id> (WorldEdit selection) | zone [<id> fromselection|entry|gate] | poi <id> [type]", NamedTextColor.YELLOW));
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return List.of("status", "balance", "addcookies", "setcookies", "setprestige", "reset", "unlock", "setspawn", "setcookie", "poi", "zone").stream()
+            return List.of("status", "balance", "addcookies", "setcookies", "setprestige", "reset", "unlock", "setspawn", "setcookie", "poi", "zone", "npc", "golden").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
         }
-        if (args.length == 2 && !List.of("setspawn", "setcookie", "poi", "zone").contains(args[0].toLowerCase(Locale.ROOT))) {
+        String first = args.length > 0 ? args[0].toLowerCase(Locale.ROOT) : "";
+        if (args.length == 2 && first.equals("golden")) {
+            return List.of("add", "remove");
+        }
+        if (args.length == 3 && first.equals("npc")) {
+            return List.of("here", "link", "unlink");
+        }
+        if (args.length == 3 && first.equals("zone")) {
+            return List.of("fromselection", "entry", "gate");
+        }
+        if (args.length == 2 && !List.of("setspawn", "setcookie", "poi", "zone", "npc", "golden").contains(first)) {
             return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("unlock")) {

@@ -1,6 +1,9 @@
-# TasticGames API connection for TasticLobby (env overrides: TASTIC_API_BASE_URL, TASTIC_API_SERVICE, TASTIC_API_KEY, TASTIC_LOBBY_SERVER_ID)
+# TasticGames API connection for TasticLobby.
+# Precedence: environment (TASTIC_API_BASE_URL, TASTIC_API_SERVICE, TASTIC_API_KEY, TASTIC_LOBBY_SERVER_ID)
+#           → this file → plugins/TasticCore/config/api.yml (base-url + authentication of TasticCore are reused
+#             automatically when api-key below is empty/CHANGE_ME, so a fresh install needs no second key).
 enabled: true
-base-url: "https://api.tasticgames.de/"
+base-url: ""
 authentication:
   service-name: "tastic-core-lobby"
   api-key: "CHANGE_ME"

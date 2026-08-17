@@ -4,31 +4,41 @@ import de.tasticgames.api.TasticCoreApi;
 import de.tasticgames.lobby.cookie.domain.format.CookieNumberFormatter;
 import de.tasticgames.lobby.cookie.domain.model.ClickResult;
 import de.tasticgames.lobby.cookie.domain.model.CookieStats;
+import de.tasticgames.lobby.integration.mob.MobProvider;
+import de.tasticgames.lobby.integration.model.ModelProvider;
 import de.tasticgames.lobby.locale.LobbyMessages;
-import de.tasticgames.lobby.player.LobbyPlayerService;
 import de.tasticgames.lobby.settings.LobbySettings;
 import de.tasticgames.lobby.sound.LobbySounds;
 import de.tasticgames.lobby.telemetry.LobbyTelemetryService;
+import de.tasticgames.lobby.util.LobbyThrowables;
+import de.tasticgames.lobby.util.MainThread;
 import de.tasticgames.service.Service;
 import de.tasticgames.settings.CoreSettings;
 import io.papermc.paper.event.player.PrePlayerAttackEntityEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.World;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.world.WorldLoadEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
@@ -42,42 +52,56 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
- * The physical main cookie (Interaction + ItemDisplay + TextDisplay) and click handling with
- * server-side reward validation, combo feedback, sounds/particles honoring settings.
+ * The physical MAIN COOKIE in the lobby: visual backend (MythicMobs mob → ModelEngine model →
+ * native item display), a click hitbox, floating label, self-healing respawn (chunk ticket +
+ * periodic check + world load), click handling with server-side rewards, combo feedback and the
+ * proximity actionbar. Sneak-click (or the cookie item / {@code /cookie}) opens the cookie menu.
  */
 public final class CookieClickService implements Service, Listener {
 
     private final Plugin plugin;
     private final TasticCoreApi coreApi;
-    private final CookieConfiguration configuration;
+    private final Supplier<CookieConfiguration> configuration;
     private final CookieRuntimeService runtime;
-    private final CookieWorldService world;
-    private final LobbyPlayerService players;
+    private final MobProvider mobs;
+    private final ModelProvider models;
     private final LobbyMessages messages;
     private final LobbySounds sounds;
     private final LobbyTelemetryService telemetry;
+    private final MainThread mainThread;
     private final Logger logger;
     private final NamespacedKey markerKey;
     private final CookieNumberFormatter formatter = new CookieNumberFormatter();
+    private final Map<UUID, Long> unavailableNoticeAt = new ConcurrentHashMap<>();
+    private volatile Consumer<Player> menuOpener = p -> { };
+    private volatile String backend = "none";
     private volatile UUID interactionId;
-    private volatile UUID displayId;
+    private volatile UUID visualId;
     private volatile UUID labelId;
+    private volatile Chunk ticketChunk;
     private org.bukkit.scheduler.BukkitTask clickReportTask;
+    private org.bukkit.scheduler.BukkitTask healTask;
+    private long lastLoadWarningAt;
 
-    public CookieClickService(Plugin plugin, TasticCoreApi coreApi, CookieConfiguration configuration, CookieRuntimeService runtime, CookieWorldService world,
-                              LobbyPlayerService players, LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry, Logger logger) {
+    public CookieClickService(Plugin plugin, TasticCoreApi coreApi, Supplier<CookieConfiguration> configuration, CookieRuntimeService runtime,
+                              MobProvider mobs, ModelProvider models, LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry,
+                              MainThread mainThread, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin);
         this.coreApi = Objects.requireNonNull(coreApi);
         this.configuration = Objects.requireNonNull(configuration);
         this.runtime = Objects.requireNonNull(runtime);
-        this.world = Objects.requireNonNull(world);
-        this.players = Objects.requireNonNull(players);
+        this.mobs = Objects.requireNonNull(mobs);
+        this.models = Objects.requireNonNull(models);
         this.messages = Objects.requireNonNull(messages);
         this.sounds = Objects.requireNonNull(sounds);
         this.telemetry = Objects.requireNonNull(telemetry);
+        this.mainThread = Objects.requireNonNull(mainThread);
         this.logger = Objects.requireNonNull(logger);
         this.markerKey = new NamespacedKey(plugin, "cookie-entity");
     }
@@ -89,15 +113,28 @@ public final class CookieClickService implements Service, Listener {
 
     @Override
     public void start() {
+        models.onInteract((player, base, left) -> {
+            if (base.equals(visualId)) {
+                handleClick(player, left);
+                return true;
+            }
+            return false;
+        });
         spawnMainCookie();
         clickReportTask = Bukkit.getScheduler().runTaskTimer(plugin, this::reportClicks, 20L * 60, 20L * 60);
+        healTask = Bukkit.getScheduler().runTaskTimer(plugin, this::heal, 20L * 5, 20L * 5);
     }
 
     @Override
     public void stop() {
         if (clickReportTask != null) clickReportTask.cancel();
+        if (healTask != null) healTask.cancel();
         reportClicks();
         removeMainCookie();
+    }
+
+    public void setMenuOpener(Consumer<Player> opener) {
+        this.menuOpener = Objects.requireNonNull(opener);
     }
 
     public NamespacedKey markerKey() {
@@ -108,90 +145,239 @@ public final class CookieClickService implements Service, Listener {
         return formatter;
     }
 
+    /** Active visual backend: mythicmobs, modelengine, native or none. */
+    public String backend() {
+        return backend;
+    }
+
+    public boolean spawned() {
+        return interactionId != null && Bukkit.getEntity(interactionId) != null;
+    }
+
+    public Location mainCookieLocation() {
+        CookieConfiguration.Point point = configuration.get().mainCookie().location();
+        World world = Bukkit.getWorld(point.world());
+        return world == null ? null : point.toLocation(world);
+    }
+
     /** (Re)spawns the main cookie entities at the configured location; removes stale markers first. */
-    public void spawnMainCookie() {
-        World w = world.world().orElse(null);
+    public synchronized void spawnMainCookie() {
+        CookieConfiguration.MainCookie main = configuration.get().mainCookie();
+        World w = Bukkit.getWorld(main.world());
         if (w == null) {
+            long now = System.currentTimeMillis();
+            if (now - lastLoadWarningAt > 60_000) {
+                lastLoadWarningAt = now;
+                logger.warning("Main cookie world '" + main.world() + "' is not loaded – the main cookie spawns as soon as the world is available.");
+            }
             return;
         }
         removeMainCookie();
-        for (Entity entity : w.getEntities()) {
+        Location location = main.location().toLocation(w);
+        Chunk chunk = w.getChunkAt(location);
+        chunk.load();
+        chunk.addPluginChunkTicket(plugin);
+        ticketChunk = chunk;
+        for (Entity entity : w.getNearbyEntities(location, 6, 6, 6)) {
             if (entity.getPersistentDataContainer().has(markerKey, PersistentDataType.STRING)) {
                 entity.remove();
             }
         }
-        Location location = configuration.world().mainCookie().toLocation(w);
-        Interaction interaction = w.spawn(location.clone().subtract(0, 0.5, 0), Interaction.class, e -> {
-            e.setInteractionWidth(2.2f);
-            e.setInteractionHeight(2.4f);
+
+        // 1. MythicMobs mob (carries the ModelEngine model configured by the builders)
+        Entity visual = null;
+        String usedBackend = "native";
+        if (!main.mythicMobsType().isBlank() && mobs.available()) {
+            if (mobs.hasMobType(main.mythicMobsType())) {
+                visual = mobs.spawn(main.mythicMobsType(), location.clone()).orElse(null);
+                if (visual != null) {
+                    usedBackend = "mythicmobs";
+                }
+            } else {
+                logger.warning("MythicMobs type '" + main.mythicMobsType() + "' for the main cookie does not exist – falling back.");
+            }
+        }
+        // 2. ModelEngine model on an invisible base entity
+        if (visual == null && !main.model().isBlank() && models.available()) {
+            if (models.hasModel(main.model())) {
+                ArmorStand base = w.spawn(location.clone(), ArmorStand.class, e -> {
+                    e.setInvisible(true);
+                    e.setMarker(false);
+                    e.setGravity(false);
+                    e.setInvulnerable(true);
+                    e.setSilent(true);
+                    e.setPersistent(false);
+                    e.setCollidable(false);
+                    e.setBasePlate(false);
+                    e.setCanTick(true);
+                });
+                if (models.attach(base, main.model())) {
+                    visual = base;
+                    usedBackend = "modelengine";
+                } else {
+                    base.remove();
+                }
+            } else {
+                logger.warning("ModelEngine model '" + main.model() + "' for the main cookie does not exist – falling back to the native display.");
+            }
+        }
+        // 3. native item display
+        if (visual == null) {
+            visual = w.spawn(location.clone().add(0, 0.7, 0), ItemDisplay.class, e -> {
+                e.setItemStack(new ItemStack(Material.COOKIE));
+                e.setBillboard(Display.Billboard.VERTICAL);
+                e.setTransformation(new Transformation(new Vector3f(0, 0, 0), new AxisAngle4f(0, 0, 0, 1),
+                        new Vector3f(2.0f, 2.0f, 2.0f), new AxisAngle4f(0, 0, 0, 1)));
+                e.setPersistent(false);
+            });
+            usedBackend = "native";
+        }
+        visual.setPersistent(false);
+        visual.setInvulnerable(true);
+        visual.setSilent(true);
+        if (visual instanceof LivingEntity living) {
+            living.setAI(false);
+            living.setCollidable(false);
+            living.setRemoveWhenFarAway(false);
+            living.setGravity(false);
+        }
+        visual.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-visual");
+        visualId = visual.getUniqueId();
+        backend = usedBackend;
+
+        Interaction interaction = w.spawn(location.clone(), Interaction.class, e -> {
+            e.setInteractionWidth((float) main.hitboxWidth());
+            e.setInteractionHeight((float) main.hitboxHeight());
             e.setResponsive(true);
             e.setPersistent(false);
             e.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-interaction");
         });
-        ItemDisplay display = w.spawn(location.clone().add(0, 0.7, 0), ItemDisplay.class, e -> {
-            e.setItemStack(new ItemStack(Material.COOKIE));
-            e.setBillboard(Display.Billboard.VERTICAL);
-            e.setTransformation(new Transformation(new Vector3f(0, 0, 0), new AxisAngle4f(0, 0, 0, 1), new Vector3f(2.0f, 2.0f, 2.0f), new AxisAngle4f(0, 0, 0, 1)));
-            e.setPersistent(false);
-            e.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-display");
-        });
-        TextDisplay label = w.spawn(location.clone().add(0, 2.4, 0), TextDisplay.class, e -> {
-            e.text(Component.text("🍪 ", NamedTextColor.GOLD).append(Component.text("Click me!", NamedTextColor.WHITE)));
-            e.setBillboard(Display.Billboard.CENTER);
-            e.setSeeThrough(false);
-            e.setPersistent(false);
-            e.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-label");
-        });
         interactionId = interaction.getUniqueId();
-        displayId = display.getUniqueId();
-        labelId = label.getUniqueId();
+
+        if (main.label()) {
+            TextDisplay label = w.spawn(location.clone().add(0, main.hitboxHeight() + 0.3, 0), TextDisplay.class, e -> {
+                e.text(Component.text("🍪 ", NamedTextColor.GOLD).append(Component.text("Cookie Clicker", NamedTextColor.WHITE))
+                        .append(Component.newline()).append(Component.text("Click me!", NamedTextColor.GRAY)));
+                e.setBillboard(Display.Billboard.CENTER);
+                e.setSeeThrough(false);
+                e.setPersistent(false);
+                e.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-label");
+            });
+            labelId = label.getUniqueId();
+        }
+        logger.info("Main cookie spawned in " + w.getName() + " at " + location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ()
+                + " (backend " + usedBackend + ").");
     }
 
-    private void removeMainCookie() {
-        for (UUID id : List.of(interactionId, displayId, labelId)) {
-            if (id != null) {
-                Entity entity = Bukkit.getEntity(id);
-                if (entity != null) entity.remove();
+    private synchronized void removeMainCookie() {
+        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
+        if (visual != null) {
+            try {
+                if ("modelengine".equals(backend)) {
+                    models.detach(visual);
+                } else if ("mythicmobs".equals(backend)) {
+                    mobs.remove(visual);
+                }
+            } catch (RuntimeException e) {
+                logger.warning("Main cookie visual could not be removed cleanly: " + e.getMessage());
+            }
+            if (visual.isValid()) {
+                visual.remove();
             }
         }
+        for (UUID id : new UUID[]{interactionId, labelId}) {
+            if (id == null) continue;
+            Entity entity = Bukkit.getEntity(id);
+            if (entity != null) entity.remove();
+        }
+        if (ticketChunk != null) {
+            ticketChunk.removePluginChunkTicket(plugin);
+            ticketChunk = null;
+        }
         interactionId = null;
-        displayId = null;
+        visualId = null;
         labelId = null;
+        backend = "none";
+    }
+
+    /** Self-heal: respawn when an entity vanished (chunk unload, /kill @e, world reload). */
+    private void heal() {
+        World w = Bukkit.getWorld(configuration.get().mainCookie().world());
+        if (w == null) {
+            return;
+        }
+        boolean interactionAlive = interactionId != null && Bukkit.getEntity(interactionId) != null;
+        boolean visualAlive = visualId != null && Bukkit.getEntity(visualId) != null;
+        if (!interactionAlive || !visualAlive) {
+            logger.info("Main cookie entities missing – respawning.");
+            spawnMainCookie();
+        }
+    }
+
+    @EventHandler
+    public void onWorldLoad(WorldLoadEvent event) {
+        if (event.getWorld().getName().equals(configuration.get().mainCookie().world()) && !spawned()) {
+            mainThread.later(1L, this::spawnMainCookie);
+        }
     }
 
     private boolean isMainCookie(Entity entity) {
-        return entity != null && entity.getUniqueId().equals(interactionId);
+        if (entity == null) return false;
+        UUID id = entity.getUniqueId();
+        return id.equals(interactionId) || id.equals(visualId) || id.equals(labelId);
     }
 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onRightClick(PlayerInteractEntityEvent event) {
-        if (isMainCookie(event.getRightClicked())) {
-            event.setCancelled(true);
-            click(event.getPlayer());
-        }
+        if (!isMainCookie(event.getRightClicked())) return;
+        event.setCancelled(true);
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        handleClick(event.getPlayer(), false);
     }
 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onLeftClick(PrePlayerAttackEntityEvent event) {
-        if (isMainCookie(event.getAttacked())) {
+        if (!isMainCookie(event.getAttacked())) return;
+        event.setCancelled(true);
+        handleClick(event.getPlayer(), true);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onDamage(EntityDamageEvent event) {
+        if (isMainCookie(event.getEntity())) {
             event.setCancelled(true);
-            click(event.getPlayer());
         }
     }
 
-    /** Server-side click: validate, reward, feedback. */
+    private void handleClick(Player player, boolean leftClick) {
+        if (player.isSneaking()) {
+            menuOpener.accept(player);
+            return;
+        }
+        click(player);
+    }
+
+    /** Server-side click: validate, reward, feedback. Works wherever the main cookie stands. */
     public void click(Player player) {
         CookieSession session = runtime.session(player.getUniqueId()).orElse(null);
         if (session == null) {
-            runtime.load(player.getUniqueId());
+            if (!runtime.available()) {
+                notifyUnavailable(player);
+                return;
+            }
+            runtime.load(player.getUniqueId()).whenComplete((s, t) -> {
+                if (t != null) {
+                    logger.warning("Cookie profile load failed for " + player.getName() + ": " + LobbyThrowables.rootMessage(t));
+                    mainThread.run(() -> notifyUnavailable(player));
+                } else {
+                    mainThread.run(() -> { if (player.isOnline()) click(player); });
+                }
+            });
             return;
         }
         if (session.paused()) {
             messages.send(player, "cookie.paused");
             return;
-        }
-        if (!world.isCookieWorld(player.getWorld())) {
-            return; // interactions only count inside the cookie world
         }
         ClickResult result = runtime.engine().click(session.profile(), Instant.now());
         session.countClick();
@@ -208,20 +394,36 @@ public final class CookieClickService implements Service, Listener {
         feedback(player, session, result);
         List<String> unlocked = runtime.engine().evaluateAchievements(session.profile());
         for (String achievement : unlocked) {
-            messages.send(player, "cookie.achievement.unlocked", Map.of("name", world.achievementName(player, achievement)));
+            messages.send(player, "cookie.achievement.unlocked", Map.of("name", CookieNames.achievement(messages, runtime.engine(), player, achievement)));
             sounds.play(player, "minecraft:ui.toast.challenge_complete", 0.8f, 1.0f);
             telemetry.event("cookie.achievement_unlocked", player.getUniqueId(), Map.of("achievement", achievement));
         }
+    }
+
+    private void notifyUnavailable(Player player) {
+        long now = System.currentTimeMillis();
+        Long last = unavailableNoticeAt.get(player.getUniqueId());
+        if (last == null || now - last > 5000) {
+            unavailableNoticeAt.put(player.getUniqueId(), now);
+            messages.send(player, "cookie.unavailable");
+            sounds.error(player);
+        }
+    }
+
+    public void forget(UUID player) {
+        unavailableNoticeAt.remove(player);
     }
 
     private void feedback(Player player, CookieSession session, ClickResult result) {
         var tastic = coreApi.playerManager().find(player.getUniqueId()).orElse(null);
         boolean effects = tastic == null || tastic.settings().get(LobbySettings.COOKIE_EFFECTS);
         boolean reduced = tastic != null && tastic.settings().get(CoreSettings.REDUCED_EFFECTS);
-        Locale locale = messages.languageOf(player) == de.tasticgames.localization.SupportedLanguage.GERMAN ? Locale.GERMAN : Locale.ENGLISH;
+        Locale locale = localeOf(player);
         CookieStats stats = runtime.engine().compute(session.profile());
-        String combo = result.comboStage() > 0 ? messages.raw(messages.languageOf(player), "cookie.click.combo").replace("<combo>",
-                String.format(Locale.ROOT, "%.2f", result.comboMultiplier())) : "";
+        String combo = result.comboStage() > 0
+                ? messages.raw(messages.languageOf(player), "cookie.click.combo").replace("<combo>", String.format(Locale.ROOT, "%.2f", result.comboMultiplier()))
+                : "";
+        session.lastActionbarAt(System.currentTimeMillis());
         player.sendActionBar(messages.get(player, "cookie.click.actionbar", Map.of(
                 "gain", formatter.format(result.reward(), locale),
                 "cookies", formatter.format(session.profile().cookies(), locale),
@@ -229,10 +431,39 @@ public final class CookieClickService implements Service, Listener {
                 "combo", messages.mini(combo))));
         sounds.play(player, "minecraft:entity.item.pickup", 0.4f, result.comboAdvanced() ? 1.6f : 1.2f);
         if (effects && !reduced) {
-            Entity display = displayId == null ? null : Bukkit.getEntity(displayId);
-            Location at = display == null ? player.getLocation().add(0, 1.5, 0) : display.getLocation();
+            Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
+            Location at = visual == null ? player.getLocation().add(0, 1.5, 0) : visual.getLocation().add(0, 1.0, 0);
             player.spawnParticle(Particle.ITEM, at, 6, 0.4, 0.4, 0.4, 0.05, new ItemStack(Material.COOKIE));
         }
+    }
+
+    /** Proximity actionbar (called from the runtime tick, once per second per session). */
+    public void tickActionbar(CookieSession session) {
+        Player player = Bukkit.getPlayer(session.player());
+        if (player == null) return;
+        CookieConfiguration.MainCookie main = configuration.get().mainCookie();
+        long now = System.currentTimeMillis();
+        if (now - session.lastActionbarAt() < main.actionbarIntervalMillis()) {
+            return;
+        }
+        Location cookie = mainCookieLocation();
+        if (cookie == null || !player.getWorld().equals(cookie.getWorld())
+                || player.getLocation().distanceSquared(cookie) > main.actionbarRadius() * main.actionbarRadius()) {
+            return;
+        }
+        boolean hudOn = coreApi.playerManager().find(player.getUniqueId()).map(p -> p.settings().get(LobbySettings.COOKIE_HUD)).orElse(true);
+        if (!hudOn) return;
+        session.lastActionbarAt(now);
+        Locale locale = localeOf(player);
+        CookieStats stats = runtime.engine().compute(session.profile());
+        player.sendActionBar(messages.get(player, "cookie.actionbar.idle", Map.of(
+                "cookies", formatter.format(session.profile().cookies(), locale),
+                "cps", formatter.formatRate(stats.effectiveCps(), locale),
+                "prestige", session.profile().prestigeLevel())));
+    }
+
+    private Locale localeOf(Player player) {
+        return messages.languageOf(player) == de.tasticgames.localization.SupportedLanguage.GERMAN ? Locale.GERMAN : Locale.ENGLISH;
     }
 
     private void reportClicks() {

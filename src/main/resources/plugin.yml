@@ -12,13 +12,28 @@ softdepend:
   - PlaceholderAPI
   - Multiverse-Core
   - LuckPerms
+  - Citizens
+  - ModelEngine
+  - MythicMobs
+  - ItemsAdder
+  - HMCCosmetics
+  - WorldEdit
+  - FastAsyncWorldEdit
+  - TAB
+  - UltimateUI
 
 commands:
+  # /lobby, /hub and /l are TasticProxy commands; the proxy forwards them to this plugin while the
+  # player is on a lobby server (see docs/tasticproxy-architecture.md).
   lobby:
-    description: Return to the lobby spawn
+    description: Return to the lobby spawn (also leaves the cookie open world)
     aliases: [hub, l]
   spawn:
     description: Teleport to the lobby spawn
+  lang:
+    description: Change your language (Deutsch, English, हिन्दी)
+    usage: /lang [de|en|hi]
+    aliases: [language, sprache]
   profile:
     description: Open a player profile
     usage: /profile [player]
@@ -29,19 +44,20 @@ commands:
     aliases: [play, games]
   cosmetics:
     description: Open your cosmetics
+  # /friend, /party and /clan are network-wide TasticProxy commands; the social dialog opens via /social
   social:
-    description: Open the social hub
-    aliases: [friends, party, clan]
+    description: Open the social hub (friends, party, clan)
+    aliases: [socialhub]
   cookie:
-    description: Cookie Clicker
-    usage: /cookie [stats|leaderboard|world|shop|prestige]
+    description: Cookie Clicker menu
+    usage: /cookie [menu|stats|leaderboard|world|shop|upgrades|prestige]
   tasticlobby:
     description: TasticLobby administration
-    usage: /tasticlobby status|reload|player <name>|setspawn|build|cosmetic ...
+    usage: /tasticlobby status|reload|player <name>|setspawn|build|region|cosmetic ...
     permission: tasticlobby.status
   cookieadmin:
     description: Cookie Clicker administration
-    usage: /cookieadmin status|addcookies|setcookies|setprestige|reset|unlock|balance|poi ...
+    usage: /cookieadmin status|addcookies|setcookies|setprestige|reset|unlock|balance|setcookie|npc|golden|zone|poi ...
     permission: tasticlobby.cookie.admin
 
 permissions:

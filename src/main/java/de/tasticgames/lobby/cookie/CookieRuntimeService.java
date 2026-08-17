@@ -40,7 +40,7 @@ public final class CookieRuntimeService implements Service {
 
     private final Plugin plugin;
     private final LobbyApiService api;
-    private final CookieConfiguration configuration;
+    private final java.util.function.Supplier<CookieConfiguration> configurationSupplier;
     private final CookieEngine engine;
     private final LobbyTelemetryService telemetry;
     private final MainThread mainThread;
@@ -51,11 +51,11 @@ public final class CookieRuntimeService implements Service {
     private BukkitTask tickTask;
     private BukkitTask saveTask;
 
-    public CookieRuntimeService(Plugin plugin, LobbyApiService api, CookieConfiguration configuration, CookieEngine engine,
+    public CookieRuntimeService(Plugin plugin, LobbyApiService api, java.util.function.Supplier<CookieConfiguration> configuration, CookieEngine engine,
                                 LobbyTelemetryService telemetry, MainThread mainThread, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin);
         this.api = Objects.requireNonNull(api);
-        this.configuration = Objects.requireNonNull(configuration);
+        this.configurationSupplier = Objects.requireNonNull(configuration);
         this.engine = Objects.requireNonNull(engine);
         this.telemetry = Objects.requireNonNull(telemetry);
         this.mainThread = Objects.requireNonNull(mainThread);
@@ -70,7 +70,7 @@ public final class CookieRuntimeService implements Service {
     @Override
     public void start() {
         tickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
-        long save = 20L * Math.max(3, configuration.runtime().saveIntervalSeconds());
+        long save = 20L * Math.max(3, configurationSupplier.get().runtime().saveIntervalSeconds());
         saveTask = Bukkit.getScheduler().runTaskTimer(plugin, this::saveDirty, save, save);
     }
 
@@ -135,6 +135,10 @@ public final class CookieRuntimeService implements Service {
                 .thenApply(response -> {
                     CookieProfile profile = CookieProfileMapper.fromResponse(response);
                     CookieSession session = new CookieSession(player, profile);
+                    if (Bukkit.getPlayer(player) == null) {
+                        // player left during the round trip: never keep a ghost session ticking/saving
+                        throw new java.util.concurrent.CompletionException(new IllegalStateException("Player " + player + " is offline."));
+                    }
                     CookieSession previous = sessions.putIfAbsent(player, session);
                     telemetry.event("cookie.session_started", player, Map.of("prestige", profile.prestigeLevel()));
                     return previous != null ? previous : session;
@@ -183,7 +187,7 @@ public final class CookieRuntimeService implements Service {
 
     private void saveDirty() {
         Instant now = Instant.now();
-        int maxAge = configuration.runtime().maxDirtyAgeSeconds();
+        int maxAge = configurationSupplier.get().runtime().maxDirtyAgeSeconds();
         for (CookieSession session : sessions.values()) {
             if (!session.profile().isDirty() || session.saving().get()) {
                 continue;
@@ -194,7 +198,7 @@ public final class CookieRuntimeService implements Service {
                 save(session, false);
             }
             if (dirtySince != null && Duration.between(dirtySince, now).getSeconds() > maxAge * 4L
-                    && session.saveFailures().get() >= configuration.runtime().maxSaveFailuresBeforePause() && !session.paused()) {
+                    && session.saveFailures().get() >= configurationSupplier.get().runtime().maxSaveFailuresBeforePause() && !session.paused()) {
                 session.paused(true);
                 Bukkit.getPlayer(session.player());
                 logger.warning("Cookie progress of " + session.player() + " paused: persistence unavailable for too long.");
@@ -209,13 +213,20 @@ public final class CookieRuntimeService implements Service {
             return CompletableFuture.completedFuture(false);
         }
         if (!session.saving().compareAndSet(false, true)) {
-            return CompletableFuture.completedFuture(false);
+            CompletableFuture<Boolean> inFlight = session.inFlightSave();
+            if (!force || inFlight == null) {
+                return CompletableFuture.completedFuture(false);
+            }
+            // forced saves (prestige, offline claim, quit) wait for the running save and re-check
+            return inFlight.handle((r, t) -> null).thenCompose(ignored -> session.profile().isDirty() ? save(session, true) : CompletableFuture.completedFuture(true));
         }
         CookieProfile profile = session.profile();
         profile.setLastActiveAt(Instant.now());
         var request = CookieProfileMapper.toSaveRequest(profile);
         long expected = profile.version();
-        return api.call("cookie.save", c -> c.lobby().saveCookieProfile(session.player(), request)).handle((response, throwable) -> {
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        session.inFlightSave(result);
+        api.call("cookie.save", c -> c.lobby().saveCookieProfile(session.player(), request)).handle((response, throwable) -> {
             session.saving().set(false);
             if (throwable != null) {
                 Throwable cause = LobbyThrowables.unwrap(throwable);
@@ -243,7 +254,11 @@ public final class CookieRuntimeService implements Service {
                 }
             });
             return true;
+        }).whenComplete((ok, t) -> {
+            session.inFlightSave(null);
+            if (t != null) result.complete(false); else result.complete(ok);
         });
+        return result;
     }
 
     private void reload(CookieSession session) {

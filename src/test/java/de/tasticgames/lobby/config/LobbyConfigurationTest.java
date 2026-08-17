@@ -13,12 +13,12 @@ class LobbyConfigurationTest {
 
     @Test
     void duplicateItemSlotsAreRejected() {
-        LobbyConfiguration.ItemSlot a = new LobbyConfiguration.ItemSlot("gateway", 0, Material.COMPASS, "", true);
-        LobbyConfiguration.ItemSlot b = new LobbyConfiguration.ItemSlot("profile", 0, Material.PLAYER_HEAD, "", true);
+        LobbyConfiguration.ItemSlot a = new LobbyConfiguration.ItemSlot("gateway", 0, Material.COMPASS, "", "", true);
+        LobbyConfiguration.ItemSlot b = new LobbyConfiguration.ItemSlot("profile", 0, Material.PLAYER_HEAD, "", "", true);
         assertThrows(IllegalArgumentException.class, () -> new LobbyConfiguration.Items(Map.of("gateway", a, "profile", b), 400));
-        LobbyConfiguration.ItemSlot disabled = new LobbyConfiguration.ItemSlot("profile", 0, Material.PLAYER_HEAD, "", false);
+        LobbyConfiguration.ItemSlot disabled = new LobbyConfiguration.ItemSlot("profile", 0, Material.PLAYER_HEAD, "", "", false);
         assertTrue(new LobbyConfiguration.Items(Map.of("gateway", a, "profile", disabled), 400).slots().size() == 2);
-        assertThrows(IllegalArgumentException.class, () -> new LobbyConfiguration.ItemSlot("x", 9, Material.STONE, "", true));
+        assertThrows(IllegalArgumentException.class, () -> new LobbyConfiguration.ItemSlot("x", 9, Material.STONE, "", "", true));
     }
 
     @Test
@@ -29,8 +29,8 @@ class LobbyConfigurationTest {
 
     @Test
     void apiCredentialsDetection() {
-        assertTrue(!new LobbyConfiguration.Api(true, "https://api/", "svc", "CHANGE_ME", 5, 10, "lobby").credentialsConfigured());
-        assertTrue(new LobbyConfiguration.Api(true, "https://api/", "svc", "k", 5, 10, "Lobby-1").credentialsConfigured());
-        assertTrue(new LobbyConfiguration.Api(true, "https://api/", "svc", "k", 5, 10, "Lobby-1").backendServerId().equals("lobby-1"));
+        assertTrue(!new LobbyConfiguration.Api(true, "https://api/", "svc", "CHANGE_ME", 5, 10, "lobby", "none").credentialsConfigured());
+        assertTrue(new LobbyConfiguration.Api(true, "https://api/", "svc", "k", 5, 10, "Lobby-1", "config/api.yml").credentialsConfigured());
+        assertTrue(new LobbyConfiguration.Api(true, "https://api/", "svc", "k", 5, 10, "Lobby-1", "config/api.yml").backendServerId().equals("lobby-1"));
     }
 }

@@ -66,7 +66,7 @@ public final class SettingsDialogService {
                 new Category("cosmetics", "lobby.settings.category.cosmetics", List.of(new BoolSetting(CoreSettings.COSMETICS_VISIBLE, "settings.cosmetics-visible")), false, false, false),
                 new Category("lobby", "lobby.settings.category.lobby", List.of(new BoolSetting(LobbySettings.ITEMS_ENABLED, "lobby.settings.items"),
                         new BoolSetting(LobbySettings.LAUNCHPADS_ENABLED, "lobby.settings.launchpads"), new BoolSetting(LobbySettings.TELEPORT_PADS_ENABLED, "lobby.settings.teleport-pads"),
-                        new BoolSetting(LobbySettings.DOUBLE_JUMP_ENABLED, "lobby.settings.double-jump"), new BoolSetting(LobbySettings.HUD_ENABLED, "lobby.settings.hud")), false, false, true),
+                        new BoolSetting(LobbySettings.DOUBLE_JUMP_ENABLED, "lobby.settings.double-jump")), false, false, true),
                 new Category("cookie", "lobby.settings.category.cookie", List.of(new BoolSetting(LobbySettings.COOKIE_HUD, "lobby.settings.cookie-hud"),
                         new BoolSetting(LobbySettings.COOKIE_EFFECTS, "lobby.settings.cookie-effects"), new BoolSetting(LobbySettings.COOKIE_NOTIFICATIONS, "lobby.settings.cookie-notifications")), false, false, false));
     }
@@ -91,13 +91,13 @@ public final class SettingsDialogService {
         SupportedLanguage lang = messages.languageOf(player);
         List<DialogInput> inputs = new ArrayList<>();
         for (BoolSetting setting : category.booleans()) {
-            inputs.add(DialogInput.bool(setting.key().id(), messages.get(lang, setting.labelKey(), Map.of()))
+            inputs.add(DialogInput.bool(inputKey(setting.key().id()), messages.get(lang, setting.labelKey(), Map.of()))
                     .initial(tastic.settings().get(setting.key())).build());
         }
         if (category.audioSliders()) {
-            inputs.add(DialogInput.numberRange(CoreSettings.MUSIC_VOLUME.id(), messages.get(lang, "settings.music-volume", Map.of()), 0f, 100f)
+            inputs.add(DialogInput.numberRange(inputKey(CoreSettings.MUSIC_VOLUME.id()), messages.get(lang, "settings.music-volume", Map.of()), 0f, 100f)
                     .initial((float) tastic.settings().get(CoreSettings.MUSIC_VOLUME)).step(5f).build());
-            inputs.add(DialogInput.numberRange(CoreSettings.SOUND_VOLUME.id(), messages.get(lang, "settings.sound-volume", Map.of()), 0f, 100f)
+            inputs.add(DialogInput.numberRange(inputKey(CoreSettings.SOUND_VOLUME.id()), messages.get(lang, "settings.sound-volume", Map.of()), 0f, 100f)
                     .initial((float) tastic.settings().get(CoreSettings.SOUND_VOLUME)).step(5f).build());
         }
         if (category.language()) {
@@ -130,14 +130,14 @@ public final class SettingsDialogService {
         }
         List<CompletableFuture<?>> futures = new ArrayList<>();
         for (BoolSetting setting : category.booleans()) {
-            Boolean value = view.getBoolean(setting.key().id());
+            Boolean value = view.getBoolean(inputKey(setting.key().id()));
             if (value != null && !value.equals(tastic.settings().get(setting.key()))) {
                 futures.add(coreApi.playerSettingUpdateDispatcher().update(tastic, setting.key(), value));
             }
         }
         if (category.audioSliders()) {
-            Float music = view.getFloat(CoreSettings.MUSIC_VOLUME.id());
-            Float sound = view.getFloat(CoreSettings.SOUND_VOLUME.id());
+            Float music = view.getFloat(inputKey(CoreSettings.MUSIC_VOLUME.id()));
+            Float sound = view.getFloat(inputKey(CoreSettings.SOUND_VOLUME.id()));
             if (music != null && Math.round(music) != tastic.settings().get(CoreSettings.MUSIC_VOLUME)) {
                 futures.add(coreApi.playerSettingUpdateDispatcher().update(tastic, CoreSettings.MUSIC_VOLUME, Math.round(music)));
             }
@@ -169,11 +169,19 @@ public final class SettingsDialogService {
             if (language != null) {
                 SupportedLanguage selected = SupportedLanguage.find(language).orElse(null);
                 if (selected != null && selected != coreApi.localizationService().languageOf(tastic)) {
-                    languageDialog.select(player, selected);
+                    languageDialog.select(player, selected, () -> openMain(player), () -> {
+                        messages.send(player, "settings.save-failed");
+                        openMain(player);
+                    });
                     return;
                 }
             }
             openMain(player);
         }));
+    }
+
+    /** Paper dialog input keys allow only [a-zA-Z0-9_]; setting ids contain dots and dashes. */
+    static String inputKey(String settingId) {
+        return settingId.replaceAll("[^A-Za-z0-9_]", "_");
     }
 }
