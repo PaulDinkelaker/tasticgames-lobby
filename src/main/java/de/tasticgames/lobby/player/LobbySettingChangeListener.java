@@ -25,14 +25,16 @@ public final class LobbySettingChangeListener implements Listener {
     private final PlayerVisibilityService visibility;
     private final LobbyItemService items;
     private final CosmeticService cosmetics;
+    private final de.tasticgames.lobby.hud.HudService hud;
 
     public LobbySettingChangeListener(LobbyPlayerService players, MusicService music, PlayerVisibilityService visibility,
-                                      LobbyItemService items, CosmeticService cosmetics) {
+                                      LobbyItemService items, CosmeticService cosmetics, de.tasticgames.lobby.hud.HudService hud) {
         this.players = Objects.requireNonNull(players);
         this.music = Objects.requireNonNull(music);
         this.visibility = Objects.requireNonNull(visibility);
         this.items = Objects.requireNonNull(items);
         this.cosmetics = Objects.requireNonNull(cosmetics);
+        this.hud = Objects.requireNonNull(hud);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -52,6 +54,8 @@ public final class LobbySettingChangeListener implements Listener {
             items.refresh(player, lobbyPlayer);
         } else if (id.equals(CoreSettings.COSMETICS_VISIBLE.id()) || id.equals(CoreSettings.REDUCED_EFFECTS.id())) {
             cosmetics.render(player);
+        } else if (id.equals(LobbySettings.HUD_ENABLED.id())) {
+            hud.show(player);
         }
     }
 }

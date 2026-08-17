@@ -101,6 +101,46 @@ public final class HudContextProvider {
         };
     }
 
+    public String title(Player player) {
+        return text(player, "title");
+    }
+
+    public String label(Player player, int index) {
+        return text(player, "label." + index);
+    }
+
+    public String hint(Player player) {
+        return text(player, "hint");
+    }
+
+    /** Semantic icon key of the context (mapped to ItemsAdder font images in hud.yml). */
+    public String contextIcon(Context context) {
+        return switch (context) {
+            case COOKIE -> "cookie";
+            case SOCIAL -> "social";
+            case GATEWAY -> "gateway";
+            case PROFILE -> "profile";
+            case COSMETICS -> "cosmetics";
+            case SETTINGS -> "settings";
+            case VISIBILITY -> "visibility";
+            default -> "lobby";
+        };
+    }
+
+    /** Semantic icon key of value slot 1..4 in the given context. */
+    public String valueIcon(Context context, int index) {
+        return switch (context) {
+            case COOKIE -> switch (index) { case 1 -> "cookies"; case 2 -> "cps"; case 3 -> "prestige"; default -> "generators"; };
+            case SOCIAL -> switch (index) { case 1 -> "friends"; case 2 -> "party"; case 3 -> "clan"; default -> "requests"; };
+            case GATEWAY -> switch (index) { case 1 -> "survival"; case 2 -> "modes"; case 3 -> "lobby"; default -> "party"; };
+            case PROFILE -> switch (index) { case 1 -> "rank"; case 2 -> "playtime"; case 3 -> "kills"; default -> "deaths"; };
+            case COSMETICS -> switch (index) { case 1 -> "hat"; case 2 -> "aura"; case 3 -> "trail"; default -> "title"; };
+            case SETTINGS -> switch (index) { case 1 -> "language"; case 2 -> "visibility"; case 3 -> "music"; default -> "sounds"; };
+            case VISIBILITY -> switch (index) { case 1 -> "visibility"; case 2 -> "friends"; case 3 -> "party"; default -> "online"; };
+            default -> switch (index) { case 1 -> "rank"; case 2 -> "playtime"; case 3 -> "cookies"; default -> "online"; };
+        };
+    }
+
     private String text(Player player, String suffix) {
         Context context = contextOf(player);
         SupportedLanguage lang = messages.languageOf(player);
@@ -108,7 +148,7 @@ public final class HudContextProvider {
         return messages.contains(key) ? messages.raw(lang, key).replace("<player>", player.getName()) : "";
     }
 
-    private String value(Player player, int index) {
+    public String value(Player player, int index) {
         SupportedLanguage lang = messages.languageOf(player);
         Locale locale = lang == SupportedLanguage.GERMAN ? Locale.GERMAN : Locale.ENGLISH;
         Context context = contextOf(player);
@@ -198,7 +238,7 @@ public final class HudContextProvider {
         }
     }
 
-    private String objective(Player player) {
+    public String objective(Player player) {
         SupportedLanguage lang = messages.languageOf(player);
         Locale locale = lang == SupportedLanguage.GERMAN ? Locale.GERMAN : Locale.ENGLISH;
         Context context = contextOf(player);

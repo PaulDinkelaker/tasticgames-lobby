@@ -93,6 +93,8 @@ public final class LobbyBootstrap {
     private GatewayService gateway;
     private SocialActionService socialActions;
     private CookieModule cookie;
+    private de.tasticgames.lobby.hud.HudService hud;
+    private de.tasticgames.lobby.placeholder.HudContextProvider hudContext;
 
     public LobbyBootstrap(TasticLobbyPlugin plugin) {
         this.plugin = plugin;
@@ -155,8 +157,21 @@ public final class LobbyBootstrap {
         profileDialog.setRankResolver(p -> ranks.rank(p).displayName());
         socialActions.setAfterAction(visibility::apply);
 
+        // native top-screen HUD (boss bars) fed by the context provider
+        hudContext = new de.tasticgames.lobby.placeholder.HudContextProvider(coreApi, messages, items, players, ranks, social, gateway, cosmetics, visibility, cookie,
+                player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
+                player -> players.find(player.getUniqueId()).map(lp -> formatDuration(java.time.Duration.between(lp.joinedAt(), java.time.Instant.now()))).orElse(""));
+        hud = start(new de.tasticgames.lobby.hud.HudService(plugin, coreApi, configurationService, hudContext, integrations.customItems(), players,
+                p -> ranks.rank(p).displayName(), player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
+                () -> Bukkit.getOnlinePlayers().size(), logger));
+        socialActions.setAfterAction(p -> {
+            visibility.apply(p);
+            hud.refresh(p);
+        });
+
         // post-init hooks: music, cosmetics, social snapshot, cookie preload
         initialization.addPostInitHook(music::play);
+        initialization.addPostInitHook(hud::show);
         initialization.addPostInitHook(player -> {
             if (cosmetics.available()) {
                 cosmetics.load(player.getUniqueId()).whenComplete((c, t) -> mainThread.run(() -> {
@@ -187,6 +202,7 @@ public final class LobbyBootstrap {
         languageDialog.setOnSelected(connection::continueAfterLanguage);
         connection.addQuitHook(cookie::onQuit);
         connection.addQuitHook(music::stop);
+        connection.addQuitHook(hud::hide);
         connection.addQuitHook(cosmetics::clear);
         connection.addQuitHook(p -> social.invalidate(p.getUniqueId()));
         connection.addQuitHook(p -> gateway.forget(p.getUniqueId()));
@@ -197,7 +213,7 @@ public final class LobbyBootstrap {
         register(new MovementListener(configurationService, environment, spawn, players, coreApi, sounds, telemetry));
         register(new LobbyItemListener(items, players, environment, configurationService, sounds, telemetry, (player, type) -> handleItem(player, type,
                 gatewayDialog, profileDialog, socialDialog, cosmeticsDialog, settingsDialog)));
-        register(new LobbySettingChangeListener(players, music, visibility, items, cosmetics));
+        register(new LobbySettingChangeListener(players, music, visibility, items, cosmetics, hud));
 
         // commands
         LobbyCommands commands = new LobbyCommands(messages, players, spawn, settingsDialog, gatewayDialog, profileDialog, socialDialog, cosmeticsDialog,
@@ -313,10 +329,7 @@ public final class LobbyBootstrap {
         for (String key : List.of("balance", "balance_raw", "cookies", "cookies_raw", "cps", "prestige", "prestige_title", "lifetime", "crumbs", "combo", "buff", "generators")) {
             p.add("cookie_" + key, player -> cookie.placeholder(player, key));
         }
-        new de.tasticgames.lobby.placeholder.HudContextProvider(coreApi, messages, items, players, ranks, social, gateway, cosmetics, visibility, cookie,
-                player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
-                player -> players.find(player.getUniqueId()).map(lp -> formatDuration(java.time.Duration.between(lp.joinedAt(), java.time.Instant.now()))).orElse(""))
-                .registerInto(p);
+        hudContext.registerInto(p);
         return p;
     }
 
@@ -357,6 +370,8 @@ public final class LobbyBootstrap {
         status.put("API credentials", api.credentialSource() + (api.credentialsRejected() ? " (REJECTED by the API – check service key)" : "")
                 + (api.apiOutdated() ? " (API OUTDATED – deploy tasticgames-api 1.0)" : ""));
         status.putAll(integrations.status());
+        status.put("HUD", hud.configuration() == null || !hud.configuration().enabled() ? "disabled" : hud.activeHuds() + " active, boss bars"
+                + (integrations.customItems().available() ? ", ItemsAdder icons" + (hud.boxesAvailable() ? " + boxes" : " (boxes missing – run /iazip)") : ", unicode icons"));
         status.putAll(cookie.status());
         return status;
     }
@@ -367,6 +382,7 @@ public final class LobbyBootstrap {
             messages.start();
             environment.apply();
             cookie.reloadLayout();
+            hud.reload();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 LobbyPlayer lobbyPlayer = players.getOrCreate(player);
                 items.refresh(player, lobbyPlayer);

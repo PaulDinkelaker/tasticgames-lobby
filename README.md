@@ -2,14 +2,14 @@
 
 The TasticGames hub: onboarding, lobby gameplay (launchpads, teleport pads, void rescue, protection),
 lobby items, player visibility, settings, `/lang`, TasticGateway, profiles, social UI (friends/party/clan),
-cosmetics (HMCCosmetics), music, placeholders for UltimateUI/TAB and the persistent **Cookie Clicker**
+cosmetics (HMCCosmetics), music, a native context-aware top-screen HUD (boss bars + ItemsAdder icons), TAB placeholders and the persistent **Cookie Clicker**
 (main cookie at spawn, Prestige 0–10, open world at Prestige 10).
 
 * Paper 1.21.11 · Java 25 · TasticCore 1.0 (backend platform) · TasticProxy 1.0 (network) · TasticGames API
 * Version `1.0.0` (1.0.1 layout: main cookie in the lobby, plugin integrations)
 
 Docs: [Architecture](docs/tasticlobby-architecture.md) · [Deployment](docs/tasticlobby-deployment.md) ·
-[Cookie Clicker](docs/cookie-clicker.md) · [Integrations](docs/tasticlobby-integrations.md)
+[Cookie Clicker](docs/cookie-clicker.md) · [Integrations](docs/tasticlobby-integrations.md) · [HUD](docs/tasticlobby-hud.md)
 
 ## Build
 
@@ -30,6 +30,7 @@ or `-PtasticCoreJar=<path>`. The api-client + Jackson are shaded and relocated t
 | `music.yml` | playlists (sound key, duration, weight) for lobby/open world |
 | `api.yml` | TasticGames API – optional: without a key the lobby reuses `plugins/TasticCore/config/api.yml` (env overrides `TASTIC_API_BASE_URL`, `TASTIC_API_SERVICE`, `TASTIC_API_KEY`, `TASTIC_LOBBY_SERVER_ID`) |
 | `cosmetics.yml` | cosmetic catalog (id, category, rarity, unlock, render data – `hmc:<id>` = HMCCosmetics) |
+| `hud.yml` | native top-screen HUD: rows, refresh, ItemsAdder icons/boxes (content export), colours |
 | `cookie-clicker.yml` | main cookie (world/location/MythicMobs type/model/hitbox/actionbar/golden areas), NPCs, prestige-10 open world (zones, POIs, golden areas), runtime, balancing |
 
 Secrets belong in environment variables or TasticCore's api.yml; a lobby key is only needed when a dedicated service should be used.
@@ -70,9 +71,9 @@ dropped/moved/swapped, may come from ItemsAdder and refresh on language/setting 
 The lobby only requests logical targets (`SURVIVAL`, …) through `POST /api/v1/network/transfers`; TasticProxy routes
 (region/health/capacity) and party leaders can take their party. Mode availability comes from the network registry snapshot.
 
-## Placeholders (UltimateUI via PlaceholderAPI, TAB native)
+## HUD & Placeholders
 
-The lobby renders no scoreboard/tablist itself. `%tastic_rank%`, `%tastic_rank_display%`, `%tastic_rank_prefix%`,
+The lobby renders a context-aware top-screen HUD with boss bars (`docs/tasticlobby-hud.md`) and no scoreboard/tablist. `%tastic_rank%`, `%tastic_rank_display%`, `%tastic_rank_prefix%`,
 `%tastic_language%`, `%tastic_visibility%`, `%tastic_friends_online%`, `%tastic_party_size%`, `%tastic_clan%`,
 `%tastic_online%`, `%tastic_cookie_balance%`, `%tastic_cookie_cps%`, `%tastic_cookie_prestige%`, … – full list and
 sample UltimateUI/TAB configs in [docs/tasticlobby-integrations.md](docs/tasticlobby-integrations.md).

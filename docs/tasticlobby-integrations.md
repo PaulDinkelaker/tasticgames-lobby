@@ -8,7 +8,7 @@ weiter und `/tasticlobby status` zeigt pro Integration `hooked (Version)` / `not
 |---|---|---|
 | **TasticCore** (Pflicht) | Spieler, Settings, Sprache (de/en/hi), Onboarding, API-Zugangsdaten (`plugins/TasticCore/config/api.yml` wird automatisch mitbenutzt) | – |
 | **LuckPerms** | Rang (Primary Group, Display-Name, Prefix/Suffix, Weight) für Profil & Placeholders; Permission-Node-Grants (Cosmetic-Unlocks → HMCCosmetics-Rechte) | `group.<name>`-Permissions |
-| **UltimateUI** | Scoreboard/Sidebar – TasticLobby rendert **kein** eigenes Scoreboard mehr, sondern liefert Werte als PlaceholderAPI-Placeholders `%tastic_…%` | – |
+| **(eigenes HUD)** | TasticLobby zeichnet ein kontextabhängiges Top-Screen-HUD über Bossbars – mit ItemsAdder-Icons/Boxen, siehe `docs/tasticlobby-hud.md`; Scoreboard/UltimateUI werden nicht benötigt | Unicode-Icons |
 | **TAB** | Tablist/Nametags – dieselben Werte als native TAB-Placeholders `%tastic_…%` (ohne PlaceholderAPI) | PlaceholderAPI |
 | **PlaceholderAPI** | Expansion `tastic` (siehe unten) | – |
 | **MythicMobs** | Visual des Main-Cookies (Mob-Typ `CookieClicker` mit ModelEngine-Modell) | ModelEngine → nativer Item-Display |
@@ -34,7 +34,7 @@ Rohwerte ohne Farben – das Display-Plugin (UltimateUI/TAB) formatiert.
 | `party_size`, `party_leader` | Party-Größe / Leader-Name |
 | `clan`, `clan_tag` | Clan-Name / Kurzform |
 | `in_open_world` | true/false – Spieler ist in der Cookie-Open-World |
-| `ctx`, `ctx_title`, `ctx_label_1..4`, `ctx_value_1..4`, `ctx_hint`, `ctx_objective` | kontextabhängige HUD-Zeilen (Kontext = gehaltenes Item: LOBBY, COOKIE, SOCIAL, GATEWAY, PROFILE, COSMETICS, SETTINGS, VISIBILITY), lokalisiert – fertiges Top-Screen-HUD: `docs/ultimateui/stats_display.yml` |
+| `ctx`, `ctx_title`, `ctx_label_1..4`, `ctx_value_1..4`, `ctx_hint`, `ctx_objective` | kontextabhängige HUD-Zeilen (Kontext = gehaltenes Item: LOBBY, COOKIE, SOCIAL, GATEWAY, PROFILE, COSMETICS, SETTINGS, VISIBILITY), lokalisiert – dieselben Daten wie das native Top-HUD (`docs/tasticlobby-hud.md`) |
 | `held_item`, `held_slot` | gehaltenes Lobby-Item (GATEWAY, PROFILE, SOCIAL, COOKIE, COSMETICS, SETTINGS, VISIBILITY, NONE) / Hotbar-Slot 0-8 – für kontextabhängige Scoreboards |
 | `kills`, `deaths` | Vanilla-Statistik dieses Servers |
 | `playtime`, `playtime_hours`, `playtime_minutes`, `session_playtime` | Spielzeit (Vanilla-Statistik) formatiert / Stunden / Minuten, aktuelle Session |
@@ -43,30 +43,6 @@ Rohwerte ohne Farben – das Display-Plugin (UltimateUI/TAB) formatiert.
 | `cookie_balance`, `cookie_balance_raw`, `cookie_cps`, `cookie_prestige`, `cookie_prestige_title`, `cookie_lifetime`, `cookie_crumbs`, `cookie_combo`, `cookie_buff`, `cookie_generators` | Cookie-Clicker-Werte (formatiert / roh) |
 
 Legacy-Aliase aus 1.0.0 (`lobby_party`, `lobby_clan`, `lobby_visibility`, `lobby_cookie_*`) funktionieren weiter.
-
-### UltimateUI – Beispiel-Scoreboard
-
-```yaml
-# plugins/UltimateUI/scoreboards/lobby.yml (Struktur je nach UltimateUI-Version anpassen)
-title: "&6&lTasticGames"
-lines:
-  - "&7Rang: &f%tastic_rank_display%"
-  - "&7Sprache: &f%tastic_language%"
-  - ""
-  - "&7Freunde online: &f%tastic_friends_online%"
-  - "&7Party: &f%tastic_party_size%"
-  - "&7Clan: &f%tastic_clan%"
-  - ""
-  - "&6Cookies: &f%tastic_cookies% &7(&f%tastic_cps% CPS&7)"
-  - "&dPrestige %tastic_prestige%"
-  - ""
-  - "&7Kills: &f%tastic_kills% &7Tode: &f%tastic_deaths%"
-  - "&7Spielzeit: &f%tastic_playtime%"
-  - ""
-  - "&etasticgames.de"
-conditions:
-  world: spawn
-```
 
 ### TAB – Beispiel
 

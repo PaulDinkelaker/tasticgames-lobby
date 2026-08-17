@@ -22,4 +22,23 @@ public interface CustomItemProvider extends Integration {
 
     /** Callback (main thread) invoked whenever the custom item data becomes available or was reloaded. */
     void onReady(Runnable callback);
+
+    /** A font image glyph: the text to insert (default font) and its width in pixels. */
+    record FontGlyph(String text, int width) {
+    }
+
+    /** Whether font images / pixel offsets are supported by the backend (ItemsAdder). */
+    default boolean fontImagesSupported() {
+        return false;
+    }
+
+    /** Font image (ItemsAdder {@code namespace:id}); empty when unknown or not ready. */
+    default Optional<FontGlyph> fontImage(String namespacedId) {
+        return Optional.empty();
+    }
+
+    /** Text that moves the cursor by {@code pixels} (negative = left); empty string when unsupported. */
+    default String pixelOffset(int pixels) {
+        return "";
+    }
 }

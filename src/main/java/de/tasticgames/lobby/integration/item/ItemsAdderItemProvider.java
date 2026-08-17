@@ -99,6 +99,35 @@ public final class ItemsAdderItemProvider implements CustomItemProvider, Listene
         readyCallbacks.add(Objects.requireNonNull(callback));
     }
 
+    @Override
+    public boolean fontImagesSupported() {
+        return ready();
+    }
+
+    @Override
+    public Optional<FontGlyph> fontImage(String namespacedId) {
+        if (!ready() || namespacedId == null || namespacedId.isBlank()) return Optional.empty();
+        try {
+            dev.lone.itemsadder.api.FontImages.FontImageWrapper wrapper = new dev.lone.itemsadder.api.FontImages.FontImageWrapper(namespacedId);
+            if (!wrapper.exists()) return Optional.empty();
+            return Optional.of(new FontGlyph(wrapper.getString(), wrapper.getWidth()));
+        } catch (Throwable t) {
+            warnOnce("font image " + namespacedId, t);
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public String pixelOffset(int pixels) {
+        if (!ready() || pixels == 0) return "";
+        try {
+            return dev.lone.itemsadder.api.FontImages.FontImageWrapper.applyPixelsOffsetToString("", pixels);
+        } catch (Throwable t) {
+            warnOnce("pixel offset", t);
+            return "";
+        }
+    }
+
     @EventHandler
     public void onLoadData(ItemsAdderLoadDataEvent event) {
         ready = true;

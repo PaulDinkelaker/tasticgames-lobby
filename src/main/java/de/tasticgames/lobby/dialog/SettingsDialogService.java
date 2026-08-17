@@ -66,7 +66,7 @@ public final class SettingsDialogService {
                 new Category("cosmetics", "lobby.settings.category.cosmetics", List.of(new BoolSetting(CoreSettings.COSMETICS_VISIBLE, "settings.cosmetics-visible")), false, false, false),
                 new Category("lobby", "lobby.settings.category.lobby", List.of(new BoolSetting(LobbySettings.ITEMS_ENABLED, "lobby.settings.items"),
                         new BoolSetting(LobbySettings.LAUNCHPADS_ENABLED, "lobby.settings.launchpads"), new BoolSetting(LobbySettings.TELEPORT_PADS_ENABLED, "lobby.settings.teleport-pads"),
-                        new BoolSetting(LobbySettings.DOUBLE_JUMP_ENABLED, "lobby.settings.double-jump")), false, false, true),
+                        new BoolSetting(LobbySettings.DOUBLE_JUMP_ENABLED, "lobby.settings.double-jump"), new BoolSetting(LobbySettings.HUD_ENABLED, "lobby.settings.hud")), false, false, true),
                 new Category("cookie", "lobby.settings.category.cookie", List.of(new BoolSetting(LobbySettings.COOKIE_HUD, "lobby.settings.cookie-hud"),
                         new BoolSetting(LobbySettings.COOKIE_EFFECTS, "lobby.settings.cookie-effects"), new BoolSetting(LobbySettings.COOKIE_NOTIFICATIONS, "lobby.settings.cookie-notifications")), false, false, false));
     }

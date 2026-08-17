@@ -1,0 +1,101 @@
+# TasticLobby top-screen HUD (replaces scoreboards / UltimateUI). Rendered natively with boss bars:
+# always on top of the held item, centered at the top, one line per row. Context follows the item in
+# the hand (Cookie, Social, Gateway, Profile, Cosmetics, Settings, Visibility, plain lobby).
+enabled: true
+# ticks between refreshes (10 = twice per second)
+refresh-ticks: 10
+rows:
+  values: true      # [context] title + 4 icon/value pairs
+  hint: true        # controls / commands for the current context
+  objective: true   # goal / progress line
+  status: true      # rank | playtime | online (always the same)
+# ItemsAdder styling (soft dependency): icons from font images and dark rounded boxes behind each cell.
+# TasticLobby exports its own ItemsAdder content pack (plugins/ItemsAdder/contents/tasticgames) with the box
+# glyphs and a transparent boss bar texture – run /iazip once after the first start (see docs/tasticlobby-hud.md).
+itemsadder:
+  icons: true
+  boxes: true
+  export-content: true
+  # boss bar colour whose textures are made transparent by the exported content (keep in sync with the export)
+  bossbar-color: PINK
+  # box glyphs (exported content); height 14 px, drawn behind the text
+  box:
+    left: "tasticgames:hud_box_left"
+    middle: "tasticgames:hud_box_mid"
+    right: "tasticgames:hud_box_right"
+    padding: 6
+    gap: 8
+  # semantic icon key -> ItemsAdder font image (namespace:id). Unknown ids fall back to the unicode icon.
+  icons-map:
+    lobby: "cuboide:iconic_earth"
+    cookie: "toxlyusefuliconsvol4:coinstackicon"
+    social: "cuboide:iconic_heart"
+    gateway: "cuboide:iconic_compass"
+    profile: "cuboide:iconic_crown"
+    cosmetics: "cuboide:iconic_gem"
+    settings: "cuboide:iconic_cogwheel"
+    visibility: "toxlyusefuliconsvol4:eyeicon"
+    cookies: "toxlyusefuliconsvol4:coin1"
+    cps: "toxlyusefuliconsvol4:fireicon"
+    prestige: "cuboide:iconic_upgrade"
+    generators: "cuboide:iconic_shop"
+    friends: "cuboide:iconic_heart"
+    party: "toxlyusefuliconsvol4:blueorbicon"
+    clan: "cuboide:iconic_shield"
+    requests: "cuboide:iconic_envelope"
+    survival: "toxlyusefuliconsvol4:grassblock"
+    modes: "cuboide:iconic_island"
+    rank: "cuboide:iconic_crown"
+    playtime: "cuboide:iconic_hourglass"
+    session: "toxlyusefuliconsvol4:clockicon"
+    kills: "cuboide:iconic_sword"
+    deaths: "cuboide:iconic_skull"
+    hat: "toxlyusefuliconsvol4:helmeticon"
+    aura: "toxlyusefuliconsvol4:greenorbicon"
+    trail: "toxlyusefuliconsvol4:fireicon2"
+    title: "cuboide:iconic_scroll"
+    language: "cuboide:iconic_scroll_open"
+    music: "cuboide:iconic_bell"
+    sounds: "cuboide:iconic_bell"
+    online: "cuboide:iconic_earth"
+# unicode fallback icons (no ItemsAdder or unknown image)
+unicode-icons:
+  lobby: "☀"
+  cookie: "🍪"
+  social: "☻"
+  gateway: "✈"
+  profile: "★"
+  cosmetics: "✎"
+  settings: "⚙"
+  visibility: "👁"
+  cookies: "🍪"
+  cps: "⚡"
+  prestige: "✦"
+  generators: "⚒"
+  friends: "☻"
+  party: "⚑"
+  clan: "⛨"
+  requests: "✉"
+  survival: "⛏"
+  modes: "▦"
+  rank: "★"
+  playtime: "⌚"
+  session: "⌚"
+  kills: "⚔"
+  deaths: "☠"
+  hat: "⛑"
+  aura: "✧"
+  trail: "➶"
+  title: "✎"
+  language: "✎"
+  music: "♪"
+  sounds: "♫"
+  online: "☀"
+# colours (hex) – labels, the four value slots, hint, objective, status
+colors:
+  title: "#ffd82b"
+  label: "#aaaaaa"
+  values: ["#24ff2b", "#c4e4ff", "#f94fff", "#f0d030"]
+  hint: "#bbbbbb"
+  objective: "#dbb039"
+  status: "#ffffff"
