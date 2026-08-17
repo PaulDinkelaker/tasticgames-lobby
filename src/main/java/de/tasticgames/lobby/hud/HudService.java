@@ -92,6 +92,16 @@ public final class HudService implements Service {
             return;
         }
         exportAssets();
+        customItems.onReady(() -> {
+            // ItemsAdder regenerated its pack (/iazip): the exported files are shipped now
+            if (boxesPendingPack) {
+                boxesPendingPack = false;
+                logger.info("ItemsAdder pack regenerated – HUD boxes enabled.");
+            }
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                hide(player);
+            }
+        });
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::refreshAll, 20L, configuration.refreshTicks());
         logger.info("Top-screen HUD started (boss bars, refresh every " + configuration.refreshTicks() + " ticks, ItemsAdder icons "
                 + (configuration.iaIcons() && customItems.available() ? "on" : "off") + ").");
@@ -133,8 +143,8 @@ public final class HudService implements Service {
             List<File> created = new HudAssetExporter(itemsAdder, logger).export(configuration.bossbarColor().name());
             if (!created.isEmpty()) {
                 boxesPendingPack = true;
-                logger.warning("HUD background boxes stay disabled until the resource pack ships the new files: run /iazip, "
-                        + "then /tasticlobby reload (or restart).");
+                logger.warning("HUD background boxes stay disabled until the resource pack ships the new files – run /iazip once "
+                        + "(they switch on automatically afterwards).");
             }
         } catch (Exception e) {
             logger.warning("HUD asset export failed: " + e.getMessage());

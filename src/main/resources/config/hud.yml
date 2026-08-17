@@ -24,7 +24,7 @@ itemsadder:
     middle: "tasticgames:hud_box_mid"
     right: "tasticgames:hud_box_right"
     padding: 6
-    gap: 8
+    gap: 6
   # semantic icon key -> ItemsAdder font image (namespace:id). Unknown ids fall back to the unicode icon.
   icons-map:
     lobby: "cuboide:iconic_earth"

@@ -29,9 +29,13 @@ Zeilen: **Werte** (Titel + 4 Icon/Wert-Zellen), **Hinweis** (Steuerung/Befehle),
   Zusätzlich wird die Offset-Font `assets/tasticgames/font/space.json` exportiert (vanilla `type: space`) – damit
   positioniert das HUD pixelgenau (ItemsAdders `applyPixelsOffsetToString` liefert für leere Strings nichts und
   hätte die Boxen neben statt hinter den Text gesetzt).
-  Nach dem Export einmal **`/iazip`** ausführen, dann `/tasticlobby reload` (oder Neustart) und neu verbinden.
-  Bestehende Dateien werden nie überschrieben. Solange die Dateien noch nicht im Pack sind, bleiben die Boxen
-  bewusst aus (`/tasticlobby status` → „boxes missing“), damit nichts verschoben gerendert wird.
+  Nach dem Export einmal **`/iazip`** ausführen – die Boxen schalten sich danach automatisch zu (ItemsAdder-Reload-Event),
+  einmal neu verbinden für das aktualisierte Pack. Die Dateien sind versioniert (`.tasticlobby-assets`): eigene Dateien
+  werden bei einer neuen Asset-Version aktualisiert, fremde nie angefasst. Solange die Dateien noch nicht im Pack sind,
+  bleiben die Boxen bewusst aus (`/tasticlobby status` → „boxes missing“), damit nichts verschoben gerendert wird.
+* **Profil-Item**: der Export legt zusätzlich das ItemsAdder-Item `tasticgames:profile_icon` an (flache 16×16-Kopftextur,
+  füllt den ganzen Hotbar-Slot; `items/profile.png` kann durch eigene Grafik ersetzt werden). `items.yml` nutzt es als
+  Standard für den Profil-Slot, Gateway/Social/Cosmetics/Settings verwenden `cuboide:iconic_*`.
 * Layout: Boxbreite = Textbreite (Default-Font-Tabelle) + 2 × `box.padding`; Zellenabstand `box.gap`; der Text wird
   mittig in die Box gesetzt (Rück-Offsets aus der Space-Font, −1 px nach jedem Bitmap-Glyph gegen Lücken).
 * Ohne ItemsAdder: reiner Text mit Unicode-Icons und `·`-Trennern; die Bossbar-Leiste bleibt sichtbar

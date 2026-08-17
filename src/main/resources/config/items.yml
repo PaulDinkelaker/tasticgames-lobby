@@ -1,27 +1,28 @@
 # Lobby hotbar (slots 0-8). Only lobby items live here – Cookie Clicker has no hotbar items;
 # its menu opens by clicking the main cookie, via the "cookie" item below or /cookie.
-#   material  = vanilla fallback item
-#   asset-id  = optional vanilla item model key from the resource pack (e.g. tasticgames:gateway_compass)
-#   itemsadder = optional ItemsAdder item id (namespace:id); used when ItemsAdder is installed
+#   material   = vanilla fallback item (used when ItemsAdder or the id is missing)
+#   asset-id   = optional vanilla item model key from the resource pack (e.g. tasticgames:gateway_compass)
+#   itemsadder = optional ItemsAdder item id (namespace:id); used when ItemsAdder is installed.
+#                Defaults use the "cuboide" icon pack; tasticgames:profile_icon is the flat 2D head exported by TasticLobby.
 interaction-cooldown-millis: 400
 items:
   gateway:
     slot: 0
     material: COMPASS
     asset-id: ""
-    itemsadder: ""
+    itemsadder: "cuboide:iconic_compass"
     enabled: true
   profile:
     slot: 1
     material: PLAYER_HEAD
     asset-id: ""
-    itemsadder: ""
+    itemsadder: "tasticgames:profile_icon"
     enabled: true
   social:
     slot: 2
     material: TOTEM_OF_UNDYING
     asset-id: ""
-    itemsadder: ""
+    itemsadder: "cuboide:iconic_heart"
     enabled: true
   cookie:
     slot: 4
@@ -33,13 +34,13 @@ items:
     slot: 6
     material: ENDER_CHEST
     asset-id: ""
-    itemsadder: ""
+    itemsadder: "cuboide:iconic_gem"
     enabled: true
   settings:
     slot: 7
     material: COMPARATOR
     asset-id: ""
-    itemsadder: ""
+    itemsadder: "cuboide:iconic_cogwheel"
     enabled: true
   visibility:
     slot: 8
