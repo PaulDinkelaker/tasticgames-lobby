@@ -43,7 +43,7 @@ public final class DialogSupport {
             bodies.add(DialogBody.plainMessage(component));
         }
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(escapable).afterAction(DialogBase.DialogAfterAction.NONE).build())
+                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(escapable).pause(false).afterAction(DialogBase.DialogAfterAction.NONE).build())
                 .type(DialogType.multiAction(buttons).exitAction(exit).columns(Math.max(1, columns)).build()));
     }
 
@@ -53,7 +53,7 @@ public final class DialogSupport {
             bodies.add(DialogBody.plainMessage(component));
         }
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(true).afterAction(DialogBase.DialogAfterAction.NONE).build())
+                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(true).pause(false).afterAction(DialogBase.DialogAfterAction.NONE).build())
                 .type(DialogType.notice(ok)));
     }
 
@@ -63,7 +63,7 @@ public final class DialogSupport {
             bodies.add(DialogBody.plainMessage(component));
         }
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(true).afterAction(DialogBase.DialogAfterAction.NONE).build())
+                .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(true).pause(false).afterAction(DialogBase.DialogAfterAction.NONE).build())
                 .type(DialogType.confirmation(yes, no)));
     }
 
@@ -73,7 +73,7 @@ public final class DialogSupport {
             bodies.add(DialogBody.plainMessage(component));
         }
         return Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(title).body(bodies).inputs(inputs).canCloseWithEscape(true).afterAction(DialogBase.DialogAfterAction.NONE).build())
+                .base(DialogBase.builder(title).body(bodies).inputs(inputs).canCloseWithEscape(true).pause(false).afterAction(DialogBase.DialogAfterAction.NONE).build())
                 .type(DialogType.confirmation(submit, cancel)));
     }
 

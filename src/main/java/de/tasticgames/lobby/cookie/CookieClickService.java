@@ -243,10 +243,13 @@ public final class CookieClickService implements Service, Listener {
         visual.setInvulnerable(true);
         visual.setSilent(true);
         if (visual instanceof LivingEntity living) {
-            living.setAI(false);
             living.setCollidable(false);
             living.setRemoveWhenFarAway(false);
-            living.setGravity(false);
+            if (!"mythicmobs".equals(usedBackend)) {
+                // MythicMobs mobs keep the behaviour of their mob file (AI selectors, movement speed)
+                living.setAI(false);
+                living.setGravity(false);
+            }
         }
         visual.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-visual");
         visualId = visual.getUniqueId();
@@ -322,12 +325,15 @@ public final class CookieClickService implements Service, Listener {
         if (visual == null || !visual.isValid() || "native".equals(backend)) {
             return;
         }
+        // ModelEngine hides the base entity itself (setBaseEntityVisible). Bukkit invisibility must NOT be used
+        // while a model is attached: ModelEngine mirrors the base entity's invisibility onto the model.
         boolean hidden = models.available() && models.hideBase(visual);
+        boolean modeled = models.available() && models.isModeled(visual);
         if (visual instanceof LivingEntity living) {
-            living.setInvisible(true);
+            living.setInvisible(!modeled && !hidden);
         }
         visual.setCustomNameVisible(false);
-        if (!hidden && models.available() && !models.isModeled(visual) && "mythicmobs".equals(backend)) {
+        if (!hidden && models.available() && !modeled && "mythicmobs".equals(backend)) {
             long now = System.currentTimeMillis();
             if (now - lastLoadWarningAt > 60_000) {
                 lastLoadWarningAt = now;
