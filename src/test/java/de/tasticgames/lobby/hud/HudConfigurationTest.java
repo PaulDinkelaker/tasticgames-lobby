@@ -25,6 +25,10 @@ class HudConfigurationTest {
         assertEquals(BossBar.Color.PINK, configuration.bossbarColor());
         assertEquals("tasticgames:hud_box_mid", configuration.boxMiddle());
         assertEquals("cuboide:iconic_crown", configuration.iconId("rank"));
+        assertEquals(0, configuration.glyphSpacing(), "ItemsAdder font images advance by their reported width");
+        assertEquals(6, configuration.boxPadding());
+        assertEquals(6, configuration.boxGap());
+        assertTrue(configuration.iaAutoZip());
         assertFalse(configuration.unicodeIcon("cookie").isEmpty());
         assertEquals(4, configuration.valueColors().size());
         assertEquals(configuration.valueColors().get(0), configuration.valueColor(5)); // wraps around
@@ -71,6 +75,8 @@ class HudConfigurationTest {
         assertEquals(6 * 5, FontWidths.width("Hello".replace("l", "H"))); // 5 regular glyphs
         assertEquals(6 + 6 + 3 + 3 + 6, FontWidths.width("Hello"));
         assertEquals(2, FontWidths.width(":"));
+        assertEquals(2, FontWidths.width("·"), "middle dot is a 1 px glyph + spacing");
+        assertEquals(6 + 4 + 2 + 4 + 6, FontWidths.width("a · a"));
         assertTrue(FontWidths.width("Prestige: 10") > FontWidths.width("CPS: 1"));
     }
 }

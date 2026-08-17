@@ -78,9 +78,18 @@ public final class CookieWorldService implements Service, Listener {
             return;
         }
         World world = Bukkit.getWorld(open.name());
-        if (world == null && open.createIfMissing()) {
-            logger.info("Cookie open world '" + open.name() + "' not found – creating a flat development world.");
-            world = new WorldCreator(open.name()).type(WorldType.FLAT).generateStructures(false).createWorld();
+        if (world == null) {
+            // Bukkit.getWorld == null only means "not loaded": an existing world folder is loaded as-is,
+            // a flat world is generated only when nothing exists yet (and create-if-missing allows it)
+            java.io.File folder = new java.io.File(Bukkit.getWorldContainer(), open.name());
+            boolean exists = folder.isDirectory() && new java.io.File(folder, "level.dat").isFile();
+            if (exists) {
+                logger.info("Cookie open world '" + open.name() + "' exists but is not loaded – loading it.");
+                world = new WorldCreator(open.name()).createWorld();
+            } else if (open.createIfMissing()) {
+                logger.info("Cookie open world '" + open.name() + "' does not exist – creating a flat world (create-if-missing).");
+                world = new WorldCreator(open.name()).type(WorldType.FLAT).generateStructures(false).createWorld();
+            }
         }
         worldReady = world != null;
         if (!worldReady) {

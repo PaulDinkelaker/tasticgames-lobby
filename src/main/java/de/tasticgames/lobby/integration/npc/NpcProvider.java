@@ -24,7 +24,7 @@ public interface NpcProvider extends Integration {
      * @param skin          optional Minecraft player name whose skin is used (PLAYER type only), may be empty
      * @param skinValue     optional Base64 texture value (PLAYER type); with {@code skinSignature} it wins over {@code skin}
      * @param skinSignature signature for {@code skinValue}
-     * @param model         optional ModelEngine model id to attach, may be empty
+     * @param model         optional ModelEngine model id (bound by the caller via ModelProvider once the models are registered)
      * @param externalId    optional id of an NPC created by an admin in the backend (Citizens id); when
      *                      present the NPC is linked instead of created and never destroyed by us
      */
@@ -53,6 +53,12 @@ public interface NpcProvider extends Integration {
     void removeAll();
 
     void onClick(ClickHandler handler);
+
+    /** The Bukkit entity behind a handle (empty when despawned). */
+    Optional<Entity> entity(NpcHandle handle);
+
+    /** Shows/hides the name above the NPC (hidden while a ModelEngine model carries its own nameplate). */
+    void nameplate(NpcHandle handle, boolean visible);
 
     /** Logical id when the entity belongs to one of our NPCs. */
     Optional<String> npcIdOf(Entity entity);

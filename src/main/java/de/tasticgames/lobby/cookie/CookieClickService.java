@@ -69,6 +69,11 @@ import java.util.logging.Logger;
  * proximity actionbar. Left click bakes, right click (or the cookie item / {@code /cookie}) opens the
  * cookie menu. Generators only produce while the player stands inside the cookie zone
  * ({@code main-cookie.zone-radius}) or in the open world.
+ * <p>
+ * ModelEngine registers its blueprints after the plugins enabled: when the visual needs a model
+ * (MythicMobs mob with a {@code model{...}} skill or a direct ModelEngine model) the spawn waits for
+ * {@link ModelProvider#modelsReady()} (bounded by {@link #MODEL_WAIT_TICKS}) and the binding result is
+ * logged explicitly (OK / FAILED with reason) instead of guessing.
  */
 public final class CookieClickService implements Service, Listener {
 
@@ -96,7 +101,11 @@ public final class CookieClickService implements Service, Listener {
     private org.bukkit.scheduler.BukkitTask clickReportTask;
     private org.bukkit.scheduler.BukkitTask healTask;
     private long lastLoadWarningAt;
-    private volatile boolean modelWarningShown;
+    private volatile boolean waitingForModels;
+    private volatile int bindingReportGeneration;
+
+    /** Upper bound for waiting on ModelEngine's model registration before spawning without it (ticks). */
+    static final long MODEL_WAIT_TICKS = 20L * 90;
 
     public CookieClickService(Plugin plugin, TasticCoreApi coreApi, Supplier<CookieConfiguration> configuration, CookieRuntimeService runtime,
                               MobProvider mobs, ModelProvider models, LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry,
@@ -129,7 +138,22 @@ public final class CookieClickService implements Service, Listener {
             }
             return false;
         });
-        spawnMainCookie();
+        models.onModelsReady(this::onModelsReady);
+        if (requiresModels() && !models.modelsReady()) {
+            waitingForModels = true;
+            CookieConfiguration.MainCookie main = configuration.get().mainCookie();
+            logger.info("Main cookie: waiting for ModelEngine model registration before spawning "
+                    + (main.mythicMobsType().isBlank() ? "model '" + main.model() + "'" : "MythicMobs mob '" + main.mythicMobsType() + "'") + "...");
+            mainThread.later(MODEL_WAIT_TICKS, () -> {
+                if (waitingForModels && !spawned()) {
+                    waitingForModels = false;
+                    logger.warning("ModelEngine did not finish its model registration within " + (MODEL_WAIT_TICKS / 20) + "s – spawning the main cookie anyway.");
+                    spawnMainCookie();
+                }
+            });
+        } else {
+            spawnMainCookie();
+        }
         clickReportTask = Bukkit.getScheduler().runTaskTimer(plugin, this::reportClicks, 20L * 60, 20L * 60);
         healTask = Bukkit.getScheduler().runTaskTimer(plugin, this::heal, 20L * 5, 20L * 5);
     }
@@ -182,7 +206,7 @@ public final class CookieClickService implements Service, Listener {
             return;
         }
         removeMainCookie();
-        modelWarningShown = false;
+        waitingForModels = false;
         Location location = main.location().toLocation(w);
         Chunk chunk = w.getChunkAt(location);
         chunk.load();
@@ -266,7 +290,11 @@ public final class CookieClickService implements Service, Listener {
             // MythicMobs applies its model a tick after spawning: hide the base entity (e.g. the pig) now and again shortly after
             hideBase(visual);
             mainThread.later(2L, () -> hideBase(visualId == null ? null : Bukkit.getEntity(visualId)));
-            mainThread.later(20L, () -> hideBase(visualId == null ? null : Bukkit.getEntity(visualId)));
+            int generation = ++bindingReportGeneration;
+            mainThread.later(20L, () -> {
+                hideBase(visualId == null ? null : Bukkit.getEntity(visualId));
+                reportBinding(generation);
+            });
         }
 
         Interaction interaction = w.spawn(location.clone(), Interaction.class, e -> {
@@ -341,17 +369,68 @@ public final class CookieClickService implements Service, Listener {
             living.setInvisible(!modeled && !hidden);
         }
         visual.setCustomNameVisible(false);
-        if (!hidden && models.available() && !modeled && "mythicmobs".equals(backend) && !modelWarningShown) {
-            modelWarningShown = true;
-            logger.info("MythicMobs mob '" + configuration.get().mainCookie().mythicMobsType()
-                    + "' is not registered as ModelEngine entity (yet) – base entity kept invisible; ignore this if the model renders.");
+    }
+
+    /** Whether the configured visual depends on ModelEngine blueprints (MythicMobs mob with a model, or a direct model). */
+    private boolean requiresModels() {
+        CookieConfiguration.MainCookie main = configuration.get().mainCookie();
+        if (!models.available()) {
+            return false;
         }
+        boolean mythic = !main.mythicMobsType().isBlank() && mobs.available();
+        return mythic || !main.model().isBlank();
+    }
+
+    /** ModelEngine finished (re-)registering its blueprints: spawn a waiting cookie or re-bind a lost model. */
+    private void onModelsReady() {
+        if (!spawned()) {
+            if (waitingForModels || requiresModels()) {
+                spawnMainCookie();
+            }
+            return;
+        }
+        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
+        if (visual != null && !"native".equals(backend) && !models.isModeled(visual)) {
+            // models were reloaded (/meg reload) and the mob lost its model – a fresh spawn re-applies the mob's model skill
+            logger.info("Main cookie: ModelEngine models re-registered, respawning the visual to re-bind the model.");
+            spawnMainCookie();
+        }
+    }
+
+    /** One explicit line per spawn: is the ModelEngine model bound to the visual or not (and why). */
+    private void reportBinding(int generation) {
+        if (generation != bindingReportGeneration || !models.available() || "native".equals(backend)) {
+            return;
+        }
+        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
+        if (visual == null) {
+            return;
+        }
+        CookieConfiguration.MainCookie main = configuration.get().mainCookie();
+        boolean modeled = models.isModeled(visual);
+        String subject = "mythicmobs".equals(backend) ? "MythicMobs mob '" + main.mythicMobsType() + "'" : "model '" + main.model() + "'";
+        if (modeled) {
+            logger.info("Main cookie ModelEngine binding: OK (" + subject + ").");
+            return;
+        }
+        String reason;
+        if (!models.modelsReady()) {
+            reason = "ModelEngine has not registered its models yet";
+        } else if ("mythicmobs".equals(backend)) {
+            reason = main.model().isBlank()
+                    ? "the mob carries no ModelEngine model – check its model{mid=...} skill and that the blueprint exists"
+                    : (models.hasModel(main.model()) ? "blueprint '" + main.model() + "' exists but the mob's model{...} skill did not apply it"
+                    : "blueprint '" + main.model() + "' missing");
+        } else {
+            reason = "blueprint '" + main.model() + "' " + (models.hasModel(main.model()) ? "exists but could not be attached" : "missing");
+        }
+        logger.warning("Main cookie ModelEngine binding: FAILED (" + subject + ") – " + reason + ". The base entity stays invisible; clicks keep working.");
     }
 
     /** Self-heal: respawn when an entity vanished (chunk unload, /kill @e, world reload). */
     private void heal() {
         World w = Bukkit.getWorld(configuration.get().mainCookie().world());
-        if (w == null) {
+        if (w == null || waitingForModels) {
             return;
         }
         boolean interactionAlive = interactionId != null && Bukkit.getEntity(interactionId) != null;
@@ -371,7 +450,7 @@ public final class CookieClickService implements Service, Listener {
 
     @EventHandler
     public void onWorldLoad(WorldLoadEvent event) {
-        if (event.getWorld().getName().equals(configuration.get().mainCookie().world()) && !spawned()) {
+        if (event.getWorld().getName().equals(configuration.get().mainCookie().world()) && !spawned() && !waitingForModels) {
             mainThread.later(1L, this::spawnMainCookie);
         }
     }

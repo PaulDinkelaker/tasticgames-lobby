@@ -14,8 +14,8 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Lobby values for display plugins (UltimateUI scoreboard, TAB tablist/nametags) – the lobby renders
- * no scoreboard itself. Registered as PlaceholderAPI expansion {@code tastic} (%tastic_<key>%) and,
+ * Lobby values for display plugins (TAB tablist/nametags, PlaceholderAPI consumers) – the lobby renders
+ * its HUD natively (boss bars) and no scoreboard. Registered as PlaceholderAPI expansion {@code tastic} (%tastic_<key>%) and,
  * when TAB is present, as native TAB placeholders (%tastic_<key>%). Values are raw text (no colours)
  * so the display plugin owns the styling; empty string when unknown.
  * <p>

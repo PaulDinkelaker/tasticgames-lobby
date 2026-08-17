@@ -1,7 +1,9 @@
 # Cookie Clicker – layout, runtime and balancing. Coordinates are data: builders adjust them
 # without code changes (/cookieadmin setcookie|npc|zone|golden ... write into this file).
-# config-version 2: main cookie in the lobby world, cookie world = prestige-10 open world.
-config-version: 2
+# config-version 3: main cookie in the lobby world, cookie world = prestige-10 open world; the quest NPCs are the
+# baker (mama_bakewell) and the merchant (gustave) – existing files are migrated automatically (config-version 2 -> 3
+# removes the NPCs babette and king_frosting).
+config-version: 3
 
 # ---------------------------------------------------------------------------------------------
 # The MAIN COOKIE stands in the lobby. Clicking it earns cookies; the actionbar shows the balance.
@@ -28,7 +30,10 @@ main-cookie:
   golden-cookies:
     enabled: true
     max-per-player: 1
-    # golden cookies spawn near the player, only inside these areas (lobby: around the main cookie)
+    # auto  = the golden cookie activates for the player directly (title + reward, nothing to find)
+    # spawn = it appears near the player in the world and has to be clicked within its lifetime
+    mode: auto
+    # golden cookies only trigger inside these areas (lobby: around the main cookie)
     areas:
       bakery_plaza:
         world: "spawn"
@@ -59,24 +64,6 @@ npcs:
       skin-value: "ewogICJ0aW1lc3RhbXAiIDogMTYyMjQ0MDQ5ODkyNCwKICAicHJvZmlsZUlkIiA6ICJmYzUwMjkzYTVkMGI0NzViYWYwNDJhNzIwMWJhMzBkMiIsCiAgInByb2ZpbGVOYW1lIiA6ICJDVUNGTDE3IiwKICAic2lnbmF0dXJlUmVxdWlyZWQiIDogdHJ1ZSwKICAidGV4dHVyZXMiIDogewogICAgIlNLSU4iIDogewogICAgICAidXJsIiA6ICJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzJiMmQ5MTJlNDI4NjkzYmY3N2IxMWFiZDFkNWY5NDBjNDQ5ZGFiMmRjMDkxNzIxYzkxNGM4YmY1Yzk2ODFjNmUiLAogICAgICAibWV0YWRhdGEiIDogewogICAgICAgICJtb2RlbCIgOiAic2xpbSIKICAgICAgfQogICAgfQogIH0KfQ=="
       skin-signature: "qt4PvQP1g1diIgwi63UA6ZwqLIH8y3b4jQG/wF2qcCIh3Gl69JoQ00uzPd2X6vXTW59CnIgDG7SUhROvNBmewYVsVJCyGsOegarLAixBiXUn1TfcJqhsznvu/E2W7UgYZocemSdFfHNbx1wXKom1EoOwqFIpP+nEZkUt4ieaeu8dLO3el8ZIsfi1HStruSsX0Q9TKv4JaE0TaHFZVHZVH6cYi+Md8HsS11lUAvF3eujgbiGEJ7XkMBWy8RDTQGCDwnXwggq3HzECVio5QpHy7GWo+0n5Z/e+peB54pNhWGWE9LJtN4V+65WlW2eMhVyldEYiI4zVswJJ0rECIBIidn91CyZgmd+6ZJONoQc9WF7E6OKmqhXyMcaWm2VuKq9khK5TY3vRPIZ+oPTxiLH5x/M/nNdT+PA8qpZmend1Gs6WoLHx84Hm4ePWwXtSQ0zYxlW3cO2+ecqkg3heo3y/8V3XdaPBd4N6kCEXuRcB8pQ/SyFL1k4glG2mH9wKOjel0Q5/JQrT7zG+HB2Vk0DUTGiMmil3a8gZ6tp+bZ5PCY/76RBWWc+Cx1zfNQgQ2SmpHNNNTY9tjMEorVPYz+NIJRlgISGeYZyRF3RoRsG03pD1rPEIkA80EH8ha0lNF5Ewin99lslnGhKdc+FLtmq0U+MrrB5j0kxIUWrmvbIB5Gg="
       model: "gustave_the_barrel"
-    babette:
-      role: QUEST
-      quest: timed
-      location: { x: -66.5, y: 35.0, z: 16.5, yaw: -135.0 }
-      entity-type: PLAYER
-      skin: ""
-      skin-value: "ewogICJ0aW1lc3RhbXAiIDogMTczNjYzNTQ3NjUwOSwKICAicHJvZmlsZUlkIiA6ICI2NDU4Mjc0MjEyNDg0MDY0YTRkMDBlNDdjZWM4ZjcyZSIsCiAgInByb2ZpbGVOYW1lIiA6ICJUaDNtMXMiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNWY0NThjNTMxNzY4ZDhmM2VjZDljNDNkOWU0YTMyMGE0Y2E5ZmQ2ZmI3ODdhYmUzNGY1YmNhOTdjNTI4M2E4OSIKICAgIH0KICB9Cn0="
-      skin-signature: "MKkxhnGY0TsM20zEj2C8BhGoUfD8CelEgv9j+PctofPh4FmQ6CzfQIZ8b+N0noNPhV3Zz+kKDEaurlsWek/0sqvNs3lqPhI+6zlXGx0AAuKf0XnFEFRFpzRkHBk9RiCJ4aHenpu81bDAptkA+DGZBKddUMOSIQwPtZnDp1dG51C8iSIHg9Y8ka+y7czfUYZN0S84T8Mzew64u7ms0r4oS8bBuY1erXnCiaY3RZURkl0b2yY+JZeCXeiRFEwL5opxVrONktJ72dTqBK73Y4L+wVRJ4SeufVuRUTDCVoVpv4Ky9nkeOgpyWcxdJDODAs5tVsVObRJoZla5FAjKwHw3ta5C3D3JWnIiEXRG9L631TK6EiOvWlSTgRo7rxhNvVzBJ2SXrWDi5YVg3Io479C8oMBY4HLasK4grJ8UjfV93B7rO9IzCrqp+C4/E13jdJfcslD5i2ehbOl+1iuhOjBetYUa+WX8qH+lg6m2rMcNt6J0Jken00CQgnTlbLR9g8ljOnlbu3pfp5wVuVg7KJwZvKHoY2YQzPL7EswfzGFRN1/Pi9s8a6iX1rHo+xF1hCIEE669hdyMJdKM8hiqGLZy7dNTSwEc4iIHxENkbHVjaAyK+XeZrW2o02YNJcOXpisGxygItdxL/NkwvrcmBBwmTKMNumXlOi2QUdc+3ksGEAA="
-      model: "babette_sharpblade"
-    king_frosting:
-      role: QUEST
-      quest: prestige
-      location: { x: -58.5, y: 35.0, z: 16.5, yaw: 135.0 }
-      entity-type: PLAYER
-      skin: ""
-      skin-value: "ewogICJ0aW1lc3RhbXAiIDogMTc2NjEzODk3MDE4NSwKICAicHJvZmlsZUlkIiA6ICIxNDJmZDZkYjRiZjc0ZTZmOWNmOTU2OTdmZTljMTdlZCIsCiAgInByb2ZpbGVOYW1lIiA6ICJHYWJlTkJyaWdodG9uTUMiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOTI1MGNjNTA5MDNkZDVlM2U3OGJjMWQ5OWM5YjNmYzhhOWM3YjAwYWFiOTJhMmYyODJmN2QzNjI4NDM4ZTFiOCIKICAgIH0KICB9Cn0="
-      skin-signature: "LJLwAbgGN3g28xjQXWwjZjcyaBkA/cRX7i0qPmBcqsg12JZZG7eJupOcbipELU7cbh7gsC/eyVj1DeYBkgJyMOPt90WS1nH/uHBzS507KSJf8rOS0gsSSQlkaAwR1XOVIZcjzP/SE1mWFYhZP9JuD6EjeGZ1Kgu1yJ01lj86CI9DNpUL2uK6pbYpycBKZxzZcheLcB0NH2g9PcclfrPBT6I4O9ODwtCDbjhCe8894meDr7ibH7wdije64jGR2y4wD7agbXcPIbewcuY3Ib3GjwKATN/n8/noX+jCMvMjlO18n8jjMRX/H796zIMmBXjyD9uj/wsjFJxnS6/Dbgkmk7AaBMu2lzD4crRI9BuLUtPG7HxstmSz77nwxhBIul2LUqIEMJBSh890tsjouy0HJONTnVqaSSgi2K4ToOI0f9VHmWZpdfSW73q3L16hy+MdqHeLgdwpf1dl09ZIJYR1QSJMpVF6m5IXopvFlp5w/yWDoaSDhrZP4ZOB39MW61CsGop/nmDb8ud7XNPqaUo8zRS7zxGfvx0r8oL2M1M21d0iREtb7y8CoqC75Ri7yzOZEX9dG/7RwhmmaOfP2BfTuYk7Kc97N/MjnmMmVdGgqFK3bYU5v7Kodhtv6CDx5VwxXVnfATm6jv/rHzGpRAuLrzUm39U8+PSDksJeAGQ2GpY="
-      model: "king_frosting"
 
 # ---------------------------------------------------------------------------------------------
 # The OPEN WORLD is the endgame area for players who reached prestige 10 (/cookie world, cookie menu).
@@ -89,6 +76,7 @@ open-world:
   entry: { x: 0.5, y: -60.0, z: 0.5, yaw: 0.0, pitch: 0.0 }
   golden-cookies:
     enabled: true
+    mode: auto
     # empty = anywhere in the open world
     areas: {}
 

@@ -44,8 +44,10 @@ import java.util.logging.Logger;
 
 /**
  * Player-specific golden cookies: rolled per second by the engine for players standing in a
- * golden area (lobby areas around the main cookie, or the open world), spawned near the player
- * (visible only to them), limited lifetime, ownership-validated click, cleanup on quit/exit.
+ * golden area (lobby areas around the main cookie, or the open world). Mode {@code auto} (default)
+ * activates the golden cookie for the player right away (title, sound, particles, reward); mode
+ * {@code spawn} places it near the player (visible only to them, limited lifetime, ownership-validated
+ * click, cleanup on quit/exit).
  */
 public final class GoldenCookieService implements Service, Listener {
 
@@ -101,6 +103,15 @@ public final class GoldenCookieService implements Service, Listener {
         return active.size();
     }
 
+    /** Whether the golden cookie activates directly (auto) instead of appearing in the world (spawn) where the player stands. */
+    boolean autoMode(Player player) {
+        CookieConfiguration config = configuration.get();
+        if (world.isOpenWorld(player.getWorld())) {
+            return config.openWorld().goldenAuto();
+        }
+        return config.mainCookie().goldenAuto();
+    }
+
     /** Whether the player currently stands where golden cookies may appear. */
     boolean eligible(Player player) {
         CookieConfiguration config = configuration.get();
@@ -140,9 +151,48 @@ public final class GoldenCookieService implements Service, Listener {
             double elapsed = previous == null ? 1.0 : Math.max(0.5, (now.toEpochMilli() - previous.toEpochMilli()) / 1000.0);
             GoldenCookieRoll roll = runtime.engine().roll(session.profile(), ThreadLocalRandom.current(), now, elapsed);
             if (roll.spawned()) {
-                spawn(player, roll.expiresAt());
+                if (autoMode(player)) {
+                    activate(player, session, "auto");
+                } else {
+                    spawn(player, roll.expiresAt());
+                }
             }
         }
+    }
+
+    /** Auto mode: the golden cookie is activated for the player immediately – no entity to find or click. */
+    private void activate(Player player, CookieSession session, String trigger) {
+        Instant now = Instant.now();
+        GoldenCookieReward reward = runtime.engine().rewardFor(session.profile(), ThreadLocalRandom.current(), now);
+        runtime.engine().applyGoldenReward(session.profile(), reward, now);
+        session.touchDirty();
+        var tastic = coreApi.playerManager().find(player.getUniqueId()).orElse(null);
+        boolean effects = tastic == null || tastic.settings().get(LobbySettings.COOKIE_EFFECTS);
+        String key = rewardKey(reward);
+        long seconds = reward.buff() == null ? 0 : java.time.Duration.between(now, reward.buff().expiresAt()).getSeconds();
+        Map<String, Object> placeholders = Map.of("cookies", new de.tasticgames.lobby.cookie.domain.format.CookieNumberFormatter().format(reward.cookies()), "seconds", seconds);
+        Component rewardLine = messages.get(player, key, placeholders);
+        player.showTitle(net.kyori.adventure.title.Title.title(messages.get(player, "cookie.golden.title"), rewardLine,
+                net.kyori.adventure.title.Title.Times.times(java.time.Duration.ofMillis(200), java.time.Duration.ofMillis(2200), java.time.Duration.ofMillis(600))));
+        messages.send(player, "cookie.golden.activated");
+        player.sendMessage(rewardLine);
+        sounds.play(player, "minecraft:block.amethyst_block.chime", 1.0f, 1.3f);
+        sounds.play(player, "minecraft:entity.player.levelup", 0.9f, 1.4f);
+        if (effects) {
+            player.spawnParticle(Particle.TOTEM_OF_UNDYING, player.getLocation().add(0, 1, 0), 40, 0.6, 0.6, 0.6, 0.25);
+        }
+        telemetry.event("cookie.golden_activated", player.getUniqueId(), Map.of("type", reward.type(), "trigger", trigger));
+        runtime.engine().evaluateAchievements(session.profile()).forEach(a ->
+                messages.send(player, "cookie.achievement.unlocked", Map.of("name", CookieNames.achievement(messages, runtime.engine(), player, a))));
+    }
+
+    private static String rewardKey(GoldenCookieReward reward) {
+        return switch (reward.type()) {
+            case LUCKY -> "cookie.golden.lucky";
+            case FRENZY -> "cookie.golden.frenzy";
+            case CLICK_FRENZY -> "cookie.golden.click_frenzy";
+            case CHAIN_BONUS -> "cookie.golden.chain_bonus";
+        };
     }
 
     private void spawn(Player player, Instant expiresAt) {
@@ -235,12 +285,7 @@ public final class GoldenCookieService implements Service, Listener {
         session.touchDirty();
         var tastic = coreApi.playerManager().find(player.getUniqueId()).orElse(null);
         boolean effects = tastic == null || tastic.settings().get(LobbySettings.COOKIE_EFFECTS);
-        String key = switch (reward.type()) {
-            case LUCKY -> "cookie.golden.lucky";
-            case FRENZY -> "cookie.golden.frenzy";
-            case CLICK_FRENZY -> "cookie.golden.click_frenzy";
-            case CHAIN_BONUS -> "cookie.golden.chain_bonus";
-        };
+        String key = rewardKey(reward);
         long seconds = reward.buff() == null ? 0 : java.time.Duration.between(now, reward.buff().expiresAt()).getSeconds();
         messages.send(player, key, Map.of("cookies", new de.tasticgames.lobby.cookie.domain.format.CookieNumberFormatter().format(reward.cookies()), "seconds", seconds));
         sounds.play(player, "minecraft:entity.player.levelup", 0.9f, 1.4f);

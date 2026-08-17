@@ -11,8 +11,8 @@ weiter und `/tasticlobby status` zeigt pro Integration `hooked (Version)` / `not
 | **(eigenes HUD)** | TasticLobby zeichnet ein kontextabhängiges Top-Screen-HUD über Bossbars – mit ItemsAdder-Icons/Boxen, siehe `docs/tasticlobby-hud.md`; Scoreboard/UltimateUI werden nicht benötigt | Unicode-Icons |
 | **TAB** | Tablist/Nametags – dieselben Werte als native TAB-Placeholders `%tastic_…%` (ohne PlaceholderAPI) | PlaceholderAPI |
 | **PlaceholderAPI** | Expansion `tastic` (siehe unten) | – |
-| **MythicMobs** | Visual des Main-Cookies (Mob-Typ `CookieClicker` mit ModelEngine-Modell) | ModelEngine → nativer Item-Display |
-| **ModelEngine** | Modell auf unsichtbarer Basis-Entity (Main-Cookie ohne MythicMobs) und NPC-Modelle; Klicks auf die Modell-Hitbox (`BaseEntityInteractEvent`) | nativer Item-Display |
+| **MythicMobs** | Visual des Main-Cookies (Mob-Typ `fv_cookie_clicker` mit ModelEngine-Modell) | ModelEngine → nativer Item-Display |
+| **ModelEngine** | Modell auf unsichtbarer Basis-Entity (Main-Cookie ohne MythicMobs) und NPC-Modelle; Klicks auf die Modell-Hitbox (`BaseEntityInteractEvent`); Bindung erst nach `ModelRegistrationEvent FINISHED` | nativer Item-Display |
 | **Citizens** | Cookie-Quest-NPCs (eigenes In-Memory-Registry, oder Verknüpfung mit `/npc create`-NPCs über `citizens-id`) | native Villager |
 | **ItemsAdder** | Custom-Items für die Lobby-Hotbar (`itemsadder: namespace:id` in `items.yml`), Neuvergabe nach `ItemsAdderLoadDataEvent` | Vanilla-Material |
 | **HMCCosmetics** | Rendering von Cosmetics: Katalog-Einträge mit `render: hmc:<hmc-id>` werden über die HMCCosmetics-API an-/abgelegt (Besitz bleibt in der TasticGames-API) | nativer Renderer |
@@ -89,6 +89,15 @@ main-cookie:
 
 Reihenfolge: MythicMobs → ModelEngine → nativer Item-Display. Klicks werden über die Interaction-Hitbox,
 die Basis-Entity und `BaseEntityInteractEvent` erkannt (**Linksklick = backen, Rechtsklick = Menü**).
+
+**Load-Order / ModelEngine-Readiness:** ModelEngine importiert und registriert seine Modelle erst *nach* dem Aktivieren
+der Plugins (Import → Assets → Pack-Zip; `softdepend` garantiert nur die Plugin-Reihenfolge, nicht diese Runtime-Readiness).
+TasticLobby wartet deshalb auf `ModelRegistrationEvent` mit Phase `FINISHED` (`ModelEngineModelProvider.modelsReady()`),
+bevor es den MythicMobs-Mob spawnt bzw. ein Modell anhängt (Fallback: nach 90 s ohne Event wird trotzdem gespawnt).
+Vor jedem Attach wird `ModelEngineAPI.getBlueprint(id)` geprüft; das Ergebnis wird explizit geloggt:
+`Main cookie ModelEngine binding: OK (…)` bzw. `FAILED (…) – <Grund>` und `Cookie NPC models: x/y attached (…)` mit
+aggregierter Fehlerliste (kein „further failures are silent“ mehr). Nach `/meg reload` (erneutes `FINISHED`) werden
+NPC-Modelle idempotent neu gebunden und der Main-Cookie neu gespawnt, falls sein Modell verloren ging.
 Die Basis-Entity des MythicMobs-Mobs (z. B. das Schwein) wird per ModelEngine-API + Invisible ausgeblendet –
 sauberer ist zusätzlich `Options: Invisible: true` im Mob. Manuell gespawnte Mobs dieses Typs am Cookie-Standort
 entfernt das Plugin beim Start (es besitzt den Main-Cookie). Der `~onDamaged`-Skill des Mobs feuert nicht, weil die
@@ -106,12 +115,16 @@ npcs:
     mama_bakewell:
       quest: starter
       location: { x: -66.5, y: 35.0, z: 8.5, yaw: -45.0 }
-      entity-type: PLAYER     # Spieler-NPC mit eigenem Skin (mitgeliefert: Bäckerin, Händler, Ritterin, König)
+      entity-type: PLAYER     # Spieler-NPC mit eigenem Skin (mitgeliefert: Bäckerin mama_bakewell, Händler gustave)
       skin-value: "…"         # Base64-Textur (MineSkin) – alternativ skin: "<Spielername>"
       skin-signature: "…"
-      model: "mama_bakewell"  # optional ModelEngine (überdeckt den Skin)
+      model: "mama_bakewell"  # optional ModelEngine (überdeckt den Skin; gebunden sobald ModelEngine fertig registriert hat)
       # citizens-id: 12       # vorhandenen /npc create-NPC verknüpfen (wird nie gelöscht)
 ```
+
+Seit `config-version 3` gibt es nur noch die Bäckerin und den Händler; bestehende Dateien werden beim Start migriert
+(`npcs.list.babette` und `npcs.list.king_frosting` entfernt, Version hochgesetzt, Datei gespeichert – geloggt als
+`config/cookie-clicker.yml migrated: …`). Fremde/eigene NPC-Einträge bleiben erhalten.
 
 `/cookieadmin npc <id> here` setzt die Position auf den Spielerstandort, `/cookieadmin npc <id> link` verknüpft den
 mit `/npc select` gewählten Citizens-NPC. Eigene NPCs liegen im In-Memory-Registry `tasticlobby` (nicht in

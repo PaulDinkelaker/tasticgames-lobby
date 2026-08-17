@@ -1,6 +1,7 @@
 package de.tasticgames.lobby.cookie;
 
 import de.tasticgames.lobby.cookie.domain.model.CookieProfile;
+import de.tasticgames.lobby.integration.model.ModelProvider;
 import de.tasticgames.lobby.integration.npc.NpcProvider;
 import de.tasticgames.lobby.locale.LobbyMessages;
 import de.tasticgames.lobby.sound.LobbySounds;
@@ -11,27 +12,33 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.world.WorldLoadEvent;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
  * Cookie quest NPCs (Citizens when installed, native entities otherwise). Identity/role come from
  * configuration; entities are (re)created on start / layout reload; quest logic is backend agnostic.
+ * ModelEngine models are bound separately once the model registry is ready ({@link ModelProvider#onModelsReady})
+ * – attaching during the bootstrap would fail because ModelEngine imports its models after the plugins enabled.
  */
 public final class CookieNpcService implements Service, Listener {
 
     private final Supplier<CookieConfiguration> configuration;
     private final CookieRuntimeService runtime;
     private final NpcProvider npcs;
+    private final ModelProvider models;
     private final LobbyMessages messages;
     private final LobbySounds sounds;
     private final LobbyTelemetryService telemetry;
@@ -39,11 +46,12 @@ public final class CookieNpcService implements Service, Listener {
     private final Map<String, NpcProvider.NpcHandle> handles = new LinkedHashMap<>();
     private final java.util.Set<String> pendingWorlds = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
-    public CookieNpcService(Supplier<CookieConfiguration> configuration, CookieRuntimeService runtime, NpcProvider npcs, LobbyMessages messages,
-                            LobbySounds sounds, LobbyTelemetryService telemetry, Logger logger) {
+    public CookieNpcService(Supplier<CookieConfiguration> configuration, CookieRuntimeService runtime, NpcProvider npcs, ModelProvider models,
+                            LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry, Logger logger) {
         this.configuration = Objects.requireNonNull(configuration);
         this.runtime = Objects.requireNonNull(runtime);
         this.npcs = Objects.requireNonNull(npcs);
+        this.models = Objects.requireNonNull(models);
         this.messages = Objects.requireNonNull(messages);
         this.sounds = Objects.requireNonNull(sounds);
         this.telemetry = Objects.requireNonNull(telemetry);
@@ -62,6 +70,7 @@ public final class CookieNpcService implements Service, Listener {
                 talk(player, npcId);
             }
         });
+        models.onModelsReady(() -> bindModels("model registration finished"));
         respawn();
     }
 
@@ -97,6 +106,63 @@ public final class CookieNpcService implements Service, Listener {
         }
         logger.info("Cookie NPCs: " + handles.size() + "/" + config.list().size() + " spawned via " + npcs.pluginName()
                 + (pendingWorlds.isEmpty() ? "" : " (waiting for worlds " + pendingWorlds + ")"));
+        if (modelCount() > 0) {
+            if (!models.available()) {
+                logger.info("Cookie NPC models: " + modelCount() + " configured but " + models.pluginName() + " is not installed – NPCs use their skins.");
+            } else if (models.modelsReady()) {
+                bindModels("spawn");
+            } else {
+                logger.info("Cookie NPC models: waiting for ModelEngine model registration (" + modelCount() + " models).");
+            }
+        }
+    }
+
+    private long modelCount() {
+        return configuration.get().npcs().list().values().stream().filter(n -> !n.model().isBlank()).count();
+    }
+
+    /**
+     * Binds the configured ModelEngine models to the spawned NPC entities. Idempotent (attach is a no-op for
+     * an already attached model), failures are aggregated into one line instead of being swallowed.
+     */
+    public void bindModels(String reason) {
+        if (!models.available() || !models.modelsReady()) {
+            return;
+        }
+        int attempted = 0;
+        int ok = 0;
+        List<String> failed = new ArrayList<>();
+        for (CookieConfiguration.Npc npc : configuration.get().npcs().list().values()) {
+            if (npc.model().isBlank()) {
+                continue;
+            }
+            NpcProvider.NpcHandle handle = handles.get(npc.id());
+            if (handle == null) {
+                continue; // world not loaded yet – bound after the spawn
+            }
+            attempted++;
+            Entity entity = npcs.entity(handle).orElse(null);
+            if (entity == null) {
+                failed.add(npc.id() + " (" + npc.model() + "): entity not spawned");
+                continue;
+            }
+            Optional<String> error = models.attachModel(entity, npc.model());
+            if (error.isEmpty()) {
+                ok++;
+                npcs.nameplate(handle, false);
+            } else {
+                failed.add(npc.id() + " (" + npc.model() + "): " + error.get());
+                npcs.nameplate(handle, true);
+            }
+        }
+        if (attempted == 0) {
+            return;
+        }
+        if (failed.isEmpty()) {
+            logger.info("Cookie NPC models: " + ok + "/" + attempted + " attached (" + reason + ").");
+        } else {
+            logger.warning("Cookie NPC models: " + ok + "/" + attempted + " attached (" + reason + "). Failed: " + String.join("; ", failed));
+        }
     }
 
     private void spawn(CookieConfiguration.Npc npc) {
@@ -121,6 +187,7 @@ public final class CookieNpcService implements Service, Listener {
                     spawn(npc);
                 }
             }
+            bindModels("world " + event.getWorld().getName() + " loaded");
         }
     }
 

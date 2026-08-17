@@ -23,21 +23,30 @@ Zeilen: **Werte** (Titel + 4 Icon/Wert-Zellen), **Hinweis** (Steuerung/Befehle),
   (Standard: `cuboide:iconic_*`, `toxlyusefuliconsvol4:*`). Unbekannte IDs → Unicode-Icon (`unicode-icons`).
 * **Boxen**: dunkle abgerundete Hintergründe hinter jeder Zelle. Dafür exportiert TasticLobby beim Start ein
   ItemsAdder-Content-Paket nach `plugins/ItemsAdder/contents/tasticgames/`:
-  `configs/tasticgames_hud.yml` (Font-Images `tasticgames:hud_box_left|mid|right`, 14 px hoch), Texturen in `textures/hud/` (IA 3.x) und
+  `configs/tasticgames_hud.yml` (Font-Images `tasticgames:hud_box_left|mid|right`, 16 px hoch), Texturen in `textures/hud/` (IA 3.x) und
   `resourcepack/assets/tasticgames/textures/hud/box_*.png` und **transparente Bossbar-Texturen**
   (`resourcepack/assets/minecraft/textures/gui/sprites/boss_bar/pink_*.png`, Farbe = `itemsadder.bossbar-color`).
   Zusätzlich wird die Offset-Font `assets/tasticgames/font/space.json` exportiert (vanilla `type: space`) – damit
   positioniert das HUD pixelgenau (ItemsAdders `applyPixelsOffsetToString` liefert für leere Strings nichts und
   hätte die Boxen neben statt hinter den Text gesetzt).
-  Nach dem Export einmal **`/iazip`** ausführen – die Boxen schalten sich danach automatisch zu (ItemsAdder-Reload-Event),
-  einmal neu verbinden für das aktualisierte Pack. Die Dateien sind versioniert (`.tasticlobby-assets`): eigene Dateien
-  werden bei einer neuen Asset-Version aktualisiert, fremde nie angefasst. Solange die Dateien noch nicht im Pack sind,
-  bleiben die Boxen bewusst aus (`/tasticlobby status` → „boxes missing“), damit nichts verschoben gerendert wird.
-* **Profil-Item**: der Export legt zusätzlich das ItemsAdder-Item `tasticgames:profile_icon` an (flache 16×16-Kopftextur,
-  füllt den ganzen Hotbar-Slot; `items/profile.png` kann durch eigene Grafik ersetzt werden). `items.yml` nutzt es als
-  Standard für den Profil-Slot, Gateway/Social/Cosmetics/Settings verwenden `cuboide:iconic_*`.
-* Layout: Boxbreite = Textbreite (Default-Font-Tabelle) + 2 × `box.padding`; Zellenabstand `box.gap`; der Text wird
-  mittig in die Box gesetzt (Rück-Offsets aus der Space-Font, −1 px nach jedem Bitmap-Glyph gegen Lücken).
+  Nach dem Export muss das Pack neu erzeugt werden – **`/iazip` läuft automatisch** (`itemsadder.auto-zip`), sobald
+  ItemsAdder geladen ist; die Boxen und das Kopf-Modell schalten sich mit dem folgenden ItemsAdder-Reload-Event zu.
+  Einmal neu verbinden für das aktualisierte Pack. Die Dateien sind versioniert (`.tasticlobby-assets`, aktuell Version 3):
+  eigene Dateien werden bei einer neuen Asset-Version aktualisiert, fremde nie angefasst. Der Marker merkt sich außerdem,
+  ob nach dem letzten Export bereits gezippt wurde (`3 zipped`) – ein Neustart dazwischen lässt das Pack also nicht veraltet
+  zurück, `/iazip` wird beim nächsten Start nachgeholt. Solange die Dateien noch nicht im Pack sind, bleiben die Boxen
+  bewusst aus (`/tasticlobby status` → „boxes missing“), damit nichts verschoben gerendert wird.
+* **Profil-Item = eigener Skin**: das Profil-Item ist der Kopf des Spielers (`PLAYER_HEAD` mit seinem Profil). Der Export
+  liefert dazu das Vanilla-Item-Modell `tasticgames:profile_head` (`items/profile_head.json` + `models/item/profile_head.json`,
+  Special-Renderer `minecraft:head` kind `player`, GUI-Rotation 0/0/0, Skalierung 1.75, `gui_light: front`): der Kopf wird
+  im Hotbar-Slot frontal und slotfüllend gezeigt – wirkt wie ein 2D-Icon, zeigt aber den echten Skin. Das Modell wird erst
+  gesetzt, wenn das Pack die Dateien enthält (sonst Vanilla-3D-Kopf). Alternativ statisch: `itemsadder: tasticgames:profile_icon`
+  (exportiertes 16×16-Icon `items/profile.png`). Gateway/Social/Cosmetics/Settings verwenden `cuboide:iconic_*`.
+* Layout: Boxbreite = Textbreite (Default-Font-Tabelle) + 2 × `box.padding` (aufgerundet auf 8-px-Kacheln); Zellenabstand
+  `box.gap`; der Text wird mittig in die Box gesetzt (Rück-Offsets aus der Space-Font). **Glyph-Advance**: ein über
+  ItemsAdder gerendertes Font-Image bewegt den Cursor genau um die von ItemsAdder gemeldete Breite (`FontImageWrapper#getWidth`)
+  plus `itemsadder.glyph-spacing` px (Standard 0 – gegen die exportierten Box-Glyphen mit bekannter Pixelbreite vermessen).
+  Rendert der Client die Boxen schmaler als ihren Text (Text beginnt links vor der Box), `glyph-spacing: 1` setzen.
 * Ohne ItemsAdder: reiner Text mit Unicode-Icons und `·`-Trennern; die Bossbar-Leiste bleibt sichtbar
   (`itemsadder.bossbar-color` bestimmt die Farbe).
 
@@ -50,8 +59,10 @@ itemsadder:
   icons: true
   boxes: true
   export-content: true
+  auto-zip: true
   bossbar-color: PINK
-  box: { left: "tasticgames:hud_box_left", middle: "tasticgames:hud_box_mid", right: "tasticgames:hud_box_right", padding: 6, gap: 8 }
+  box: { left: "tasticgames:hud_box_left", middle: "tasticgames:hud_box_mid", right: "tasticgames:hud_box_right", padding: 6, gap: 6 }
+  glyph-spacing: 0
   icons-map: { cookies: "toxlyusefuliconsvol4:coin1", rank: "cuboide:iconic_crown", ... }
 colors: { title: "#ffd82b", label: "#aaaaaa", values: ["#24ff2b", "#c4e4ff", "#f94fff", "#f0d030"], hint: "#bbbbbb", objective: "#dbb039", status: "#ffffff" }
 ```

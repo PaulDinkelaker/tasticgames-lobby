@@ -77,16 +77,18 @@ public final class CosmeticService implements Service {
         catalog = CosmeticCatalog.load(configurationService.raw("cosmetics"));
         renderers.clear();
         var hmc = integrations.hmcCosmetics();
+        long hmcMapped = catalog.all().stream().filter(de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer::handles).count();
+        long unresolved = 0;
         if (hmc.available()) {
             renderers.add(hmc);
-            long mapped = catalog.all().stream().filter(de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer::handles).count();
-            long missing = catalog.all().stream().filter(de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer::handles)
+            unresolved = catalog.all().stream().filter(de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer::handles)
                     .filter(d -> !hmc.cosmeticExists(de.tasticgames.lobby.integration.cosmetic.HmcCosmeticsRenderer.hmcId(d))).count();
-            logger.info("HMCCosmetics renderer active: " + mapped + " catalog entries mapped (render: hmc:<id>)"
-                    + (missing > 0 ? ", " + missing + " reference unknown HMCCosmetics ids" : "") + ".");
         }
         renderers.add(new NativeCosmeticRenderer(plugin));
-        logger.info("Cosmetic catalog loaded: " + catalog.size() + " cosmetics, renderers: " + renderers.stream().map(CosmeticRenderer::id).toList());
+        logger.info("Cosmetic catalog loaded: " + catalog.size() + " cosmetics (native " + (catalog.size() - hmcMapped)
+                + ", hmccosmetics " + hmcMapped + (hmc.available() ? "" : " – plugin missing, rendered natively") + ", unresolved " + unresolved
+                + "); renderers: " + renderers.stream().map(CosmeticRenderer::id).toList()
+                + (hmcMapped == 0 && hmc.available() ? " – no catalog entry uses render: hmc:<id>, all cosmetics are native by design" : ""));
         tickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 10L, 10L);
     }
 

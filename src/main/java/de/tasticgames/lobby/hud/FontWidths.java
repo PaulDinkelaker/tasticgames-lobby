@@ -37,6 +37,10 @@ final class FontWidths {
                 i++;
             } else if (c < 128) {
                 total += ASCII[c];
+            } else if (c == '\u00B7' || c == '\u2219') {
+                total += 2; // middle dot / bullet operator: 1 px glyph + spacing
+            } else if (c == '\u2022') {
+                total += 4; // bullet
             } else if (Character.getType(c) == Character.NON_SPACING_MARK) {
                 total += 0; // combining marks (Devanagari vowel signs)
             } else {

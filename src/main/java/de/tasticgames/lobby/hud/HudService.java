@@ -37,6 +37,11 @@ import java.util.logging.Logger;
  * moved back with {@link PixelOffsets} so the text sits centered inside the box. Without
  * ItemsAdder the HUD falls back to unicode icons and plain text. Per-player toggle:
  * {@link LobbySettings#HUD_ENABLED}.
+ * <p>
+ * Geometry: a font image rendered via ItemsAdder advances the cursor by exactly the width ItemsAdder
+ * reports ({@code FontImageWrapper#getWidth}) plus {@code itemsadder.glyph-spacing} pixels (0 by
+ * default – measured against the exported box glyphs whose pixel widths are known). Text widths come
+ * from {@link FontWidths}.
  */
 public final class HudService implements Service {
 
@@ -63,6 +68,8 @@ public final class HudService implements Service {
     private volatile boolean boxesAvailable;
     private volatile boolean boxesPendingPack;
     private volatile boolean zipRequested;
+    private volatile boolean assetsExported;
+    private volatile HudAssetExporter exporter;
     private volatile long lastBoxNotice;
 
     public HudService(Plugin plugin, TasticCoreApi coreApi, LobbyConfigurationService configurationService, HudContextProvider context,
@@ -94,16 +101,18 @@ public final class HudService implements Service {
         }
         exportAssets();
         customItems.onReady(() -> {
-            if (boxesPendingPack && configuration.iaAutoZip() && !zipRequested) {
-                // ItemsAdder finished loading its content – regenerate the pack once so the exported files ship
-                zipRequested = true;
-                logger.info("Regenerating the ItemsAdder pack (/iazip) for the exported TasticLobby content...");
-                Bukkit.getScheduler().runTaskLater(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "iazip"), 40L);
-                return;
-            }
             if (boxesPendingPack) {
+                if (configuration.iaAutoZip() && !zipRequested) {
+                    // ItemsAdder finished loading its content – regenerate the pack once so the exported files ship
+                    scheduleZip();
+                    return;
+                }
+                // pack regenerated (our /iazip or a manual one): the exported files are shipped now
                 boxesPendingPack = false;
-                logger.info("ItemsAdder pack regenerated – HUD boxes enabled.");
+                if (exporter != null) {
+                    exporter.markPackCurrent();
+                }
+                logger.info("ItemsAdder pack regenerated – HUD boxes and the player-head profile item are enabled.");
             }
             for (Player player : Bukkit.getOnlinePlayers()) {
                 hide(player);
@@ -126,7 +135,6 @@ public final class HudService implements Service {
     /** Re-reads hud.yml and re-exports missing assets (used by /tasticlobby reload). */
     public void reload() {
         configuration = HudConfiguration.load(configurationService.raw("hud"));
-        boxesPendingPack = false;
         exportAssets();
         for (Player player : Bukkit.getOnlinePlayers()) {
             hide(player);
@@ -147,16 +155,42 @@ public final class HudService implements Service {
             return;
         }
         try {
-            List<File> created = new HudAssetExporter(itemsAdder, logger).export(configuration.bossbarColor().name());
-            if (!created.isEmpty()) {
+            HudAssetExporter current = new HudAssetExporter(itemsAdder, logger);
+            HudAssetExporter.Result result = current.export(configuration.bossbarColor().name());
+            exporter = current;
+            assetsExported = true;
+            if (result.packPending()) {
                 boxesPendingPack = true;
                 zipRequested = false;
-                logger.warning("HUD background boxes stay disabled until the resource pack ships the new files"
-                        + (configuration.iaAutoZip() ? " – /iazip runs automatically once ItemsAdder is loaded." : " – run /iazip once."));
+                logger.warning("HUD background boxes and the player-head profile item stay disabled until the resource pack ships the exported files"
+                        + (configuration.iaAutoZip() ? " – /iazip runs automatically" + (customItems.ready() ? " now." : " once ItemsAdder is loaded.")
+                        : " – run /iazip once."));
+                if (configuration.iaAutoZip() && customItems.ready()) {
+                    scheduleZip();
+                }
+            } else {
+                boxesPendingPack = false;
             }
         } catch (Exception e) {
             logger.warning("HUD asset export failed: " + e.getMessage());
         }
+    }
+
+    private void scheduleZip() {
+        if (zipRequested) {
+            return;
+        }
+        zipRequested = true;
+        logger.info("Regenerating the ItemsAdder pack (/iazip) for the exported TasticLobby content...");
+        Bukkit.getScheduler().runTaskLater(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "iazip"), 40L);
+    }
+
+    /**
+     * Item model of the front-facing player head for the profile item – present once the exported
+     * content is part of the resource pack (otherwise the client would show a missing model).
+     */
+    public Optional<String> profileHeadModel() {
+        return assetsExported && !boxesPendingPack ? Optional.of(HudAssetExporter.PROFILE_HEAD_MODEL) : Optional.empty();
     }
 
     public HudConfiguration configuration() {
@@ -323,8 +357,7 @@ public final class HudService implements Service {
         if (iconKey != null && !iconKey.isEmpty()) {
             Optional<CustomItemProvider.FontGlyph> glyph = icons ? customItems.fontImage(configuration.iconId(iconKey)) : Optional.empty();
             if (glyph.isPresent() && glyph.get().width() > 0) {
-                // bitmap glyphs advance width + 1 px
-                measured = measured.append(Component.text(glyph.get().text(), NamedTextColor.WHITE), glyph.get().width() + 1);
+                measured = measured.append(Component.text(glyph.get().text(), NamedTextColor.WHITE), advance(glyph.get()));
                 measured = measured.append(Component.text(" "), FontWidths.width(" "));
             } else {
                 String unicode = configuration.unicodeIcon(iconKey);
@@ -345,10 +378,16 @@ public final class HudService implements Service {
         return measured;
     }
 
+    /** Cursor advance of an ItemsAdder font image: the reported width plus the configured glyph spacing. */
+    private int advance(CustomItemProvider.FontGlyph glyph) {
+        return glyph.width() + configuration.glyphSpacing();
+    }
+
     /**
      * Draws left cap + middle tiles + right cap, then jumps back and renders the content centered on
-     * top of the box. Bitmap glyphs advance one pixel more than they are wide, so every glyph is
-     * followed by a -1 px offset – the box is then exactly {@code boxWidth} pixels wide.
+     * top of the box. Each glyph advances by the width ItemsAdder reports; a configured extra glyph
+     * spacing is compensated with a negative offset after every glyph, so the box is exactly
+     * {@code boxWidth} pixels wide and the text sits {@code padding} px from its left edge.
      */
     private Component boxed(Measured content) {
         CustomItemProvider.FontGlyph left = customItems.fontImage(configuration.boxLeft()).orElse(null);
@@ -363,7 +402,7 @@ public final class HudService implements Service {
         int boxWidth = left.width() + tiles * mid.width() + right.width();
 
         TextComponent.Builder box = Component.text();
-        Component back = PixelOffsets.of(-1);
+        Component back = PixelOffsets.of(-configuration.glyphSpacing());
         box.append(Component.text(left.text(), NamedTextColor.WHITE)).append(back);
         for (int i = 0; i < tiles; i++) {
             box.append(Component.text(mid.text(), NamedTextColor.WHITE)).append(back);

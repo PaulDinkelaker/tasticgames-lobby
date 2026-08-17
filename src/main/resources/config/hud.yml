@@ -20,13 +20,17 @@ itemsadder:
   auto-zip: true
   # boss bar colour whose textures are made transparent by the exported content (keep in sync with the export)
   bossbar-color: PINK
-  # box glyphs (exported content); height 14 px, drawn behind the text
+  # box glyphs (exported content); 16 px high, drawn behind the text
   box:
     left: "tasticgames:hud_box_left"
     middle: "tasticgames:hud_box_mid"
     right: "tasticgames:hud_box_right"
     padding: 6
     gap: 6
+  # Pixels the client advances after an ItemsAdder font image beyond the width ItemsAdder reports.
+  # 0 = the reported width is the advance (ItemsAdder 3.6/4.x). Set 1 if boxes render narrower than
+  # their text (text starts left of the box) – then the client adds the 1 px glyph spacing itself.
+  glyph-spacing: 0
   # semantic icon key -> ItemsAdder font image (namespace:id). Unknown ids fall back to the unicode icon.
   icons-map:
     lobby: "cuboide:iconic_earth"

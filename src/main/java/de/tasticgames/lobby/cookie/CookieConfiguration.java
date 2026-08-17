@@ -11,13 +11,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
- * cookie-clicker.yml (config-version 2): main cookie in the lobby world, quest NPCs, the
+ * cookie-clicker.yml (config-version 3): main cookie in the lobby world, quest NPCs, the
  * prestige-10 open world with zones/POIs, runtime and balancing. Layout is data – builders
- * replace coordinates without code changes.
+ * replace coordinates without code changes. Files are migrated in place ({@link #migrate}):
+ * version 3 removed the NPCs {@code babette} and {@code king_frosting}.
  */
 public record CookieConfiguration(
         MainCookie mainCookie,
@@ -30,7 +33,13 @@ public record CookieConfiguration(
         boolean legacyFile
 ) {
 
-    public static final int CURRENT_VERSION = 2;
+    public static final int CURRENT_VERSION = 3;
+    /** First version with the current layout (main cookie in the lobby); older files are replaced by the bundled defaults. */
+    public static final int LAYOUT_VERSION = 2;
+    /** NPC ids removed with config-version 3 (only the baker and the merchant remain). */
+    public static final List<String> REMOVED_NPCS_V3 = List.of("babette", "king_frosting");
+    public static final String GOLDEN_MODE_AUTO = "auto";
+    public static final String GOLDEN_MODE_SPAWN = "spawn";
 
     public CookieConfiguration {
         Objects.requireNonNull(mainCookie);
@@ -62,17 +71,20 @@ public record CookieConfiguration(
      * @param clickSkill       MythicMobs skill cast on the mob for every bake click (hit animation), empty = none
      * @param model            ModelEngine model id used when MythicMobs is not available (empty = skip)
      * @param zoneRadius       cookie zone radius: generators produce and the actionbar shows only inside it
-     * @param goldenAreas      golden cookies only spawn inside these regions (empty = anywhere in the cookie's world)
+     * @param goldenAreas      golden cookies only trigger inside these regions (empty = anywhere in the cookie's world)
+     * @param goldenMode       {@code auto} = the golden cookie activates for the player directly, {@code spawn} = it appears
+     *                         nearby in the world and has to be clicked
      */
     public record MainCookie(Point location, String mythicMobsType, String clickSkill, String model, double hitboxWidth, double hitboxHeight, boolean label,
                              double zoneRadius, long actionbarIntervalMillis, boolean goldenEnabled, int goldenMaxPerPlayer,
-                             List<LobbyConfiguration.Region> goldenAreas) {
+                             List<LobbyConfiguration.Region> goldenAreas, String goldenMode) {
         public MainCookie {
             Objects.requireNonNull(location);
             mythicMobsType = mythicMobsType == null ? "" : mythicMobsType.trim();
             clickSkill = clickSkill == null ? "" : clickSkill.trim();
             model = model == null ? "" : model.trim();
             goldenAreas = goldenAreas == null ? List.of() : List.copyOf(goldenAreas);
+            goldenMode = normalizeGoldenMode(goldenMode);
             if (hitboxWidth <= 0 || hitboxHeight <= 0) {
                 throw new IllegalArgumentException("main-cookie.hitbox must be positive");
             }
@@ -85,6 +97,10 @@ public record CookieConfiguration(
 
         public String world() {
             return location.world();
+        }
+
+        public boolean goldenAuto() {
+            return GOLDEN_MODE_AUTO.equals(goldenMode);
         }
 
         /** Whether the location lies inside the cookie zone (same world, within zoneRadius). */
@@ -129,18 +145,60 @@ public record CookieConfiguration(
     /**
      * @param requiredPrestige minimum prestige level to enter the open world
      * @param goldenAreas      golden cookie areas inside the open world (empty = anywhere)
+     * @param goldenMode       {@code auto} (activates directly) or {@code spawn} (appears in the world)
      */
     public record OpenWorld(boolean enabled, String name, boolean createIfMissing, int requiredPrestige, Point entry,
-                            boolean goldenEnabled, List<LobbyConfiguration.Region> goldenAreas) {
+                            boolean goldenEnabled, List<LobbyConfiguration.Region> goldenAreas, String goldenMode) {
         public OpenWorld {
             Objects.requireNonNull(name);
             Objects.requireNonNull(entry);
             goldenAreas = goldenAreas == null ? List.of() : List.copyOf(goldenAreas);
+            goldenMode = normalizeGoldenMode(goldenMode);
             if (name.isBlank()) {
                 throw new IllegalArgumentException("open-world.world must not be blank");
             }
             requiredPrestige = Math.max(0, requiredPrestige);
         }
+
+        public boolean goldenAuto() {
+            return GOLDEN_MODE_AUTO.equals(goldenMode);
+        }
+    }
+
+    static String normalizeGoldenMode(String value) {
+        String mode = value == null ? GOLDEN_MODE_AUTO : value.trim().toLowerCase(Locale.ROOT);
+        if (mode.isEmpty()) {
+            return GOLDEN_MODE_AUTO;
+        }
+        if (!mode.equals(GOLDEN_MODE_AUTO) && !mode.equals(GOLDEN_MODE_SPAWN)) {
+            throw new IllegalArgumentException("cookie-clicker.yml: golden-cookies.mode must be 'auto' or 'spawn', got '" + value + "'");
+        }
+        return mode;
+    }
+
+    /**
+     * In-place migration of an existing file to {@link #CURRENT_VERSION}; returns the applied changes
+     * (empty = nothing to do). Files older than {@link #LAYOUT_VERSION} are not migrated (their layout is
+     * replaced by the bundled defaults, see {@link #load}).
+     */
+    public static List<String> migrate(YamlConfiguration yaml) {
+        Objects.requireNonNull(yaml);
+        List<String> changes = new ArrayList<>();
+        int version = yaml.getInt("config-version", yaml.isSet("world") ? 1 : CURRENT_VERSION);
+        if (version < LAYOUT_VERSION || version >= CURRENT_VERSION) {
+            return changes;
+        }
+        if (version < 3) {
+            for (String id : REMOVED_NPCS_V3) {
+                if (yaml.isConfigurationSection("npcs.list." + id)) {
+                    yaml.set("npcs.list." + id, null);
+                    changes.add("removed NPC '" + id + "'");
+                }
+            }
+        }
+        yaml.set("config-version", CURRENT_VERSION);
+        changes.add("config-version " + version + " -> " + CURRENT_VERSION);
+        return changes;
     }
 
     public record Zone(String id, LobbyConfiguration.Region region, Point entry, Point gateReturn) {
@@ -180,7 +238,7 @@ public record CookieConfiguration(
     public static CookieConfiguration load(YamlConfiguration yaml, String lobbyWorldName) {
         Objects.requireNonNull(yaml);
         Objects.requireNonNull(lobbyWorldName);
-        boolean legacy = yaml.getInt("config-version", yaml.isSet("world") ? 1 : CURRENT_VERSION) < CURRENT_VERSION;
+        boolean legacy = yaml.getInt("config-version", yaml.isSet("world") ? 1 : CURRENT_VERSION) < LAYOUT_VERSION;
         ConfigurationSection source = yaml;
         if (legacy && yaml.getDefaults() != null) {
             // 1.0.0 layout (main cookie inside the cookie world): use the bundled layout, keep the file's runtime/balancing
@@ -196,7 +254,8 @@ public record CookieConfiguration(
                 mainSection.getDouble("hitbox.width", 2.2), mainSection.getDouble("hitbox.height", 2.4), mainSection.getBoolean("label", false),
                 mainSection.getDouble("zone-radius", 8.0), mainSection.getLong("actionbar.interval-millis", 1000),
                 goldenMain == null || goldenMain.getBoolean("enabled", true), goldenMain == null ? 1 : goldenMain.getInt("max-per-player", 1),
-                regions(goldenMain == null ? null : goldenMain.getConfigurationSection("areas"), mainWorld));
+                regions(goldenMain == null ? null : goldenMain.getConfigurationSection("areas"), mainWorld),
+                goldenMain == null ? GOLDEN_MODE_AUTO : goldenMain.getString("mode", GOLDEN_MODE_AUTO));
 
         Map<String, Npc> npcMap = new LinkedHashMap<>();
         ConfigurationSection npcRoot = source.getConfigurationSection("npcs");
@@ -224,7 +283,8 @@ public record CookieConfiguration(
         OpenWorld openWorld = new OpenWorld(openSection.getBoolean("enabled", true), openWorldName, openSection.getBoolean("create-if-missing", true),
                 openSection.getInt("required-prestige", 10), point(req(openSection, "entry"), openWorldName),
                 goldenOpen == null || goldenOpen.getBoolean("enabled", true),
-                regions(goldenOpen == null ? null : goldenOpen.getConfigurationSection("areas"), openWorldName));
+                regions(goldenOpen == null ? null : goldenOpen.getConfigurationSection("areas"), openWorldName),
+                goldenOpen == null ? GOLDEN_MODE_AUTO : goldenOpen.getString("mode", GOLDEN_MODE_AUTO));
 
         Map<String, Zone> zones = new LinkedHashMap<>();
         ConfigurationSection zoneSection = source.getConfigurationSection("zones");

@@ -24,7 +24,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiFunction;
 import java.util.logging.Logger;
 
 /**
@@ -35,17 +34,15 @@ public final class NativeNpcProvider implements NpcProvider, Listener {
 
     private final Plugin plugin;
     private final Logger logger;
-    private final BiFunction<Entity, String, Boolean> modelAttacher;
     private final NamespacedKey markerKey;
     private final Map<UUID, NpcHandle> byEntity = new ConcurrentHashMap<>();
     private final Map<String, NpcHandle> byId = new ConcurrentHashMap<>();
     private final List<ClickHandler> handlers = new CopyOnWriteArrayList<>();
     private volatile boolean hooked;
 
-    public NativeNpcProvider(Plugin plugin, Logger logger, BiFunction<Entity, String, Boolean> modelAttacher) {
+    public NativeNpcProvider(Plugin plugin, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin);
         this.logger = Objects.requireNonNull(logger);
-        this.modelAttacher = modelAttacher == null ? (e, m) -> false : modelAttacher;
         this.markerKey = new NamespacedKey(plugin, "native-npc");
     }
 
@@ -124,15 +121,6 @@ public final class NativeNpcProvider implements NpcProvider, Listener {
             logger.warning("Native NPC '" + spec.id() + "' could not be spawned: " + e.getMessage());
             return Optional.empty();
         }
-        if (!spec.model().isBlank()) {
-            try {
-                if (modelAttacher.apply(entity, spec.model())) {
-                    entity.setCustomNameVisible(false);
-                }
-            } catch (RuntimeException e) {
-                logger.warning("Model '" + spec.model() + "' for NPC '" + spec.id() + "' failed: " + e.getMessage());
-            }
-        }
         NpcHandle handle = new NpcHandle(spec.id(), entity.getUniqueId(), -1, false);
         byEntity.put(entity.getUniqueId(), handle);
         byId.put(spec.id(), handle);
@@ -143,10 +131,18 @@ public final class NativeNpcProvider implements NpcProvider, Listener {
         return switch (id) {
             case "mama_bakewell" -> Villager.Profession.FARMER;
             case "gustave" -> Villager.Profession.TOOLSMITH;
-            case "babette" -> Villager.Profession.WEAPONSMITH;
-            case "king_frosting" -> Villager.Profession.CLERIC;
             default -> Villager.Profession.LIBRARIAN;
         };
+    }
+
+    @Override
+    public Optional<Entity> entity(NpcHandle handle) {
+        return handle == null ? Optional.empty() : Optional.ofNullable(Bukkit.getEntity(handle.entityId()));
+    }
+
+    @Override
+    public void nameplate(NpcHandle handle, boolean visible) {
+        entity(handle).ifPresent(e -> e.setCustomNameVisible(visible));
     }
 
     @Override

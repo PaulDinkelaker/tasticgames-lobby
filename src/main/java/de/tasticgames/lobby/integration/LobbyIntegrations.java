@@ -67,9 +67,9 @@ public final class LobbyIntegrations implements Service {
         modelEngine.hook();
         mythicMobs = new MythicMobsMobProvider(plugin, logger);
         mythicMobs.hook();
-        citizens = new CitizensNpcProvider(plugin, logger, modelEngine::attach);
+        citizens = new CitizensNpcProvider(plugin, logger);
         citizens.hook();
-        nativeNpcs = new NativeNpcProvider(plugin, logger, modelEngine::attach);
+        nativeNpcs = new NativeNpcProvider(plugin, logger);
         nativeNpcs.hook();
         hmcCosmetics = new HmcCosmeticsRenderer(plugin, logger);
         hmcCosmetics.hook();

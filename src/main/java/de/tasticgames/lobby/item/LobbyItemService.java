@@ -26,10 +26,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Typed lobby items identified via PersistentDataContainer (never by name/lore). Items may come
- * from ItemsAdder ({@code itemsadder: namespace:id} in items.yml) with a vanilla fallback.
+ * from ItemsAdder ({@code itemsadder: namespace:id} in items.yml) with a vanilla fallback. The profile
+ * item is the player's own head: with the exported resource pack content it uses the front-facing
+ * item model ({@link #setProfileHeadModel}) that fills the hotbar slot like a 2D icon.
  */
 public final class LobbyItemService implements Service {
 
@@ -39,6 +42,7 @@ public final class LobbyItemService implements Service {
     private final TasticCoreApi coreApi;
     private final Function<Player, VisibilityMode> visibility;
     private final de.tasticgames.lobby.integration.item.CustomItemProvider customItems;
+    private volatile Supplier<Optional<String>> profileHeadModel = Optional::empty;
 
     public LobbyItemService(Plugin plugin, LobbyConfigurationService configurationService, LobbyMessages messages, TasticCoreApi coreApi,
                             Function<Player, VisibilityMode> visibility, de.tasticgames.lobby.integration.item.CustomItemProvider customItems) {
@@ -65,6 +69,11 @@ public final class LobbyItemService implements Service {
 
     public NamespacedKey key() {
         return itemKey;
+    }
+
+    /** Item model applied to the player-head profile item once the resource pack ships it (empty = vanilla head). */
+    public void setProfileHeadModel(Supplier<Optional<String>> profileHeadModel) {
+        this.profileHeadModel = Objects.requireNonNull(profileHeadModel);
     }
 
     public Optional<LobbyItemType> typeOf(ItemStack stack) {
@@ -154,7 +163,16 @@ public final class LobbyItemService implements Service {
             }
         }
         if (meta instanceof SkullMeta skull && type == LobbyItemType.PROFILE) {
-            skull.setOwningPlayer(player);
+            // the player's own skin; the exported front-facing model turns the 3D head into a slot-filling 2D face
+            skull.setPlayerProfile(player.getPlayerProfile());
+            if (slot.assetId().isBlank()) {
+                profileHeadModel.get().ifPresent(model -> {
+                    NamespacedKey key = NamespacedKey.fromString(model);
+                    if (key != null) {
+                        skull.setItemModel(key);
+                    }
+                });
+            }
         }
         stack.setItemMeta(meta);
         return stack;

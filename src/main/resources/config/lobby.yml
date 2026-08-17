@@ -53,8 +53,8 @@ movement:
     velocity: 0.9
     cooldown-millis: 1500
 
-# The scoreboard/tablist are rendered by UltimateUI and TAB. TasticLobby only provides the data as
-# placeholders (%tastic_...% via PlaceholderAPI and TAB) – see docs/tasticlobby-integrations.md.
+# The top-screen HUD is rendered by TasticLobby itself (config/hud.yml); the tablist by TAB. The same
+# values are available as placeholders (%tastic_...% via PlaceholderAPI and TAB) – see docs/tasticlobby-integrations.md.
 placeholders:
   # refresh interval used for TAB placeholders (milliseconds)
   refresh-millis: 1000

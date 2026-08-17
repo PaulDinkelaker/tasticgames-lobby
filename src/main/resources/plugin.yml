@@ -20,7 +20,6 @@ softdepend:
   - WorldEdit
   - FastAsyncWorldEdit
   - TAB
-  - UltimateUI
 
 commands:
   # /lobby, /hub and /l are TasticProxy commands; the proxy forwards them to this plugin while the

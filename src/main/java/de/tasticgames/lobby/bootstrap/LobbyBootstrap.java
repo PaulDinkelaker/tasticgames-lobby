@@ -164,6 +164,7 @@ public final class LobbyBootstrap {
         hud = start(new de.tasticgames.lobby.hud.HudService(plugin, coreApi, configurationService, hudContext, integrations.customItems(), players,
                 p -> ranks.rank(p).displayName(), player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
                 () -> Bukkit.getOnlinePlayers().size(), logger));
+        items.setProfileHeadModel(hud::profileHeadModel);
         socialActions.setAfterAction(p -> {
             visibility.apply(p);
             hud.refresh(p);
@@ -234,7 +235,7 @@ public final class LobbyBootstrap {
         plugin.getCommand("cookieadmin").setExecutor(cookie.adminCommand());
         plugin.getCommand("cookieadmin").setTabCompleter(cookie.adminCommand());
 
-        // placeholders for UltimateUI (PlaceholderAPI) and TAB
+        // placeholders for PlaceholderAPI consumers and TAB
         placeholders = buildPlaceholders(ranks);
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             try {

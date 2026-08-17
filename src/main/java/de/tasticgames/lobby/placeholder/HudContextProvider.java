@@ -32,7 +32,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Context-aware HUD lines for display plugins (UltimateUI top screen): depending on the lobby item
+ * Context-aware HUD lines (native boss-bar HUD, also exposed as placeholders): depending on the lobby item
  * the player holds, the same placeholders ({@code %tastic_ctx_*%}) describe Cookie Clicker,
  * Social, Gateway, Profile, Cosmetics, Settings, Visibility or the plain lobby. Values are plain
  * text (no colours) and localized in the player's language.

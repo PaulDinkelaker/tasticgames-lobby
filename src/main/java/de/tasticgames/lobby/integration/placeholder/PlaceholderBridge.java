@@ -8,7 +8,7 @@ import java.util.function.Function;
 /**
  * Registers lobby values as placeholders in a display plugin (TAB). PlaceholderAPI is handled by
  * {@link de.tasticgames.lobby.placeholder.LobbyPlaceholders}; this bridge makes the same values
- * available as native placeholders so TAB (and UltimateUI via PlaceholderAPI) can display them.
+ * available as native placeholders so TAB (and other plugins via PlaceholderAPI) can display them.
  */
 public interface PlaceholderBridge extends Integration {
 

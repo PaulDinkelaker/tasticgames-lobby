@@ -32,6 +32,7 @@ public record HudConfiguration(
         String boxRight,
         int boxPadding,
         int boxGap,
+        int glyphSpacing,
         Map<String, String> iconMap,
         Map<String, String> unicodeIcons,
         TextColor titleColor,
@@ -46,6 +47,7 @@ public record HudConfiguration(
         refreshTicks = Math.max(2, refreshTicks);
         boxPadding = Math.max(0, boxPadding);
         boxGap = Math.max(0, boxGap);
+        glyphSpacing = Math.max(0, Math.min(2, glyphSpacing));
         iconMap = Map.copyOf(iconMap);
         unicodeIcons = Map.copyOf(unicodeIcons);
         valueColors = valueColors == null || valueColors.isEmpty() ? List.of(TextColor.color(0x24ff2b)) : List.copyOf(valueColors);
@@ -100,7 +102,8 @@ public record HudConfiguration(
                 yaml.getString("itemsadder.box.middle", "tasticgames:hud_box_mid"),
                 yaml.getString("itemsadder.box.right", "tasticgames:hud_box_right"),
                 yaml.getInt("itemsadder.box.padding", 6),
-                yaml.getInt("itemsadder.box.gap", 8),
+                yaml.getInt("itemsadder.box.gap", 6),
+                yaml.getInt("itemsadder.glyph-spacing", 0),
                 icons, unicode,
                 color(yaml.getString("colors.title", "#ffd82b"), 0xffd82b),
                 color(yaml.getString("colors.label", "#aaaaaa"), 0xaaaaaa),

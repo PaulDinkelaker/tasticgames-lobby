@@ -25,7 +25,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiFunction;
 import java.util.logging.Logger;
 
 /**
@@ -39,7 +38,6 @@ public final class CitizensNpcProvider implements NpcProvider, Listener {
 
     private final Plugin plugin;
     private final Logger logger;
-    private final BiFunction<Entity, String, Boolean> modelAttacher;
     private final Map<String, NpcHandle> byId = new ConcurrentHashMap<>();
     private final Map<Integer, String> byCitizensId = new ConcurrentHashMap<>();
     private final Map<UUID, String> byEntity = new ConcurrentHashMap<>();
@@ -48,10 +46,9 @@ public final class CitizensNpcProvider implements NpcProvider, Listener {
     private volatile boolean available;
     private volatile boolean warned;
 
-    public CitizensNpcProvider(Plugin plugin, Logger logger, BiFunction<Entity, String, Boolean> modelAttacher) {
+    public CitizensNpcProvider(Plugin plugin, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin);
         this.logger = Objects.requireNonNull(logger);
-        this.modelAttacher = modelAttacher == null ? (e, m) -> false : modelAttacher;
     }
 
     public void hook() {
@@ -144,15 +141,6 @@ public final class CitizensNpcProvider implements NpcProvider, Listener {
                 }
             }
             Entity entity = npc.getEntity();
-            if (entity != null && !spec.model().isBlank()) {
-                try {
-                    if (modelAttacher.apply(entity, spec.model())) {
-                        npc.data().set(NPC.Metadata.NAMEPLATE_VISIBLE, false);
-                    }
-                } catch (RuntimeException e) {
-                    warnOnce("model attach", e);
-                }
-            }
             NpcHandle handle = new NpcHandle(spec.id(), entity == null ? new UUID(0, 0) : entity.getUniqueId(), npc.getId(), linked);
             byId.put(spec.id(), handle);
             byCitizensId.put(npc.getId(), spec.id());
@@ -163,6 +151,41 @@ public final class CitizensNpcProvider implements NpcProvider, Listener {
         } catch (Throwable t) {
             warnOnce("spawn", t);
             return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<Entity> entity(NpcHandle handle) {
+        if (handle == null || !available) return Optional.empty();
+        try {
+            NPC npc = registry == null ? null : registry.getById(handle.externalId());
+            if (npc == null && handle.linked()) {
+                npc = CitizensAPI.getNPCRegistry().getById(handle.externalId());
+            }
+            Entity entity = npc == null ? null : npc.getEntity();
+            if (entity == null) {
+                entity = Bukkit.getEntity(handle.entityId());
+            }
+            return Optional.ofNullable(entity);
+        } catch (Throwable t) {
+            warnOnce("entity lookup", t);
+            return Optional.ofNullable(Bukkit.getEntity(handle.entityId()));
+        }
+    }
+
+    @Override
+    public void nameplate(NpcHandle handle, boolean visible) {
+        if (handle == null || !available) return;
+        try {
+            NPC npc = registry == null ? null : registry.getById(handle.externalId());
+            if (npc == null && handle.linked()) {
+                npc = CitizensAPI.getNPCRegistry().getById(handle.externalId());
+            }
+            if (npc != null) {
+                npc.data().set(NPC.Metadata.NAMEPLATE_VISIBLE, visible);
+            }
+        } catch (Throwable t) {
+            warnOnce("nameplate", t);
         }
     }
 

@@ -4,15 +4,19 @@ Persistent lobby minigame, Prestige 0–10. Domain engine: `de.tasticgames.lobby
 (pure Java, 131 unit tests). Runtime/UI: `de.tasticgames.lobby.cookie`. Persistence: TasticGames API
 (`/api/v1/lobby/cookie/**`, MariaDB `cookie_*` tables, optimistic locking, idempotent operations).
 
-## Layout (config-version 2)
-* **Main cookie in the lobby** (`spawn` at -62.5/35/12.5): MythicMobs mob `CookieClicker` → ModelEngine model
-  `fv_cookie_clicker` → native item display. Left/right click = bake, **sneak+click = cookie menu** (also the
-  cookie hotbar item and `/cookie`). Actionbar shows cookies/CPS on every click and every second within 12 blocks.
+## Layout (config-version 3)
+* **Main cookie in the lobby** (`spawn` at -62.5/35/12.5): MythicMobs mob `fv_cookie_clicker` → ModelEngine model
+  `fv_cookie_clicker` → native item display. **Left click = bake, right click = cookie menu** (also the cookie hotbar
+  item and `/cookie`). Actionbar shows cookies/CPS on every click and every second inside the cookie zone (8 blocks).
+  The visual is spawned only after ModelEngine registered its models (`ModelRegistrationEvent FINISHED`); the binding
+  result is logged explicitly (see docs/tasticlobby-integrations.md).
 * **Sessions are per online player** (loaded after the lobby init, ticked everywhere, saved every 10 s, offline
   production claimed via dialog) – no hotbar swap, no separate cookie items.
-* **Golden cookies** appear near the player inside the lobby area around the main cookie (`main-cookie.golden-cookies.areas`)
-  and anywhere in the open world.
-* **Quest NPCs** stand next to the main cookie (Citizens when installed, else native villagers).
+* **Golden cookies** trigger for players inside the lobby area around the main cookie (`main-cookie.golden-cookies.areas`)
+  and anywhere in the open world. `golden-cookies.mode: auto` (default) activates them **for the player directly**
+  (title, sound, particles, reward – nothing to find); `mode: spawn` places a clickable golden cookie nearby instead.
+* **Quest NPCs** (baker `mama_bakewell`, merchant `gustave`) stand next to the main cookie (Citizens when installed, else
+  native villagers). config-version 3 removed `babette` and `king_frosting`; existing files are migrated in place.
 * **Open world** (`cookie`, flat dev world created when missing) is the **prestige-10 endgame** (`open-world.required-prestige`):
   `/cookie world`, the menu button or fast travel; zones/gates/POIs/discovery live there. Leaving: `/lobby`, menu, world change.
 * Old 1.0.0 files (`world:` root key) are detected: the bundled layout is used and a warning asks to delete the file.
@@ -76,8 +80,10 @@ entry/gate-return points (min prestige from the catalog), POIs (stable ids `cook
 replace coordinates without code changes (`/cookieadmin setspawn|setcookie|poi`).
 
 ## Golden cookies
-Per player, per second: `1/300 s · chance multiplier`; visible only to the owner, 15 s lifetime; rewards LUCKY
-(min(15 % bank, 15 min CPS)+13), FRENZY (CPS ×7 for 30 s·duration), CLICK_FRENZY (×777 for 13 s), CHAIN_BONUS (5 % bank).
+Per player, per second: `1/300 s · chance multiplier`. Mode `auto` (default): the reward is applied immediately with a
+title (`cookie.golden.title` / `cookie.golden.activated`). Mode `spawn`: visible only to the owner, 15 s lifetime,
+ownership-validated click. Rewards LUCKY (min(15 % bank, 15 min CPS)+13), FRENZY (CPS ×7 for 30 s·duration),
+CLICK_FRENZY (×777 for 13 s), CHAIN_BONUS (5 % bank).
 
 ## Achievements
 first_cookie, clicks_100/1000/10000, lifetime_1m/1b, first_generator, generators_100/500, first_golden, golden_100,
@@ -93,5 +99,7 @@ builder helpers (write cookie-clicker.yml + live reload): `setcookie` (main cook
 
 ## Exploit protection
 Server-side rewards only; click rate cap; bounded click history; optimistic locking (409 → reload); idempotent
-prestige/offline/admin operations (operationId); saves flushed before server-side operations; interactions only inside
-the cookie world; golden cookies validated per owner; no items represent progression.
+prestige/offline/admin operations (operationId); saves flushed before server-side operations – a save completes only
+after the new version was adopted on the main thread, and a prestige that still hits `VERSION_CONFLICT` (autosave/other
+server bumped the version) syncs the server state and retries with the same operationId (3 attempts); interactions only
+inside the cookie world; golden cookies validated per owner; no items represent progression.

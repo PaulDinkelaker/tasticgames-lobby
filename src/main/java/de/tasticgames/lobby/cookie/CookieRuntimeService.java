@@ -225,7 +225,11 @@ public final class CookieRuntimeService implements Service {
         }
     }
 
-    /** Persists the profile (async). Version conflicts reload the server state. */
+    /**
+     * Persists the profile (async). The returned future completes <em>after</em> the new server version
+     * was adopted on the main thread, so a follow-up operation (prestige, offline claim) that sends
+     * {@code expectedVersion} never races the version bump. Version conflicts reload the server state.
+     */
     public CompletableFuture<Boolean> save(CookieSession session, boolean force) {
         if (!api.enabled()) {
             session.saveFailures().incrementAndGet();
@@ -245,24 +249,24 @@ public final class CookieRuntimeService implements Service {
         long expected = profile.version();
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         session.inFlightSave(result);
-        api.call("cookie.save", c -> c.lobby().saveCookieProfile(session.player(), request)).handle((response, throwable) -> {
-            session.saving().set(false);
+        api.call("cookie.save", c -> c.lobby().saveCookieProfile(session.player(), request)).whenComplete((response, throwable) -> {
             if (throwable != null) {
                 Throwable cause = LobbyThrowables.unwrap(throwable);
-                if (cause instanceof de.tasticgames.client.internal.HttpException http && http.statusCode() == 409) {
+                if (isVersionConflict(cause)) {
                     logger.warning("Cookie version conflict for " + session.player() + " – reloading server state.");
-                    reload(session);
-                    return false;
+                    reload(session).whenComplete((v, t) -> finishSave(session, result, false));
+                    return;
                 }
                 int failures = session.saveFailures().incrementAndGet();
                 if (failures == 1 || failures % 10 == 0) {
                     logger.warning("Cookie save failed for " + session.player() + " (" + failures + "x): " + LobbyThrowables.rootMessage(cause));
                 }
-                return false;
+                finishSave(session, result, false);
+                return;
             }
             session.saveFailures().set(0);
             session.paused(false);
-            mainThread.run(() -> {
+            onMainThread(() -> {
                 if (profile.version() == expected) {
                     profile.setVersion(response.version());
                     profile.markClean();
@@ -271,28 +275,65 @@ public final class CookieRuntimeService implements Service {
                     // mutated during the save: keep dirty, but adopt the new version
                     profile.setVersion(response.version());
                 }
+                finishSave(session, result, true);
             });
-            return true;
-        }).whenComplete((ok, t) -> {
-            session.inFlightSave(null);
-            if (t != null) result.complete(false); else result.complete(ok);
         });
         return result;
     }
 
-    private void reload(CookieSession session) {
-        api.call("cookie.reload", c -> c.lobby().loadCookieProfile(session.player())).whenComplete((response, throwable) -> {
-            if (throwable != null) {
-                return;
-            }
-            mainThread.run(() -> {
-                CookieProfileMapper.applyServerState(session.profile(), response);
-                session.lastSavedAt(Instant.now());
-            });
-        });
+    private static void finishSave(CookieSession session, CompletableFuture<Boolean> result, boolean ok) {
+        session.inFlightSave(null);
+        session.saving().set(false);
+        result.complete(ok);
     }
 
-    /** Transaction-safe prestige: engine plan → API (idempotent) → apply the server state locally. */
+    /**
+     * Main-thread hop that still runs during shutdown (the scheduler refuses new tasks once the plugin
+     * is disabled; the main thread is then blocked in {@link #stop()} waiting for exactly these futures).
+     */
+    private void onMainThread(Runnable runnable) {
+        if (Bukkit.isPrimaryThread() || !plugin.isEnabled()) {
+            runnable.run();
+            return;
+        }
+        Bukkit.getScheduler().runTask(plugin, runnable);
+    }
+
+    static boolean isVersionConflict(Throwable cause) {
+        if (cause instanceof de.tasticgames.client.internal.HttpException http && http.statusCode() == 409) {
+            return true;
+        }
+        String message = cause == null ? null : cause.getMessage();
+        return message != null && message.contains("VERSION_CONFLICT");
+    }
+
+    /** Fetches the server state and applies it on the main thread; the future completes afterwards. */
+    private CompletableFuture<Void> reload(CookieSession session) {
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        api.call("cookie.reload", c -> c.lobby().loadCookieProfile(session.player())).whenComplete((response, throwable) -> {
+            if (throwable != null) {
+                done.completeExceptionally(throwable);
+                return;
+            }
+            onMainThread(() -> {
+                try {
+                    CookieProfileMapper.applyServerState(session.profile(), response);
+                    session.lastSavedAt(Instant.now());
+                    done.complete(null);
+                } catch (RuntimeException e) {
+                    done.completeExceptionally(e);
+                }
+            });
+        });
+        return done;
+    }
+
+    /**
+     * Transaction-safe prestige: engine plan → API (idempotent) → apply the server state locally. The
+     * request is built on the main thread after the pre-flush completed (fresh {@code expectedVersion});
+     * a version conflict (autosave/other server bumped the version meanwhile) syncs the server state and
+     * retries with the same operation id (up to {@link #PRESTIGE_ATTEMPTS} attempts).
+     */
     public CompletableFuture<PrestigeResult> prestige(CookieSession session) {
         CookieProfile profile = session.profile();
         PrestigePlan plan = engine.planPrestige(profile);
@@ -300,12 +341,31 @@ public final class CookieRuntimeService implements Service {
             return CompletableFuture.completedFuture(new PrestigeResult(false, "NOT_ELIGIBLE", plan));
         }
         UUID operationId = UUID.randomUUID();
-        return flushBeforeOperation(session).thenCompose(ok -> {
-            CookiePrestigeRequest request = new CookiePrestigeRequest(operationId, profile.version(), plan.fromLevel(), plan.toLevel(),
-                    profile.lifetimeCookies().toPlainString(), Long.toString(plan.crumbsGained()), List.copyOf(profile.achievements()),
-                    List.copyOf(profile.discoveredZones()), plan.rewardCosmeticIds());
-            return api.call("cookie.prestige", c -> c.lobby().prestige(session.player(), request));
-        }).thenCompose(response -> mainThread.supply(() -> {
+        return flushBeforeOperation(session).thenCompose(ok -> prestigeAttempt(session, plan, operationId, 1));
+    }
+
+    static final int PRESTIGE_ATTEMPTS = 3;
+
+    private CompletableFuture<PrestigeResult> prestigeAttempt(CookieSession session, PrestigePlan plan, UUID operationId, int attempt) {
+        CookieProfile profile = session.profile();
+        return mainThread.supply(() -> new CookiePrestigeRequest(operationId, profile.version(), plan.fromLevel(), plan.toLevel(),
+                        profile.lifetimeCookies().toPlainString(), Long.toString(plan.crumbsGained()), List.copyOf(profile.achievements()),
+                        List.copyOf(profile.discoveredZones()), plan.rewardCosmeticIds()))
+                .thenCompose(request -> api.call("cookie.prestige", c -> c.lobby().prestige(session.player(), request)))
+                .thenCompose(response -> mainThread.supply(() -> applyPrestigeResponse(session, plan, response)))
+                .exceptionallyCompose(throwable -> {
+                    Throwable cause = LobbyThrowables.unwrap(throwable);
+                    if (attempt < PRESTIGE_ATTEMPTS && isVersionConflict(cause)) {
+                        logger.info("Cookie prestige for " + session.player() + ": version conflict on attempt " + attempt + " – syncing server state and retrying.");
+                        return reload(session).thenCompose(v -> prestigeAttempt(session, plan, operationId, attempt + 1));
+                    }
+                    return CompletableFuture.failedFuture(cause);
+                });
+    }
+
+    private PrestigeResult applyPrestigeResponse(CookieSession session, PrestigePlan plan, de.tasticgames.client.dto.lobby.CookieOperationResponse response) {
+        CookieProfile profile = session.profile();
+        {
             if (response.applied()) {
                 engine.applyPrestige(profile, plan);
                 CookieProfileMapper.applyServerState(profile, response.profile());
@@ -321,7 +381,7 @@ public final class CookieRuntimeService implements Service {
             }
             CookieProfileMapper.applyServerState(profile, response.profile());
             return new PrestigeResult(false, response.outcome(), plan);
-        }));
+        }
     }
 
     public record PrestigeResult(boolean applied, String outcome, PrestigePlan plan) {

@@ -10,6 +10,7 @@ import de.tasticgames.onboarding.PlayerOnboarding;
 import de.tasticgames.player.TasticPlayer;
 import de.tasticgames.player.event.TasticPlayerLanguageChangedEvent;
 import de.tasticgames.player.event.TasticPlayerReadyEvent;
+import io.papermc.paper.event.player.AsyncPlayerSpawnLocationEvent;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -18,7 +19,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.spigotmc.event.player.PlayerSpawnLocationEvent;
 
 import java.util.List;
 import java.util.Map;
@@ -29,6 +29,11 @@ import java.util.logging.Logger;
 /**
  * Join/ready/quit lifecycle: spawn location, join message suppression, onboarding (language),
  * welcome, initialization, cleanup hooks.
+ * <p>
+ * The spawn position is chosen in Paper's {@link AsyncPlayerSpawnLocationEvent} (configuration phase,
+ * no player entity yet – only the location is touched there); every player manipulation (inventory,
+ * game mode, flight, HUD, items) happens later in the join/ready pipeline
+ * ({@link LobbyPlayerInitializationService}).
  */
 public final class LobbyConnectionListener implements Listener {
 
@@ -62,8 +67,9 @@ public final class LobbyConnectionListener implements Listener {
         quitHooks.add(hook);
     }
 
+    /** Runs async during the configuration phase: only the spawn location is decided here. */
     @EventHandler
-    public void onSpawnLocation(PlayerSpawnLocationEvent event) {
+    public void onSpawnLocation(AsyncPlayerSpawnLocationEvent event) {
         spawn.spawnLocation().ifPresent(event::setSpawnLocation);
     }
 

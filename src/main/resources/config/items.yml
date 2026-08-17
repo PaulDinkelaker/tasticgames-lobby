@@ -3,7 +3,10 @@
 #   material   = vanilla fallback item (used when ItemsAdder or the id is missing)
 #   asset-id   = optional vanilla item model key from the resource pack (e.g. tasticgames:gateway_compass)
 #   itemsadder = optional ItemsAdder item id (namespace:id); used when ItemsAdder is installed.
-#                Defaults use the "cuboide" icon pack; tasticgames:profile_icon is the flat 2D head exported by TasticLobby.
+#                Defaults use the "cuboide" icon pack.
+#   profile    = the player's OWN head (skin). With the exported resource-pack content it renders front-facing and
+#                fills the slot like a 2D icon (item model tasticgames:profile_head). Set itemsadder to
+#                tasticgames:profile_icon for the static 2D art instead.
 interaction-cooldown-millis: 400
 items:
   gateway:
@@ -16,7 +19,7 @@ items:
     slot: 1
     material: PLAYER_HEAD
     asset-id: ""
-    itemsadder: "tasticgames:profile_icon"
+    itemsadder: ""
     enabled: true
   social:
     slot: 2

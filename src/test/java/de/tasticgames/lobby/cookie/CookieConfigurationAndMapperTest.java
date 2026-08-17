@@ -38,14 +38,62 @@ class CookieConfigurationAndMapperTest {
         for (var zone : CookieCatalog.defaults().zones()) {
             assertTrue(configuration.zones().containsKey(zone.id()), "layout missing zone " + zone.id());
         }
-        assertEquals(4, configuration.npcs().list().size());
+        assertEquals(2, configuration.npcs().list().size(), "only the baker and the merchant remain (config-version 3)");
+        assertTrue(configuration.npcs().list().containsKey("mama_bakewell"));
+        assertTrue(configuration.npcs().list().containsKey("gustave"));
         assertTrue(configuration.npcs().list().values().stream().allMatch(n -> n.location().world().equals("spawn")));
+        assertTrue(configuration.mainCookie().goldenAuto(), "golden cookies activate directly by default");
+        assertTrue(configuration.openWorld().goldenAuto());
+        assertEquals(CookieConfiguration.CURRENT_VERSION, yaml.getInt("config-version"));
         assertTrue(configuration.pois().containsKey("cookie.main_cookie"));
         assertEquals("spawn", configuration.pois().get("cookie.main_cookie").location().world());
         assertEquals(1.15, configuration.balancing().costGrowth(), 1e-9);
         assertTrue(!configuration.balancing().offlineEnabled(), "offline production is disabled by default (generators only run inside the cookie zone)");
         assertEquals(8.0, configuration.mainCookie().zoneRadius(), 1e-9);
         assertTrue(configuration.npcs().list().values().stream().allMatch(n -> !n.skinValue().isBlank() && !n.skinSignature().isBlank()));
+    }
+
+    @Test
+    void migrationRemovesRetiredNpcsOnce() throws Exception {
+        YamlConfiguration bundled = YamlConfiguration.loadConfiguration(new InputStreamReader(
+                getClass().getClassLoader().getResourceAsStream("config/cookie-clicker.yml"), StandardCharsets.UTF_8));
+        YamlConfiguration v2 = new YamlConfiguration();
+        v2.set("config-version", 2);
+        v2.set("main-cookie.location.x", -1.5);
+        v2.set("npcs.list.mama_bakewell.location.x", 1.0);
+        v2.set("npcs.list.babette.location.x", 2.0);
+        v2.set("npcs.list.king_frosting.location.x", 3.0);
+        v2.set("npcs.list.custom_guide.location.x", 4.0);
+        v2.setDefaults(bundled);
+        List<String> changes = CookieConfiguration.migrate(v2);
+        assertEquals(3, changes.size(), changes.toString());
+        assertEquals(CookieConfiguration.CURRENT_VERSION, v2.getInt("config-version"));
+        assertTrue(!v2.isConfigurationSection("npcs.list.babette"));
+        assertTrue(!v2.isConfigurationSection("npcs.list.king_frosting"));
+        assertTrue(v2.isConfigurationSection("npcs.list.custom_guide"), "foreign NPCs are kept");
+        assertEquals(-1.5, v2.getDouble("main-cookie.location.x"), 1e-9, "own layout values are kept");
+        assertTrue(CookieConfiguration.migrate(v2).isEmpty(), "migration is idempotent");
+        // a 1.0.0 layout file is not migrated in place (its layout is replaced by the bundled defaults)
+        YamlConfiguration legacy = new YamlConfiguration();
+        legacy.set("world.name", "cookie");
+        legacy.setDefaults(bundled);
+        assertTrue(CookieConfiguration.migrate(legacy).isEmpty());
+        assertTrue(CookieConfiguration.load(legacy, "spawn").legacyFile());
+    }
+
+    @Test
+    void goldenModeIsValidated() {
+        YamlConfiguration bundled = YamlConfiguration.loadConfiguration(new InputStreamReader(
+                getClass().getClassLoader().getResourceAsStream("config/cookie-clicker.yml"), StandardCharsets.UTF_8));
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("config-version", 3);
+        yaml.set("main-cookie.golden-cookies.mode", "spawn");
+        yaml.setDefaults(bundled);
+        CookieConfiguration configuration = CookieConfiguration.load(yaml, "spawn");
+        assertTrue(!configuration.mainCookie().goldenAuto());
+        assertTrue(configuration.openWorld().goldenAuto());
+        yaml.set("main-cookie.golden-cookies.mode", "sometimes");
+        assertThrows(IllegalArgumentException.class, () -> CookieConfiguration.load(yaml, "spawn"));
     }
 
     @Test

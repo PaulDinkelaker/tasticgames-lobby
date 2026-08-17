@@ -101,18 +101,19 @@ public final class CookieModule implements Service {
 
     @Override
     public void start() throws Exception {
-        CookieConfiguration loaded = CookieConfiguration.load(configurationService.raw("cookie-clicker"), configurationService.configuration().world().name());
+        CookieConfiguration loaded = loadConfiguration();
         configuration.set(loaded);
         if (loaded.legacyFile()) {
-            logger.warning("config/cookie-clicker.yml uses the 1.0.0 layout (main cookie inside the cookie world). The bundled config-version 2 layout "
-                    + "(main cookie in the lobby, open world at prestige " + loaded.openWorld().requiredPrestige() + ") is used instead – delete the file to regenerate it.");
+            logger.warning("config/cookie-clicker.yml uses the 1.0.0 layout (main cookie inside the cookie world). The bundled config-version "
+                    + CookieConfiguration.CURRENT_VERSION + " layout (main cookie in the lobby, open world at prestige " + loaded.openWorld().requiredPrestige()
+                    + ") is used instead – delete the file to regenerate it.");
         }
         engine = new CookieEngine(CookieCatalog.defaults(), loaded.balancing());
         runtime = add(new CookieRuntimeService(plugin, api, configuration::get, engine, telemetry, mainThread, logger));
         world = add(new CookieWorldService(configuration::get, runtime, players, spawn, messages, sounds, telemetry, mainThread, logger));
         clicks = add(new CookieClickService(plugin, coreApi, configuration::get, runtime, integrations.mobs(), integrations.models(), messages, sounds, telemetry, mainThread, logger));
         golden = add(new GoldenCookieService(plugin, coreApi, configuration::get, runtime, world, messages, sounds, telemetry, logger));
-        npcs = add(new CookieNpcService(configuration::get, runtime, integrations.npcs(), messages, sounds, telemetry, logger));
+        npcs = add(new CookieNpcService(configuration::get, runtime, integrations.npcs(), integrations.models(), messages, sounds, telemetry, logger));
         leaderboards = add(new CookieLeaderboardService(api, Duration.ofSeconds(loaded.runtime().leaderboardCacheSeconds())));
         dialogService = new CookieDialogService(runtime, world, leaderboards, messages, dialogs, mainThread, sounds, telemetry, logger);
         adminCommand = new CookieAdminCommand(api, runtime, world, clicks, telemetry, mainThread,
@@ -146,6 +147,22 @@ public final class CookieModule implements Service {
                 + loaded.openWorld().name() + "' at prestige " + loaded.openWorld().requiredPrestige() + "+).");
     }
 
+    /** Loads cookie-clicker.yml, applying in-place migrations (e.g. NPCs removed with config-version 3) and persisting them. */
+    private CookieConfiguration loadConfiguration() {
+        org.bukkit.configuration.file.YamlConfiguration yaml = configurationService.raw("cookie-clicker");
+        List<String> changes = CookieConfiguration.migrate(yaml);
+        if (!changes.isEmpty()) {
+            File file = new File(configurationService.configDirectory(), "cookie-clicker.yml");
+            try {
+                yaml.save(file);
+                logger.info("config/cookie-clicker.yml migrated: " + String.join(", ", changes) + ".");
+            } catch (java.io.IOException e) {
+                logger.warning("config/cookie-clicker.yml migration could not be saved (" + e.getMessage() + ") – applied in memory only: " + String.join(", ", changes));
+            }
+        }
+        return CookieConfiguration.load(yaml, configurationService.configuration().world().name());
+    }
+
     private <T extends Service> T add(T service) {
         services.add(service);
         return service;
@@ -171,7 +188,7 @@ public final class CookieModule implements Service {
     public void reloadLayout() {
         try {
             configurationService.reload();
-            CookieConfiguration fresh = CookieConfiguration.load(configurationService.raw("cookie-clicker"), configurationService.configuration().world().name());
+            CookieConfiguration fresh = loadConfiguration();
             configuration.set(fresh);
             mainThread.run(() -> {
                 clicks.spawnMainCookie();

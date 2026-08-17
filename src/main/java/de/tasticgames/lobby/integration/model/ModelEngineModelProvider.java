@@ -2,6 +2,9 @@ package de.tasticgames.lobby.integration.model;
 
 import com.ticxo.modelengine.api.ModelEngineAPI;
 import com.ticxo.modelengine.api.events.BaseEntityInteractEvent;
+import com.ticxo.modelengine.api.events.ModelRegistrationEvent;
+import com.ticxo.modelengine.api.generator.ModelGenerator;
+import com.ticxo.modelengine.api.generator.blueprint.ModelBlueprint;
 import com.ticxo.modelengine.api.model.ActiveModel;
 import com.ticxo.modelengine.api.model.ModeledEntity;
 import de.tasticgames.lobby.integration.Integration;
@@ -25,6 +28,11 @@ import java.util.logging.Logger;
 /**
  * ModelEngine (R4) backend: attaches blueprints to base entities and routes model hitbox clicks
  * ({@link BaseEntityInteractEvent}) to the lobby.
+ * <p>
+ * ModelEngine imports and registers its models after the server started (and on {@code /meg reload});
+ * {@link ModelRegistrationEvent} with phase {@code FINISHED} marks the moment blueprints exist. Until then
+ * {@link #modelsReady()} is false and {@link #attachModel} reports "models not registered yet" – callers
+ * bind their models from {@link #onModelsReady(Runnable)}.
  */
 public final class ModelEngineModelProvider implements ModelProvider, Listener {
 
@@ -32,8 +40,10 @@ public final class ModelEngineModelProvider implements ModelProvider, Listener {
     private final Logger logger;
     private final Map<UUID, Set<String>> attached = new ConcurrentHashMap<>();
     private final List<InteractHandler> handlers = new CopyOnWriteArrayList<>();
+    private final List<Runnable> readyCallbacks = new CopyOnWriteArrayList<>();
+    private final Set<String> warnedOperations = ConcurrentHashMap.newKeySet();
     private volatile boolean available;
-    private volatile boolean warned;
+    private volatile boolean modelsReady;
 
     public ModelEngineModelProvider(Plugin plugin, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin);
@@ -45,9 +55,21 @@ public final class ModelEngineModelProvider implements ModelProvider, Listener {
             return;
         }
         try {
-            ModelEngineAPI.getAPI();
+            ModelEngineAPI api = ModelEngineAPI.getAPI();
             Bukkit.getPluginManager().registerEvents(this, plugin);
             available = true;
+            boolean initialized = false;
+            try {
+                initialized = api.getModelGenerator() != null && api.getModelGenerator().isInitialized();
+            } catch (Throwable ignored) {
+                // older API without generator access: wait for the registration event
+            }
+            modelsReady = initialized;
+            if (initialized) {
+                logger.info("ModelEngine detected – " + blueprintCount() + " models registered.");
+            } else {
+                logger.info("ModelEngine detected – waiting for model registration (ModelRegistrationEvent FINISHED) before binding models.");
+            }
         } catch (Throwable t) {
             available = false;
             logger.warning("ModelEngine hook failed (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ") – models disabled.");
@@ -62,8 +84,10 @@ public final class ModelEngineModelProvider implements ModelProvider, Listener {
             }
         }
         attached.clear();
+        readyCallbacks.clear();
         HandlerList.unregisterAll(this);
         available = false;
+        modelsReady = false;
     }
 
     @Override
@@ -74,6 +98,25 @@ public final class ModelEngineModelProvider implements ModelProvider, Listener {
     @Override
     public boolean available() {
         return available;
+    }
+
+    @Override
+    public String status() {
+        String base = ModelProvider.super.status();
+        if (!available) {
+            return base;
+        }
+        return base + (modelsReady ? ", " + blueprintCount() + " models registered" : ", waiting for model registration");
+    }
+
+    @Override
+    public boolean modelsReady() {
+        return available && modelsReady;
+    }
+
+    @Override
+    public void onModelsReady(Runnable callback) {
+        readyCallbacks.add(Objects.requireNonNull(callback));
     }
 
     @Override
@@ -88,27 +131,33 @@ public final class ModelEngineModelProvider implements ModelProvider, Listener {
     }
 
     @Override
-    public boolean attach(Entity base, String modelId) {
-        if (!available || base == null || modelId == null || modelId.isBlank()) return false;
+    public Optional<String> attachModel(Entity base, String modelId) {
+        if (!available) return Optional.of("ModelEngine unavailable");
+        if (base == null || !base.isValid()) return Optional.of("base entity missing");
+        if (modelId == null || modelId.isBlank()) return Optional.of("no model id");
+        if (!modelsReady) return Optional.of("models not registered yet");
         try {
+            ModelBlueprint blueprint = ModelEngineAPI.getBlueprint(modelId);
+            if (blueprint == null) {
+                return Optional.of("blueprint '" + modelId + "' missing");
+            }
             ModeledEntity modeled = ModelEngineAPI.getOrCreateModeledEntity(base);
             if (modeled == null) {
-                return false;
+                return Optional.of("modeled entity could not be created");
             }
             Optional<ActiveModel> existing = modeled.getModel(modelId);
             if (existing.isEmpty()) {
-                ActiveModel model = ModelEngineAPI.createActiveModel(modelId);
+                ActiveModel model = ModelEngineAPI.createActiveModel(blueprint);
                 if (model == null) {
-                    return false;
+                    return Optional.of("active model could not be created");
                 }
                 modeled.addModel(model, true);
             }
             modeled.setBaseEntityVisible(false);
             attached.computeIfAbsent(base.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(modelId);
-            return true;
+            return Optional.empty();
         } catch (Throwable t) {
-            warnOnce("attach " + modelId, t);
-            return false;
+            return Optional.of(t.getClass().getSimpleName() + ": " + t.getMessage());
         }
     }
 
@@ -163,6 +212,34 @@ public final class ModelEngineModelProvider implements ModelProvider, Listener {
     }
 
     @EventHandler
+    public void onModelRegistration(ModelRegistrationEvent event) {
+        ModelGenerator.Phase phase;
+        try {
+            phase = event.getPhase();
+        } catch (Throwable t) {
+            warnOnce("registration event", t);
+            return;
+        }
+        if (phase != ModelGenerator.Phase.FINISHED) {
+            return;
+        }
+        boolean first = !modelsReady;
+        modelsReady = true;
+        logger.info("ModelEngine model registration finished (" + blueprintCount() + " models)" + (first ? " – binding lobby models." : " – re-binding lobby models."));
+        Runnable notify = () -> {
+            for (Runnable callback : readyCallbacks) {
+                try {
+                    callback.run();
+                } catch (RuntimeException e) {
+                    logger.warning("ModelEngine ready callback failed: " + e.getMessage());
+                }
+            }
+        };
+        // next tick on the main thread: ModelEngine finishes its own bookkeeping for this phase first
+        Bukkit.getScheduler().runTask(plugin, notify);
+    }
+
+    @EventHandler
     public void onBaseEntityInteract(BaseEntityInteractEvent event) {
         UUID base;
         boolean left;
@@ -184,10 +261,18 @@ public final class ModelEngineModelProvider implements ModelProvider, Listener {
         }
     }
 
+    private int blueprintCount() {
+        try {
+            return ModelEngineAPI.getAPI().getModelRegistry().getOrderedId().size();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /** One warning per operation type (not one for everything) so distinct failures stay visible. */
     private void warnOnce(String operation, Throwable t) {
-        if (!warned) {
-            warned = true;
-            logger.warning("ModelEngine " + operation + " failed (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ") – further failures are silent.");
+        if (warnedOperations.add(operation)) {
+            logger.warning("ModelEngine " + operation + " failed (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ").");
         }
     }
 }
