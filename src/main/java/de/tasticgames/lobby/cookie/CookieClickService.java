@@ -35,7 +35,12 @@ import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.block.Action;
+import org.bukkit.util.BoundingBox;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -81,6 +86,7 @@ public final class CookieClickService implements Service, Listener {
     private final NamespacedKey markerKey;
     private final CookieNumberFormatter formatter = new CookieNumberFormatter();
     private final Map<UUID, Long> unavailableNoticeAt = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> lastClickTick = new ConcurrentHashMap<>();
     private volatile Consumer<Player> menuOpener = p -> { };
     private volatile String backend = "none";
     private volatile UUID interactionId;
@@ -385,18 +391,57 @@ public final class CookieClickService implements Service, Listener {
         handleClick(event.getPlayer(), false);
     }
 
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    /**
+     * Left click. Paper fires this event pre-cancelled ({@code willAttack=false}) for Interaction
+     * entities and model hitboxes, so it must NOT use ignoreCancelled.
+     */
+    @EventHandler(priority = EventPriority.LOW)
     public void onLeftClick(PrePlayerAttackEntityEvent event) {
         if (!isMainCookie(event.getAttacked())) return;
         event.setCancelled(true);
         handleClick(event.getPlayer(), true);
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    /** Fallback when another plugin (e.g. the model hitbox) redirects the attack as real damage. */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onDamageByEntity(EntityDamageByEntityEvent event) {
+        if (!isMainCookie(event.getEntity())) return;
+        event.setCancelled(true);
+        if (event.getDamager() instanceof Player player) {
+            handleClick(player, true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onDamage(EntityDamageEvent event) {
         if (isMainCookie(event.getEntity())) {
             event.setCancelled(true);
         }
+    }
+
+    /**
+     * Fallback for hitboxes the server does not see as entities: a left-click swing whose eye ray
+     * hits the cookie's box counts as a click (once per tick, so entity events never double count).
+     */
+    @EventHandler(priority = EventPriority.LOW)
+    public void onSwing(PlayerInteractEvent event) {
+        if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
+        if (event.getHand() != null && event.getHand() != EquipmentSlot.HAND) return;
+        Player player = event.getPlayer();
+        Location cookie = mainCookieLocation();
+        if (cookie == null || !player.getWorld().equals(cookie.getWorld())) return;
+        CookieConfiguration.MainCookie main = configuration.get().mainCookie();
+        double reach = 5.0;
+        if (player.getEyeLocation().distanceSquared(cookie) > (reach + main.hitboxHeight()) * (reach + main.hitboxHeight())) return;
+        double half = main.hitboxWidth() / 2.0;
+        BoundingBox box = new BoundingBox(cookie.getX() - half, cookie.getY(), cookie.getZ() - half,
+                cookie.getX() + half, cookie.getY() + main.hitboxHeight(), cookie.getZ() + half);
+        RayTraceResult hit = box.rayTrace(player.getEyeLocation().toVector(), player.getEyeLocation().getDirection(), reach);
+        if (hit == null) return;
+        if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
+            event.setCancelled(true);
+        }
+        handleClick(player, true);
     }
 
     private void handleClick(Player player, boolean leftClick) {
@@ -409,6 +454,11 @@ public final class CookieClickService implements Service, Listener {
 
     /** Server-side click: validate, reward, feedback. Works wherever the main cookie stands. */
     public void click(Player player) {
+        int tick = Bukkit.getCurrentTick();
+        Integer last = lastClickTick.put(player.getUniqueId(), tick);
+        if (last != null && last == tick) {
+            return; // the same swing reached us through two events (entity + ray trace)
+        }
         CookieSession session = runtime.session(player.getUniqueId()).orElse(null);
         if (session == null) {
             if (!runtime.available()) {
@@ -462,6 +512,7 @@ public final class CookieClickService implements Service, Listener {
 
     public void forget(UUID player) {
         unavailableNoticeAt.remove(player);
+        lastClickTick.remove(player);
     }
 
     private void feedback(Player player, CookieSession session, ClickResult result) {

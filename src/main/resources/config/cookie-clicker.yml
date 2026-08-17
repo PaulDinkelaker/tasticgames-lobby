@@ -18,8 +18,8 @@ main-cookie:
   model: "fv_cookie_clicker"
   # click hitbox (an Interaction entity in front of the model – works with every backend)
   hitbox: { width: 2.2, height: 2.4 }
-  # floating label above the cookie
-  label: true
+  # floating "Click me" label above the cookie – off, the fv_cookie_clicker model carries its own hologram
+  label: false
   # Cookie zone: generators only produce and the actionbar only shows while the player is within this
   # radius (blocks) of the main cookie (or inside the open world). Left click = bake, right click = menu.
   zone-radius: 8.0

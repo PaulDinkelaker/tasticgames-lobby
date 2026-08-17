@@ -199,7 +199,7 @@ public final class NativeNpcProvider implements NpcProvider, Listener {
         dispatch(handle.id(), event.getPlayer(), false);
     }
 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler // pre-cancelled for protected entities – must not use ignoreCancelled
     public void onAttack(PrePlayerAttackEntityEvent event) {
         NpcHandle handle = byEntity.get(event.getAttacked().getUniqueId());
         if (handle == null) return;

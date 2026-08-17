@@ -207,7 +207,7 @@ public final class GoldenCookieService implements Service, Listener {
         handle(event.getPlayer(), event.getRightClicked(), event::setCancelled);
     }
 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler // pre-cancelled for Interaction entities – must not use ignoreCancelled
     public void onLeftClick(PrePlayerAttackEntityEvent event) {
         handle(event.getPlayer(), event.getAttacked(), event::setCancelled);
     }

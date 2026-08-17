@@ -193,7 +193,7 @@ public record CookieConfiguration(
         ConfigurationSection goldenMain = mainSection.getConfigurationSection("golden-cookies");
         MainCookie mainCookie = new MainCookie(mainLocation,
                 mainSection.getString("mythicmobs-type", ""), mainSection.getString("click-skill", ""), mainSection.getString("model", ""),
-                mainSection.getDouble("hitbox.width", 2.2), mainSection.getDouble("hitbox.height", 2.4), mainSection.getBoolean("label", true),
+                mainSection.getDouble("hitbox.width", 2.2), mainSection.getDouble("hitbox.height", 2.4), mainSection.getBoolean("label", false),
                 mainSection.getDouble("zone-radius", 8.0), mainSection.getLong("actionbar.interval-millis", 1000),
                 goldenMain == null || goldenMain.getBoolean("enabled", true), goldenMain == null ? 1 : goldenMain.getInt("max-per-player", 1),
                 regions(goldenMain == null ? null : goldenMain.getConfigurationSection("areas"), mainWorld));
