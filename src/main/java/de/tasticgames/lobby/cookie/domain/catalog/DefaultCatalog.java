@@ -107,16 +107,16 @@ public final class DefaultCatalog {
         List<PrestigeDefinition> list = new ArrayList<>();
         list.add(prestige(0, "The First Batch", "0", 1.00, "bakery_square", gens, List.of()));
         list.add(prestige(1, "Sugar Awakening", "1e6", 1.25, "sugar_fields", gens, List.of("sugar_trail")));
-        list.add(prestige(2, "Cocoa Frontier", "1e9", 1.60, "cocoa_caverns", gens, List.of("cocoa_profile_background")));
+        list.add(prestige(2, "Cocoa Frontier", "1e9", 1.60, "cocoa_caverns", gens, List.of("cosmetic_beehive")));
         list.add(prestige(3, "Industrial Baking", "1e12", 2.10, "factory_district", gens, List.of("factory_title")));
         list.add(prestige(4, "Arcane Kitchen", "1e15", 2.80, "arcane_pantry", gens, List.of("arcane_aura")));
-        list.add(prestige(5, "Royal Confectionery", "1e18", 3.80, "royal_frosting_keep", gens, List.of("royal_frame")));
+        list.add(prestige(5, "Royal Confectionery", "1e18", 3.80, "royal_frosting_keep", gens, List.of("phantom_king_crown")));
         list.add(prestige(6, "Dimensional Dough", "1e22", 5.20, "rift_bakery", gens, List.of("rift_trail")));
         list.add(prestige(7, "Chrono Kitchen", "1e26", 7.20, "chrono_kitchen", gens, List.of("chrono_back_item")));
         list.add(prestige(8, "Stellar Bakery", "1e29", 10.00, "stellar_confectionery", gens, List.of("stellar_aura")));
-        list.add(prestige(9, "Reality Baking", "1e33", 14.00, "reality_crust", gens, List.of("reality_background")));
+        list.add(prestige(9, "Reality Baking", "1e33", 14.00, "reality_crust", gens, List.of("end_backpack")));
         list.add(prestige(10, "Cookie Ascendant", "1e36", 20.00, "ascendant_sanctum", gens,
-                List.of("ascendant_frame", "ascendant_background", "ascendant_title", "ascendant_aura", "ascendant_trail")));
+                List.of("cosmetic_dragons_head_ender", "shadow_dragon_wings", "ascendant_title", "ascendant_aura", "ascendant_trail")));
         return List.copyOf(list);
     }
 

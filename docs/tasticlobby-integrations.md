@@ -181,3 +181,31 @@ die Hotbar aller Spieler neu vergeben.
 * `/cookieadmin zone <id> fromselection|entry|gate` – Open-World-Zone
 
 Alle Befehle schreiben in `lobby.yml` / `cookie-clicker.yml` und laden das Layout sofort neu.
+
+## Cosmetic-Asset-Packs (automatische Installation)
+
+Gekaufte Cosmetic-Packs werden **nicht** ins Plugin gebaut, sondern vom Betreiber in
+`plugins/TasticLobby/cosmetic-packs/` abgelegt (ZIP, wie heruntergeladen). Beim Serverstart installiert
+`CosmeticPackInstaller` daraus:
+
+| Inhalt im Archiv | Ziel |
+|---|---|
+| `**/ItemsAdder[ Setup|Configs]/contents/<pack>/**` (auch die alte Schreibweise `resource_pack`) | `plugins/ItemsAdder/contents/<pack>/**` |
+| `**/HMCCosmetics/cosmetics/*.yml` | `plugins/HMCCosmetics/cosmetics/` |
+| `**/HMCCosmetics/menus/*.yml` | `plugins/HMCCosmetics/menus/` – **nur wenn die Datei fehlt** |
+| `**/ModelEngine/blueprints/*.bbmodel` | `plugins/ModelEngine/blueprints/` |
+
+Varianten für andere Plugins (Oraxen, Nexo, MagicCosmetics, CosmeticsCore, MCPets) und Setups für ältere
+Minecraft-Generationen werden ignoriert; von mehreren Kandidaten gewinnt der innerste Treffer, damit
+`HMCCosmetics 1.20.2 Setup or higher version/HMCCosmetics/cosmetics/x.yml` korrekt landet.
+
+Eigenschaften: idempotent (SHA-256 je Archiv in `.installed.properties`; erneute Installation nur bei geänderter
+Datei oder fehlenden Zieldateien), Zip-Slip-sicher, Menüs werden nie überschrieben, Fehler brechen den Start nie ab.
+Nach einer Installation wird das ItemsAdder-Pack neu gebaut (`/iazip`, gemeinsam mit dem HUD-Export) und
+anschließend `hmccosmetics reload` ausgeführt. Passwortgeschützte oder verschachtelte Archive (z. B. ein ZIP im ZIP)
+müssen einmal von Hand entpackt werden; `.rar`/`.7z` bitte als ZIP neu packen.
+
+Sichtbar werden die Cosmetics erst über `config/cosmetics.yml` – dort steht pro Eintrag
+`render: "hmc:<hmccosmetics-id>"`. Die mitgelieferte Datei enthält bereits die 52 Cosmetics aus den vier
+HMC-fähigen Packs (Samus Vol. 1, Cosmetics Expansion v1, Expansion Vol. 2 „Legends", Necros Set) – 18 im
+Free-Track, 34 exklusiv im Premium-Pass.

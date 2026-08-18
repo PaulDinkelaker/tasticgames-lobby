@@ -111,7 +111,8 @@ public final class LobbyConfigurationService implements Service {
                 lobby.getBoolean("world.fixed-time.enabled", true), lobby.getLong("world.fixed-time.ticks", 6000),
                 lobby.getBoolean("world.clear-weather", true), lobby.getBoolean("world.disable-mob-spawning", true),
                 lobby.getBoolean("world.disable-player-collision", true), lobby.getBoolean("world.suppress-join-quit-messages", true),
-                lobby.getBoolean("world.allow-staff-flight", true));
+                lobby.getBoolean("world.allow-staff-flight", true),
+                lobby.getBoolean("world.disable-locator-bar", true));
 
         List<LobbyConfiguration.LaunchpadDefinition> pads = new ArrayList<>();
         ConfigurationSection padSection = lobby.getConfigurationSection("movement.launchpads.directional");

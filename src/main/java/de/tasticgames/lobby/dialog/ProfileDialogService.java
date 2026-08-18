@@ -95,8 +95,8 @@ public final class ProfileDialogService {
             CookieSummary cookie = (CookieSummary) pair[1];
             List<Component> body = new ArrayList<>();
             String title = cosmetics.equipped(target, CosmeticCategory.TITLE).map(d -> messages.raw(lang, d.nameKey())).orElse("");
-            String frame = cosmetics.equipped(target, CosmeticCategory.PROFILE_FRAME).map(d -> messages.raw(lang, d.nameKey())).orElse(messages.raw(lang, "lobby.hud.none"));
-            String background = cosmetics.equipped(target, CosmeticCategory.PROFILE_BACKGROUND).map(d -> messages.raw(lang, d.nameKey())).orElse(messages.raw(lang, "lobby.hud.none"));
+            String hat = cosmetics.equipped(target, CosmeticCategory.HAT).map(d -> messages.raw(lang, d.nameKey())).orElse(messages.raw(lang, "lobby.hud.none"));
+            String back = cosmetics.equipped(target, CosmeticCategory.BACK_ITEM).map(d -> messages.raw(lang, d.nameKey())).orElse(messages.raw(lang, "lobby.hud.none"));
             Player targetOnline = Bukkit.getPlayer(target);
             body.add(messages.get(lang, "lobby.profile.name", Map.of("player", targetName, "title", messages.mini(title))));
             body.add(messages.get(lang, "lobby.profile.rank", Map.of("rank", targetOnline != null ? rankResolver.apply(targetOnline) : "-")));
@@ -109,7 +109,7 @@ public final class ProfileDialogService {
                     ? messages.get(lang, "lobby.profile.cookie", Map.of("prestige", cookie.prestige(), "lifetime", cookie.lifetimeCookies()))
                     : messages.get(lang, "lobby.profile.cookie_unavailable", Map.of()));
             passLine.apply(viewer, target).ifPresent(body::add);
-            body.add(messages.get(lang, "lobby.profile.frame", Map.of("frame", messages.mini(frame), "background", messages.mini(background))));
+            body.add(messages.get(lang, "lobby.profile.cosmetics", Map.of("hat", hat, "back", back)));
             var tastic = coreApi.playerManager().find(target).orElse(null);
             if (tastic != null) {
                 body.add(messages.get(lang, "lobby.profile.joined", Map.of("date", java.time.LocalDate.ofInstant(tastic.firstSeenAt(), java.time.ZoneId.systemDefault()))));

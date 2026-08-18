@@ -17,16 +17,20 @@ class CosmeticCatalogTest {
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(new InputStreamReader(
                 getClass().getClassLoader().getResourceAsStream("config/cosmetics.yml"), StandardCharsets.UTF_8));
         CosmeticCatalog catalog = CosmeticCatalog.load(yaml);
-        assertTrue(catalog.size() >= 20);
-        for (String id : new String[]{"sugar_trail", "cocoa_profile_background", "factory_title", "arcane_aura", "royal_frame", "rift_trail",
-                "chrono_back_item", "stellar_aura", "reality_background", "ascendant_frame", "ascendant_background", "ascendant_title",
-                "ascendant_aura", "ascendant_trail"}) {
+        assertTrue(catalog.size() >= 50, "the asset packs contribute the bulk of the catalog");
+        // every cosmetic a prestige level hands out must exist
+        for (String id : new String[]{"sugar_trail", "cosmetic_beehive", "factory_title", "arcane_aura", "phantom_king_crown",
+                "rift_trail", "chrono_back_item", "stellar_aura", "end_backpack", "cosmetic_dragons_head_ender",
+                "shadow_dragon_wings", "ascendant_title", "ascendant_aura", "ascendant_trail"}) {
             assertTrue(catalog.find(id).isPresent(), "prestige reward cosmetic missing: " + id);
         }
-        assertEquals(10, catalog.find("ascendant_frame").orElseThrow().prestigeRequirement());
-        assertTrue(catalog.find("frame_classic").orElseThrow().defaultOwned());
         assertEquals(CosmeticCategory.TRAIL, catalog.find("sugar_trail").orElseThrow().category());
         assertTrue(catalog.byCategory(CosmeticCategory.AURA).size() >= 3);
+        // hats, back items and gadgets come from the installed asset packs and are rendered by HMCCosmetics
+        for (CosmeticCategory category : new CosmeticCategory[]{CosmeticCategory.HAT, CosmeticCategory.BACK_ITEM, CosmeticCategory.LOBBY_GADGET}) {
+            assertTrue(catalog.byCategory(category).size() >= 5, "pack cosmetics missing for " + category);
+        }
+        assertTrue(catalog.find("cosmetic_dragons_head_ender").orElseThrow().renderData().startsWith("hmc:"));
     }
 
     @Test

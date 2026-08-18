@@ -49,7 +49,8 @@ public record LobbyConfiguration(
             boolean disableMobSpawning,
             boolean disablePlayerCollision,
             boolean suppressJoinQuitMessages,
-            boolean allowStaffFlight
+            boolean allowStaffFlight,
+            boolean disableLocatorBar
     ) {
         public World {
             Objects.requireNonNull(name, "name");

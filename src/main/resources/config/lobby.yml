@@ -20,6 +20,8 @@ world:
   disable-player-collision: true
   suppress-join-quit-messages: true
   allow-staff-flight: true
+  # 1.21.6+ locator bar (the player compass strip above the hotbar): disabled on every world the lobby manages
+  disable-locator-bar: true
 
 movement:
   launchpads:

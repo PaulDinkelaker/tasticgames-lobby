@@ -2,57 +2,16 @@
 #   HMCCosmetics (preferred when installed): render: "hmc:<hmccosmetics-cosmetic-id>"  (slot/model come from HMCCosmetics)
 #   native renderer: HAT material:<MATERIAL>[;model:<ns:key>], AURA/TRAIL/JOIN_EFFECT particle:<PARTICLE>[;count:n][;color:RRGGBB]
 # unlock: DEFAULT | PRESTIGE_<n> | ACHIEVEMENT_<id> | ADMIN
+# Asset packs: drop the cosmetic pack ZIPs into plugins/TasticLobby/cosmetic-packs/ and TasticLobby installs
+# their ItemsAdder content and HMCCosmetics definitions on every start (idempotent, menus are never overwritten),
+# rebuilds the ItemsAdder pack and reloads HMCCosmetics. The cosmetics below reference the installed ids via
+# render: "hmc:<hmccosmetics-id>".
+packs:
+  enabled: true
+  # reload HMCCosmetics after new content was installed (off = reload it yourself with /hmccosmetics reload)
+  reload-hmccosmetics: true
+
 cosmetics:
-  # ---- profile frames
-  frame_classic:
-    category: PROFILE_FRAME
-    rarity: COMMON
-    preview: ITEM_FRAME
-    unlock: DEFAULT
-    sort: 1
-  royal_frame:
-    category: PROFILE_FRAME
-    rarity: LEGENDARY
-    preview: GLOW_ITEM_FRAME
-    unlock: PRESTIGE_5
-    unlock-requirement-key: lobby.cosmetics.requirement.prestige_5
-    sort: 50
-  ascendant_frame:
-    category: PROFILE_FRAME
-    rarity: MYTHIC
-    preview: NETHER_STAR
-    unlock: PRESTIGE_10
-    unlock-requirement-key: lobby.cosmetics.requirement.prestige_10
-    sort: 100
-  # ---- backgrounds
-  background_night:
-    category: PROFILE_BACKGROUND
-    rarity: COMMON
-    preview: BLACK_CONCRETE
-    unlock: DEFAULT
-    sort: 1
-  cocoa_profile_background:
-    category: PROFILE_BACKGROUND
-    rarity: RARE
-    preview: COCOA_BEANS
-    unlock: PRESTIGE_2
-    unlock-requirement-key: lobby.cosmetics.requirement.prestige_2
-    sort: 20
-  reality_background:
-    category: PROFILE_BACKGROUND
-    rarity: LEGENDARY
-    preview: END_CRYSTAL
-    unlock: PRESTIGE_9
-    unlock-requirement-key: lobby.cosmetics.requirement.prestige_9
-    sort: 90
-  ascendant_background:
-    category: PROFILE_BACKGROUND
-    rarity: MYTHIC
-    preview: BEACON
-    unlock: PRESTIGE_10
-    unlock-requirement-key: lobby.cosmetics.requirement.prestige_10
-    sort: 100
-  # ---- titles
   title_newcomer:
     category: TITLE
     rarity: COMMON
@@ -158,193 +117,420 @@ cosmetics:
     render: "particle:FIREWORK;count:40"
     sort: 10
   # ---- season 1 pass exclusives (granted by the premium pass only, never purchasable)
-  s1_frame_crumb:
-    category: PROFILE_FRAME
+  # ---- asset packs (installed from plugins/TasticLobby/cosmetic-packs, rendered by HMCCosmetics)
+  cosmetic_box:
+    category: HAT
+    rarity: COMMON
+    preview: CHEST
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_box"
+    sort: 10
+  cosmetic_chicken:
+    category: HAT
+    rarity: COMMON
+    preview: CHICKEN
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_chicken"
+    sort: 11
+  cosmetic_frog_a:
+    category: HAT
+    rarity: COMMON
+    preview: FROGSPAWN
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_frog_a"
+    sort: 12
+  cosmetic_pufferfish:
+    category: HAT
+    rarity: COMMON
+    preview: PUFFERFISH
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_pufferfish"
+    sort: 13
+  cosmetic_beehive:
+    category: HAT
+    rarity: UNCOMMON
+    preview: BEEHIVE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_beehive"
+    sort: 14
+  cosmetic_headphones_a:
+    category: HAT
+    rarity: UNCOMMON
+    preview: NOTE_BLOCK
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_headphones_a"
+    sort: 15
+  cosmetic_top_hat:
+    category: HAT
+    rarity: UNCOMMON
+    preview: BLACK_WOOL
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_top_hat"
+    sort: 16
+  cosmetic_gas_mask:
+    category: HAT
     rarity: RARE
-    preview: ITEM_FRAME
+    preview: IRON_HELMET
     unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 110
-  s1_frame_icing:
-    category: PROFILE_FRAME
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_gas_mask"
+    sort: 17
+  cosmetic_cyborg_visor_blue:
+    category: HAT
+    rarity: RARE
+    preview: LIGHT_BLUE_DYE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_cyborg_visor_blue"
+    sort: 18
+  cosmetic_cyborg_visor_green:
+    category: HAT
+    rarity: RARE
+    preview: LIME_DYE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_cyborg_visor_green"
+    sort: 19
+  cosmetic_cyborg_visor_red:
+    category: HAT
+    rarity: RARE
+    preview: RED_DYE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cosmetic_cyborg_visor_red"
+    sort: 20
+  cosmetic_space_helmet:
+    category: HAT
     rarity: EPIC
-    preview: SNOW_BLOCK
+    preview: GLASS
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 111
-  s1_frame_crown:
-    category: PROFILE_FRAME
+    render: "hmc:cosmetic_space_helmet"
+    sort: 21
+  cosmetic_glacial_crown:
+    category: HAT
+    rarity: EPIC
+    preview: PACKED_ICE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cosmetic_glacial_crown"
+    sort: 22
+  cosmetic_helmet_of_rage:
+    category: HAT
+    rarity: EPIC
+    preview: NETHERITE_HELMET
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cosmetic_helmet_of_rage"
+    sort: 23
+  cosmetic_ent_titans_mask:
+    category: HAT
+    rarity: EPIC
+    preview: OAK_LOG
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cosmetic_ent_titans_mask"
+    sort: 24
+  cosmetic_phoenix_helm:
+    category: HAT
+    rarity: LEGENDARY
+    preview: BLAZE_POWDER
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cosmetic_phoenix_helm"
+    sort: 25
+  cosmetic_dragons_head_green:
+    category: HAT
+    rarity: LEGENDARY
+    preview: GREEN_DYE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cosmetic_dragons_head_green"
+    sort: 26
+  cosmetic_dragons_head_nether:
+    category: HAT
+    rarity: LEGENDARY
+    preview: NETHERRACK
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cosmetic_dragons_head_nether"
+    sort: 27
+  cosmetic_dragons_head_aether:
+    category: HAT
+    rarity: LEGENDARY
+    preview: AMETHYST_SHARD
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cosmetic_dragons_head_aether"
+    sort: 28
+  cosmetic_dragons_head_ender:
+    category: HAT
+    rarity: MYTHIC
+    preview: DRAGON_HEAD
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cosmetic_dragons_head_ender"
+    sort: 29
+  chicken_hat:
+    category: HAT
+    rarity: UNCOMMON
+    preview: EGG
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:chicken_hat"
+    sort: 30
+  pirate_hat:
+    category: HAT
+    rarity: RARE
+    preview: BLACK_BANNER
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:pirate_hat"
+    sort: 31
+  chicken_wings:
+    category: BACK_ITEM
+    rarity: UNCOMMON
+    preview: FEATHER
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:chicken_wings"
+    sort: 30
+  treasure_chest:
+    category: BACK_ITEM
+    rarity: RARE
+    preview: CHEST
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:treasure_chest"
+    sort: 31
+  cutlass:
+    category: LOBBY_GADGET
+    rarity: RARE
+    preview: IRON_SWORD
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:cutlass"
+    sort: 30
+  cyber_visor:
+    category: HAT
+    rarity: EPIC
+    preview: SPYGLASS
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cyber_visor"
+    sort: 32
+  cyber_jetpack:
+    category: BACK_ITEM
+    rarity: EPIC
+    preview: FIREWORK_ROCKET
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cyber_jetpack"
+    sort: 32
+  cyber_blade:
+    category: LOBBY_GADGET
+    rarity: EPIC
+    preview: DIAMOND_SWORD
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:cyber_blade"
+    sort: 32
+  egg_staff:
+    category: LOBBY_GADGET
+    rarity: EPIC
+    preview: EGG
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:egg_staff"
+    sort: 33
+  phantom_king_crown:
+    category: HAT
     rarity: LEGENDARY
     preview: GOLDEN_HELMET
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 112
-  s1_bg_bakery_dawn:
-    category: PROFILE_BACKGROUND
-    rarity: RARE
-    preview: ORANGE_STAINED_GLASS
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 110
-  s1_bg_sugar_storm:
-    category: PROFILE_BACKGROUND
-    rarity: EPIC
-    preview: POWDER_SNOW_BUCKET
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 111
-  s1_bg_crown_vault:
-    category: PROFILE_BACKGROUND
+    render: "hmc:phantom_king_crown"
+    sort: 33
+  phantom_king_shield:
+    category: BACK_ITEM
     rarity: LEGENDARY
-    preview: GOLD_BLOCK
+    preview: SHIELD
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 112
-  s1_title_crumb_collector:
-    category: TITLE
-    rarity: RARE
-    preview: NAME_TAG
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 110
-  s1_title_dough_master:
-    category: TITLE
-    rarity: EPIC
-    preview: WHEAT
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 111
-  s1_title_crown_baker:
-    category: TITLE
+    render: "hmc:phantom_king_shield"
+    sort: 33
+  phantom_septer:
+    category: LOBBY_GADGET
     rarity: LEGENDARY
-    preview: CAKE
+    preview: BLAZE_ROD
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 112
-  s1_title_season_one:
-    category: TITLE
+    render: "hmc:phantom_septer"
+    sort: 34
+  shadow_dragon:
+    category: HAT
     rarity: MYTHIC
-    preview: NETHER_STAR
+    preview: BLACK_DYE
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    sort: 113
-  s1_hat_chef_toque:
-    category: HAT
-    rarity: RARE
-    preview: WHITE_BANNER
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "material:WHITE_BANNER"
-    sort: 110
-  s1_hat_cookie_stack:
-    category: HAT
-    rarity: EPIC
-    preview: COOKIE
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "material:COOKIE"
-    sort: 111
-  s1_hat_cookie_jar:
-    category: HAT
-    rarity: EPIC
-    preview: DECORATED_POT
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "material:DECORATED_POT"
-    sort: 112
-  s1_hat_whisk_helm:
-    category: HAT
-    rarity: LEGENDARY
-    preview: BRUSH
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "material:BRUSH"
-    sort: 113
-  s1_back_rolling_pin:
+    render: "hmc:shadow_dragon"
+    sort: 34
+  shadow_dragon_wings:
     category: BACK_ITEM
-    rarity: RARE
-    preview: STICK
+    rarity: MYTHIC
+    preview: ELYTRA
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "material:STICK"
-    sort: 110
-  s1_back_sugar_sack:
+    render: "hmc:shadow_dragon_wings"
+    sort: 34
+  shadow_dragon_claw:
+    category: LOBBY_GADGET
+    rarity: MYTHIC
+    preview: NETHERITE_SCRAP
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:shadow_dragon_claw"
+    sort: 35
+  end_hat:
+    category: HAT
+    rarity: EPIC
+    preview: END_STONE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:end_hat"
+    sort: 40
+  end_backpack:
     category: BACK_ITEM
     rarity: EPIC
-    preview: SUGAR
+    preview: ENDER_CHEST
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "material:SUGAR"
-    sort: 111
-  s1_aura_flour_dust:
-    category: AURA
+    render: "hmc:end_backpack"
+    sort: 40
+  end_hand:
+    category: LOBBY_GADGET
+    rarity: EPIC
+    preview: ENDER_EYE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:end_hand"
+    sort: 40
+  engineer_hat:
+    category: HAT
     rarity: RARE
-    preview: WHITE_DYE
+    preview: IRON_HELMET
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "particle:DUST;count:6;color:FFFFFF"
-    sort: 110
-  s1_aura_caramel_glow:
-    category: AURA
-    rarity: EPIC
-    preview: HONEY_BLOCK
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "particle:DUST;count:8;color:C87F2A"
-    sort: 111
-  s1_aura_sugar_sparks:
-    category: AURA
-    rarity: EPIC
-    preview: GLOWSTONE_DUST
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "particle:ELECTRIC_SPARK;count:8"
-    sort: 112
-  s1_aura_royal_shine:
-    category: AURA
-    rarity: LEGENDARY
-    preview: GOLD_INGOT
-    unlock: ADMIN
-    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "particle:DUST;count:10;color:FFD82B"
-    sort: 113
-  s1_trail_crumbs:
-    category: TRAIL
+    render: "hmc:engineer_hat"
+    sort: 41
+  engineer_backpack:
+    category: BACK_ITEM
     rarity: RARE
-    preview: COCOA_BEANS
+    preview: BARREL
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "particle:DUST;count:4;color:8B5A2B"
-    sort: 110
-  s1_trail_choco_drip:
-    category: TRAIL
+    render: "hmc:engineer_backpack"
+    sort: 41
+  engineer_hand:
+    category: LOBBY_GADGET
+    rarity: RARE
+    preview: IRON_PICKAXE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:engineer_hand"
+    sort: 41
+  ghost_hat:
+    category: HAT
     rarity: EPIC
-    preview: BROWN_DYE
+    preview: WHITE_WOOL
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "particle:DUST;count:5;color:5A3A1E"
-    sort: 111
-  s1_trail_icing_swirl:
-    category: TRAIL
+    render: "hmc:ghost_hat"
+    sort: 42
+  ghost_backpack:
+    category: BACK_ITEM
     rarity: EPIC
-    preview: SNOWBALL
+    preview: PHANTOM_MEMBRANE
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "particle:SNOWFLAKE;count:5"
-    sort: 112
-  s1_trail_golden_dust:
-    category: TRAIL
+    render: "hmc:ghost_backpack"
+    sort: 42
+  ghost_hand:
+    category: LOBBY_GADGET
+    rarity: EPIC
+    preview: SOUL_LANTERN
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:ghost_hand"
+    sort: 42
+  ocultism_hat:
+    category: HAT
     rarity: LEGENDARY
-    preview: GOLD_NUGGET
+    preview: WITHER_SKELETON_SKULL
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "particle:DUST;count:6;color:FFD700"
-    sort: 113
-  s1_join_oven_burst:
-    category: JOIN_EFFECT
+    render: "hmc:ocultism_hat"
+    sort: 43
+  ocultism_backpack:
+    category: BACK_ITEM
     rarity: LEGENDARY
-    preview: BLAST_FURNACE
+    preview: ENCHANTING_TABLE
     unlock: ADMIN
     unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
-    render: "particle:FLAME;count:40"
-    sort: 110
+    render: "hmc:ocultism_backpack"
+    sort: 43
+  ocultism_hand:
+    category: LOBBY_GADGET
+    rarity: LEGENDARY
+    preview: CANDLE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:ocultism_hand"
+    sort: 43
+  oni_hat:
+    category: HAT
+    rarity: MYTHIC
+    preview: REDSTONE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:oni_hat"
+    sort: 44
+  oni_backpack:
+    category: BACK_ITEM
+    rarity: MYTHIC
+    preview: BAMBOO
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:oni_backpack"
+    sort: 44
+  oni_hand:
+    category: LOBBY_GADGET
+    rarity: MYTHIC
+    preview: GOLDEN_SWORD
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "hmc:oni_hand"
+    sort: 44
+  necros_cosmetics_helmet:
+    category: HAT
+    rarity: EPIC
+    preview: SKELETON_SKULL
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:necros_cosmetics_helmet"
+    sort: 50
+  necros_cosmetics_wings:
+    category: BACK_ITEM
+    rarity: EPIC
+    preview: PHANTOM_MEMBRANE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_free_s1
+    render: "hmc:necros_cosmetics_wings"
+    sort: 50

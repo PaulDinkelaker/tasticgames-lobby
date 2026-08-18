@@ -61,6 +61,7 @@ public final class HudService implements Service {
     private final Function<Player, String> rankDisplay;
     private final Function<Player, String> playtime;
     private final Supplier<Integer> online;
+    private final java.util.function.BooleanSupplier externalContentPending;
     private final Logger logger;
     private final Map<UUID, List<BossBar>> bars = new ConcurrentHashMap<>();
     private volatile HudConfiguration configuration;
@@ -75,7 +76,8 @@ public final class HudService implements Service {
 
     public HudService(Plugin plugin, TasticCoreApi coreApi, LobbyConfigurationService configurationService, HudContextProvider context,
                       CustomItemProvider customItems, LobbyPlayerService players, Function<Player, String> rankDisplay,
-                      Function<Player, String> playtime, Supplier<Integer> online, Logger logger) {
+                      Function<Player, String> playtime, Supplier<Integer> online,
+                      java.util.function.BooleanSupplier externalContentPending, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin);
         this.coreApi = Objects.requireNonNull(coreApi);
         this.configurationService = Objects.requireNonNull(configurationService);
@@ -85,6 +87,7 @@ public final class HudService implements Service {
         this.rankDisplay = Objects.requireNonNull(rankDisplay);
         this.playtime = Objects.requireNonNull(playtime);
         this.online = Objects.requireNonNull(online);
+        this.externalContentPending = Objects.requireNonNull(externalContentPending);
         this.logger = Objects.requireNonNull(logger);
     }
 
@@ -165,7 +168,8 @@ public final class HudService implements Service {
             HudAssetExporter.Result result = current.export(configuration.bossbarColor().name());
             exporter = current;
             assetsExported = true;
-            if (result.packPending()) {
+            // cosmetic packs installed by the CosmeticPackInstaller need the same /iazip rebuild
+            if (result.packPending() || externalContentPending.getAsBoolean()) {
                 boxesPendingPack = true;
                 zipRequested = false;
                 zipDispatched = false;

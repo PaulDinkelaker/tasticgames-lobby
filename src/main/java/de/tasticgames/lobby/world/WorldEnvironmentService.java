@@ -81,6 +81,10 @@ public final class WorldEnvironmentService implements Service {
                 world.setGameRule(GameRule.DO_TRADER_SPAWNING, false);
                 world.setGameRule(GameRule.DO_PATROL_SPAWNING, false);
             }
+            if (config.disableLocatorBar()) {
+                // 1.21.6+ locator bar: off everywhere, it clutters the HUD and reveals every player's direction
+                world.setGameRule(GameRule.LOCATOR_BAR, false);
+            }
             world.setGameRule(GameRule.DO_FIRE_TICK, false);
             world.setGameRule(GameRule.MOB_GRIEFING, false);
             world.setGameRule(GameRule.SHOW_DEATH_MESSAGES, false);
