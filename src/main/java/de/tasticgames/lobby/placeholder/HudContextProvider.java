@@ -51,13 +51,15 @@ public final class HudContextProvider {
     private final CosmeticService cosmetics;
     private final PlayerVisibilityService visibility;
     private final CookieModule cookie;
+    private final de.tasticgames.lobby.pass.PassModule pass;
     private final Function<Player, String> playtime;
     private final Function<Player, String> sessionPlaytime;
     private final CookieNumberFormatter formatter = new CookieNumberFormatter();
 
     public HudContextProvider(TasticCoreApi coreApi, LobbyMessages messages, LobbyItemService items, LobbyPlayerService players, RankProvider ranks,
                               SocialSnapshotService social, GatewayService gateway, CosmeticService cosmetics, PlayerVisibilityService visibility,
-                              CookieModule cookie, Function<Player, String> playtime, Function<Player, String> sessionPlaytime) {
+                              CookieModule cookie, de.tasticgames.lobby.pass.PassModule pass, Function<Player, String> playtime,
+                              Function<Player, String> sessionPlaytime) {
         this.coreApi = Objects.requireNonNull(coreApi);
         this.messages = Objects.requireNonNull(messages);
         this.items = Objects.requireNonNull(items);
@@ -68,6 +70,7 @@ public final class HudContextProvider {
         this.cosmetics = Objects.requireNonNull(cosmetics);
         this.visibility = Objects.requireNonNull(visibility);
         this.cookie = Objects.requireNonNull(cookie);
+        this.pass = Objects.requireNonNull(pass);
         this.playtime = Objects.requireNonNull(playtime);
         this.sessionPlaytime = Objects.requireNonNull(sessionPlaytime);
     }
@@ -286,10 +289,13 @@ public final class HudContextProvider {
                 return messages.raw(lang, "hud.ctx.cosmetics.objective").replace("<unlocked>", String.valueOf(unlocked)).replace("<total>", String.valueOf(total));
             }
             case PROFILE -> {
+                // the pass has no item of its own, so its level rides along with the profile context
+                String passLevel = pass.levelText(player);
                 return cookie.runtime().session(player.getUniqueId())
                         .map(s -> messages.raw(lang, "hud.ctx.profile.objective").replace("<prestige>", String.valueOf(s.profile().prestigeLevel()))
                                 .replace("<lifetime>", formatter.format(s.profile().lifetimeCookies(), locale)))
-                        .orElse(messages.raw(lang, "hud.ctx.profile.objective.session").replace("<session>", sessionPlaytime.apply(player)));
+                        .orElse(messages.raw(lang, "hud.ctx.profile.objective.session").replace("<session>", sessionPlaytime.apply(player)))
+                        .replace("<pass>", passLevel);
             }
             case SETTINGS -> {
                 return messages.raw(lang, "hud.ctx.settings.objective");

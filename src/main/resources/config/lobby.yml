@@ -7,7 +7,8 @@ world:
     x: -23.5
     y: 37.0
     z: -3.5
-    yaw: 0.0
+    # yaw: 0 = south, 90 = west, 180 = north, -90/270 = east (players spawn facing west, away from the wall)
+    yaw: 90.0
     pitch: 0.0
   # players falling below this Y are teleported back to spawn
   void-rescue-y: 0.0

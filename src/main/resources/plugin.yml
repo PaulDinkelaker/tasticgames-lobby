@@ -50,14 +50,24 @@ commands:
   cookie:
     description: Cookie Clicker menu
     usage: /cookie [menu|stats|leaderboard|world|shop|upgrades|prestige]
+  # /pass is owned by TasticLobby; TasticProxy deliberately does not register it (a proxy command
+  # would shadow this one permanently), see docs/tasticpass.md.
+  pass:
+    description: Open the TasticPass season pass
+    usage: /pass [rewards|quests|premium|leaderboard]
+    aliases: [battlepass, bp]
   tasticlobby:
     description: TasticLobby administration
     usage: /tasticlobby status|reload|player <name>|setspawn|build|region|cosmetic ...
     permission: tasticlobby.status
   cookieadmin:
     description: Cookie Clicker administration
-    usage: /cookieadmin status|addcookies|setcookies|setprestige|reset|unlock|balance|setcookie|npc|golden|zone|poi ...
+    usage: /cookieadmin status|addcookies|setcookies|setprestige|reset|unlock|balance|setcookie|npc|special|zone|poi ...
     permission: tasticlobby.cookie.admin
+  passadmin:
+    description: TasticPass administration
+    usage: /passadmin status|grant <player> [seasonKey]|revoke <player> [seasonKey]|addxp <player> <amount>|setlevel <player> <level>|reload|season import <file>
+    permission: tasticgames.pass.admin
 
 permissions:
   tasticlobby.admin:
@@ -70,6 +80,7 @@ permissions:
       tasticlobby.setspawn: true
       tasticlobby.cookie.admin: true
       tasticlobby.cosmetic.admin: true
+      tasticgames.pass.admin: true
       tasticlobby.fly: true
       tasticlobby.visibility.always: true
   tasticlobby.status:
@@ -83,6 +94,9 @@ permissions:
   tasticlobby.cookie.admin:
     default: op
   tasticlobby.cosmetic.admin:
+    default: op
+  tasticgames.pass.admin:
+    description: TasticPass administration (premium entitlements, admin XP/level, season import)
     default: op
   tasticlobby.fly:
     description: Flight in the lobby

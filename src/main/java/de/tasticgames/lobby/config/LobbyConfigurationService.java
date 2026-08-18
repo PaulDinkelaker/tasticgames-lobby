@@ -66,7 +66,7 @@ public final class LobbyConfigurationService implements Service {
     public synchronized void reload() throws IOException {
         files.clear();
         coreApi = null;
-        for (String name : List.of("lobby", "items", "music", "api", "cookie-clicker", "cosmetics", "hud")) {
+        for (String name : List.of("lobby", "items", "music", "api", "cookie-clicker", "cosmetics", "hud", "pass", "npcs")) {
             files.put(name, load(name));
         }
         configuration = parse();

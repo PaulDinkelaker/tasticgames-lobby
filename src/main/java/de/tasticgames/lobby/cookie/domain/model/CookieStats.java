@@ -2,6 +2,7 @@ package de.tasticgames.lobby.cookie.domain.model;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -22,10 +23,11 @@ import java.util.Objects;
  * @param buffCpsMultiplier         product of active buffs affecting CPS
  * @param buffClickMultiplier       product of active buffs affecting clicks
  * @param offlineEfficiency         offline efficiency fraction (capped at 1.0)
- * @param goldenChanceMultiplier    golden cookie spawn chance multiplier
- * @param goldenValueMultiplier     golden cookie instant reward multiplier
- * @param goldenDurationMultiplier  golden buff duration multiplier
+ * @param goldenChanceMultiplier    special cookie chance multiplier (divides the drawn wait)
+ * @param goldenValueMultiplier     special cookie instant reward multiplier
+ * @param goldenDurationMultiplier  special cookie buff duration multiplier
  * @param comboDurationMultiplier   combo decay duration multiplier
+ * @param specialWeightMultipliers  per rarity draw-weight multiplier from upgrades and the prestige tree
  */
 public record CookieStats(
         BigDecimal clickValue,
@@ -46,7 +48,8 @@ public record CookieStats(
         double goldenChanceMultiplier,
         double goldenValueMultiplier,
         double goldenDurationMultiplier,
-        double comboDurationMultiplier
+        double comboDurationMultiplier,
+        Map<SpecialCookieRarity, Double> specialWeightMultipliers
 ) {
 
     public CookieStats {
@@ -56,10 +59,16 @@ public record CookieStats(
         Objects.requireNonNull(unbuffedCps, "unbuffedCps");
         Objects.requireNonNull(effectiveCps, "effectiveCps");
         contributions = List.copyOf(Objects.requireNonNull(contributions, "contributions"));
+        specialWeightMultipliers = Map.copyOf(Objects.requireNonNull(specialWeightMultipliers, "specialWeightMultipliers"));
     }
 
     /** Effective CPS as an amount (display convenience). */
     public CookieAmount effectiveCpsAmount() {
         return CookieAmount.of(effectiveCps);
+    }
+
+    /** Draw-weight multiplier of one rarity ({@code 1.0} when nothing boosts it). */
+    public double specialWeightMultiplier(SpecialCookieRarity rarity) {
+        return specialWeightMultipliers.getOrDefault(rarity, 1.0);
     }
 }

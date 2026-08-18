@@ -26,6 +26,8 @@ import de.tasticgames.lobby.item.LobbyItemType;
 import de.tasticgames.lobby.locale.LobbyMessages;
 import de.tasticgames.lobby.movement.MovementListener;
 import de.tasticgames.lobby.music.MusicService;
+import de.tasticgames.lobby.npc.LobbyNpcService;
+import de.tasticgames.lobby.pass.PassModule;
 import de.tasticgames.lobby.placeholder.LobbyPlaceholders;
 import de.tasticgames.lobby.player.LobbyConnectionListener;
 import de.tasticgames.lobby.player.LobbyPlayer;
@@ -93,6 +95,8 @@ public final class LobbyBootstrap {
     private GatewayService gateway;
     private SocialActionService socialActions;
     private CookieModule cookie;
+    private PassModule pass;
+    private LobbyNpcService serviceNpcs;
     private de.tasticgames.lobby.hud.HudService hud;
     private de.tasticgames.lobby.placeholder.HudContextProvider hudContext;
 
@@ -153,12 +157,22 @@ public final class LobbyBootstrap {
         }
         environment.apply();
         profileDialog.setCookieSummary(cookie::profileSummary);
+
+        // season pass: state cache over TasticCore, Cookie Clicker XP hooks, dialogs, level-up feedback
+        pass = start(new PassModule(plugin, coreApi, configurationService, api, messages, sounds, telemetry, dialogs, mainThread, logger));
+        cookie.setProgressListener(pass.progressListener());
+        profileDialog.setPassLine(pass::profileLine);
         RankProvider ranks = integrations.ranks();
         profileDialog.setRankResolver(p -> ranks.rank(p).displayName());
         socialActions.setAfterAction(visibility::apply);
 
+        // lobby service NPCs (pass, game modes, games & events) – independent of the cookie quest NPCs
+        serviceNpcs = start(new LobbyNpcService(configurationService, integrations.npcs(), gateway, messages, sounds, telemetry, mainThread,
+                () -> pass.configuration().npcEnabled(), pass::openOverview, cookie.dialogs()::openOverview, logger));
+        register(serviceNpcs);
+
         // native top-screen HUD (boss bars) fed by the context provider
-        hudContext = new de.tasticgames.lobby.placeholder.HudContextProvider(coreApi, messages, items, players, ranks, social, gateway, cosmetics, visibility, cookie,
+        hudContext = new de.tasticgames.lobby.placeholder.HudContextProvider(coreApi, messages, items, players, ranks, social, gateway, cosmetics, visibility, cookie, pass,
                 player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
                 player -> players.find(player.getUniqueId()).map(lp -> formatDuration(java.time.Duration.between(lp.joinedAt(), java.time.Instant.now()))).orElse(""));
         hud = start(new de.tasticgames.lobby.hud.HudService(plugin, coreApi, configurationService, hudContext, integrations.customItems(), players,
@@ -192,6 +206,7 @@ public final class LobbyBootstrap {
             }
         });
         initialization.addPostInitHook(cookie::preload);
+        initialization.addPostInitHook(pass::preload);
         integrations.customItems().onReady(() -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 players.find(player.getUniqueId()).filter(LobbyPlayer::initialized).ifPresent(lp -> items.refresh(player, lp));
@@ -202,6 +217,7 @@ public final class LobbyBootstrap {
         LobbyConnectionListener connection = new LobbyConnectionListener(coreApi, configurationService, players, spawn, initialization, languageDialog, welcomeDialog, telemetry, logger);
         languageDialog.setOnSelected(connection::continueAfterLanguage);
         connection.addQuitHook(cookie::onQuit);
+        connection.addQuitHook(pass::onQuit);
         connection.addQuitHook(music::stop);
         connection.addQuitHook(hud::hide);
         connection.addQuitHook(cosmetics::clear);
@@ -234,6 +250,10 @@ public final class LobbyBootstrap {
         plugin.getCommand("tasticlobby").setTabCompleter(admin);
         plugin.getCommand("cookieadmin").setExecutor(cookie.adminCommand());
         plugin.getCommand("cookieadmin").setTabCompleter(cookie.adminCommand());
+        plugin.getCommand("pass").setExecutor(pass.command());
+        plugin.getCommand("pass").setTabCompleter(pass.command());
+        plugin.getCommand("passadmin").setExecutor(pass.adminCommand());
+        plugin.getCommand("passadmin").setTabCompleter(pass.adminCommand());
 
         // placeholders for PlaceholderAPI consumers and TAB
         placeholders = buildPlaceholders(ranks);
@@ -330,6 +350,9 @@ public final class LobbyBootstrap {
         for (String key : List.of("balance", "balance_raw", "cookies", "cookies_raw", "cps", "prestige", "prestige_title", "lifetime", "crumbs", "combo", "buff", "generators")) {
             p.add("cookie_" + key, player -> cookie.placeholder(player, key));
         }
+        for (String key : List.of("level", "xp", "xp_next", "progress", "premium", "season", "quests_done", "claimable", "total_xp")) {
+            p.add("pass_" + key, player -> pass.placeholder(player, key));
+        }
         hudContext.registerInto(p);
         return p;
     }
@@ -374,6 +397,8 @@ public final class LobbyBootstrap {
         status.put("HUD", hud.configuration() == null || !hud.configuration().enabled() ? "disabled" : hud.activeHuds() + " active, boss bars"
                 + (integrations.customItems().available() ? ", ItemsAdder icons" + (hud.boxesAvailable() ? " + boxes" : " (boxes missing – run /iazip)") : ", unicode icons"));
         status.putAll(cookie.status());
+        status.put("Service NPCs", serviceNpcs.status());
+        status.putAll(pass.status());
         return status;
     }
 
@@ -383,6 +408,8 @@ public final class LobbyBootstrap {
             messages.start();
             environment.apply();
             cookie.reloadLayout();
+            pass.reload();
+            serviceNpcs.reload();
             hud.reload();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 LobbyPlayer lobbyPlayer = players.getOrCreate(player);
@@ -426,5 +453,9 @@ public final class LobbyBootstrap {
 
     public CookieModule cookie() {
         return cookie;
+    }
+
+    public PassModule pass() {
+        return pass;
     }
 }

@@ -32,6 +32,7 @@ or `-PtasticCoreJar=<path>`. The api-client + Jackson are shaded and relocated t
 | `cosmetics.yml` | cosmetic catalog (id, category, rarity, unlock, render data – `hmc:<id>` = HMCCosmetics) |
 | `hud.yml` | native top-screen HUD: rows, refresh, ItemsAdder icons/boxes (content export), colours |
 | `cookie-clicker.yml` | main cookie (world/location/MythicMobs type/model/hitbox/actionbar/golden areas), NPCs, prestige-10 open world (zones, POIs, golden areas), runtime, balancing |
+| `npcs.yml` | lobby service NPCs (Citizens): position/yaw, action (`PASS`, `TRANSFER` + target, `COOKIE`, `NONE`), skin texture pair or `mirror-skin`, look-close |
 
 Secrets belong in environment variables or TasticCore's api.yml; a lobby key is only needed when a dedicated service should be used.
 

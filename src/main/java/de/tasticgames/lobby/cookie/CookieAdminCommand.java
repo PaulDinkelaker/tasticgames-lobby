@@ -77,7 +77,7 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
-            case "poi", "zone", "setspawn", "setcookie", "npc", "golden" -> builder(sender, args);
+            case "poi", "zone", "setspawn", "setcookie", "npc", "special", "golden" -> builder(sender, args);
             case "status", "balance" -> {
                 Player target = target(sender, args);
                 if (target == null) return true;
@@ -93,7 +93,8 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
                         for (Contribution c : stats.contributions()) {
                             line(sender, "  " + c.generatorId(), c.count() + " × " + formatter.formatRate(c.cpsEach(), Locale.ENGLISH) + " = " + formatter.formatRate(c.cpsTotal(), Locale.ENGLISH));
                         }
-                        line(sender, "Offline eff.", stats.offlineEfficiency() + " golden chance x" + stats.goldenChanceMultiplier() + " value x" + stats.goldenValueMultiplier());
+                        line(sender, "Offline eff.", stats.offlineEfficiency() + " special chance x" + stats.goldenChanceMultiplier() + " value x" + stats.goldenValueMultiplier());
+                        line(sender, "Special cookies", CookieNames.specialChances(runtime.engine().rarityChances(p)));
                     }
                     line(sender, "Generators", p.generators().toString());
                     line(sender, "Upgrades", p.upgrades().size() + " | tree " + p.prestigeUpgrades());
@@ -171,7 +172,8 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
     /**
      * Builder helpers: write coordinates/regions into cookie-clicker.yml without editing Java.
      * setcookie (main cookie here) · setspawn (open-world entry here) · npc <id> here|link|unlink ·
-     * golden add|remove <id> (WorldEdit selection) · zone [<id> fromselection|entry|gate] · poi <id> [type].
+     * special|golden add|remove <id> (special cookie area from the WorldEdit selection) ·
+     * zone [<id> fromselection|entry|gate] · poi <id> [type].
      */
     private void builder(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
@@ -181,8 +183,10 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
         String sub = args[0].toLowerCase(Locale.ROOT);
         try {
             YamlConfiguration yaml = YamlConfiguration.loadConfiguration(configFile);
-            if (yaml.getInt("config-version", 1) < CookieConfiguration.CURRENT_VERSION) {
-                yaml.set("config-version", CookieConfiguration.CURRENT_VERSION);
+            // run the real migration (never just stamp the version: the file may still carry pre-4 sections)
+            List<String> migrated = CookieConfiguration.migrate(yaml);
+            if (!migrated.isEmpty()) {
+                logger.info("cookie-clicker.yml migrated by /cookieadmin: " + String.join(", ", migrated) + ".");
             }
             var loc = player.getLocation();
             boolean inOpenWorld = world.isOpenWorld(player.getWorld());
@@ -230,14 +234,14 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
                     if (!yaml.contains(base + ".role")) yaml.set(base + ".role", "QUEST");
                     if (!yaml.contains(base + ".quest")) yaml.set(base + ".quest", id);
                 }
-                case "golden" -> {
+                case "special", "golden" -> {
                     String action = arg(args, 1) == null ? "" : arg(args, 1).toLowerCase(Locale.ROOT);
                     String id = arg(args, 2);
                     if (!(action.equals("add") || action.equals("remove")) || id == null || !id.matches("[a-z0-9_-]{1,64}")) {
                         usage(sender);
                         return;
                     }
-                    String base = (inOpenWorld ? "open-world" : "main-cookie") + ".golden-cookies.areas." + id;
+                    String base = (inOpenWorld ? "open-world" : "main-cookie") + "." + CookieConfiguration.SPECIAL_SECTION + ".areas." + id;
                     if (action.equals("remove")) {
                         yaml.set(base, null);
                     } else {
@@ -335,17 +339,17 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
 
     private void usage(CommandSender sender) {
         sender.sendMessage(Component.text("/cookieadmin status|balance <player> | addcookies|setcookies <player> <amount> | setprestige <player> <0-10> | reset <player> | unlock <player> <achievement|zone> <id>", NamedTextColor.YELLOW));
-        sender.sendMessage(Component.text("/cookieadmin setcookie (main cookie here) | setspawn (open-world entry here) | npc <id> here|link|unlink | golden add|remove <id> (WorldEdit selection) | zone [<id> fromselection|entry|gate] | poi <id> [type]", NamedTextColor.YELLOW));
+        sender.sendMessage(Component.text("/cookieadmin setcookie (main cookie here) | setspawn (open-world entry here) | npc <id> here|link|unlink | special add|remove <id> (WorldEdit selection) | zone [<id> fromselection|entry|gate] | poi <id> [type]", NamedTextColor.YELLOW));
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return List.of("status", "balance", "addcookies", "setcookies", "setprestige", "reset", "unlock", "setspawn", "setcookie", "poi", "zone", "npc", "golden").stream()
+            return List.of("status", "balance", "addcookies", "setcookies", "setprestige", "reset", "unlock", "setspawn", "setcookie", "poi", "zone", "npc", "special").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
         }
         String first = args.length > 0 ? args[0].toLowerCase(Locale.ROOT) : "";
-        if (args.length == 2 && first.equals("golden")) {
+        if (args.length == 2 && (first.equals("special") || first.equals("golden"))) {
             return List.of("add", "remove");
         }
         if (args.length == 3 && first.equals("npc")) {
@@ -354,7 +358,7 @@ public final class CookieAdminCommand implements CommandExecutor, TabCompleter {
         if (args.length == 3 && first.equals("zone")) {
             return List.of("fromselection", "entry", "gate");
         }
-        if (args.length == 2 && !List.of("setspawn", "setcookie", "poi", "zone", "npc", "golden").contains(first)) {
+        if (args.length == 2 && !List.of("setspawn", "setcookie", "poi", "zone", "npc", "special", "golden").contains(first)) {
             return Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("unlock")) {

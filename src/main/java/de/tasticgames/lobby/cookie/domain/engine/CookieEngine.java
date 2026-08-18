@@ -6,6 +6,7 @@ import de.tasticgames.lobby.cookie.domain.catalog.GeneratorDefinition;
 import de.tasticgames.lobby.cookie.domain.catalog.PrestigeDefinition;
 import de.tasticgames.lobby.cookie.domain.catalog.PrestigeTreeEffectType;
 import de.tasticgames.lobby.cookie.domain.catalog.PrestigeTreeNode;
+import de.tasticgames.lobby.cookie.domain.catalog.SpecialCookieTuning;
 import de.tasticgames.lobby.cookie.domain.catalog.UpgradeDefinition;
 import de.tasticgames.lobby.cookie.domain.catalog.UpgradeEffect;
 import de.tasticgames.lobby.cookie.domain.catalog.ZoneDefinition;
@@ -18,14 +19,15 @@ import de.tasticgames.lobby.cookie.domain.model.Contribution;
 import de.tasticgames.lobby.cookie.domain.model.CookieAmount;
 import de.tasticgames.lobby.cookie.domain.model.CookieProfile;
 import de.tasticgames.lobby.cookie.domain.model.CookieStats;
-import de.tasticgames.lobby.cookie.domain.model.GoldenCookieReward;
-import de.tasticgames.lobby.cookie.domain.model.GoldenCookieRoll;
 import de.tasticgames.lobby.cookie.domain.model.GoldenRewardType;
 import de.tasticgames.lobby.cookie.domain.model.NodePurchaseResult;
 import de.tasticgames.lobby.cookie.domain.model.OfflineResult;
 import de.tasticgames.lobby.cookie.domain.model.PrestigeCheck;
 import de.tasticgames.lobby.cookie.domain.model.PrestigePlan;
 import de.tasticgames.lobby.cookie.domain.model.PurchaseResult;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieReward;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRoll;
 import de.tasticgames.lobby.cookie.domain.model.ZoneAccess;
 import de.tasticgames.lobby.cookie.domain.prestige.PrestigeCalculator;
 
@@ -34,6 +36,7 @@ import java.math.MathContext;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -52,6 +55,8 @@ public final class CookieEngine {
 
     private static final MathContext MC = MathContext.DECIMAL128;
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
+    /** Lowest special cookie chance multiplier used for scheduling; keeps a pathological config from stalling the timer. */
+    private static final double MIN_CHANCE_MULTIPLIER = 0.01;
 
     private final CookieCatalog catalog;
     private final CookieBalancing balancing;
@@ -98,6 +103,8 @@ public final class CookieEngine {
         double comboDurationMult = 1.0;
         double offlineAdd = 0.0;
         Map<String, Double> generatorMults = new HashMap<>();
+        Map<SpecialCookieRarity, Double> rarityMults = new EnumMap<>(SpecialCookieRarity.class);
+        for (SpecialCookieRarity rarity : SpecialCookieRarity.values()) rarityMults.put(rarity, 1.0);
         for (String upgradeId : profile.upgrades()) {
             Optional<UpgradeDefinition> def = catalog.upgrade(upgradeId);
             if (def.isEmpty()) continue; // unknown / removed upgrade: ignore gracefully
@@ -109,6 +116,7 @@ public final class CookieEngine {
                 case GENERATOR_MULTIPLIER -> generatorMults.merge(e.generatorId(), e.value(), (a, b) -> a * b);
                 case GOLDEN_COOKIE_FREQUENCY -> goldenFreqMult *= e.value();
                 case GOLDEN_COOKIE_VALUE -> goldenValueMult *= e.value();
+                case SPECIAL_RARITY_WEIGHT -> rarityMults.merge(e.rarity(), e.value(), (a, b) -> a * b);
                 case COMBO_DURATION -> comboDurationMult *= e.value();
                 case OFFLINE_EFFICIENCY -> offlineAdd += e.value();
             }
@@ -121,8 +129,16 @@ public final class CookieEngine {
         double treeGoldenChancePct = treeTotal(profile, PrestigeTreeEffectType.GOLDEN_CHANCE_PERCENT);
         double treeGoldenDurationPct = treeTotal(profile, PrestigeTreeEffectType.GOLDEN_DURATION_PERCENT);
         double treeComboPct = treeTotal(profile, PrestigeTreeEffectType.COMBO_DURATION_PERCENT);
+        double treeRarityLuckPct = treeTotal(profile, PrestigeTreeEffectType.RARITY_LUCK_PERCENT);
         double treeClickMult = 1.0 + treeClickPct / 100.0;
         double treeCpsMult = 1.0 + treeCpsPct / 100.0;
+        if (treeRarityLuckPct != 0.0) {
+            // the connoisseur node only improves the rare half of the table (platinum and above)
+            double rarityLuckMult = 1.0 + treeRarityLuckPct / 100.0;
+            for (SpecialCookieRarity rarity : SpecialCookieRarity.values()) {
+                if (rarity.atLeast(SpecialCookieRarity.RARE_FROM)) rarityMults.merge(rarity, rarityLuckMult, (a, b) -> a * b);
+            }
+        }
 
         // ---- buffs
         double buffCpsMult = 1.0;
@@ -176,7 +192,7 @@ public final class CookieEngine {
         return new CookieStats(clickValue, baseClick, baseCps, unbuffedCps, effectiveCps, contributions,
                 prestigeMult, upgradeCpsMult, treeCpsMult, upgradeClickMult, treeClickMult, clickCpsPercent,
                 buffCpsMult, buffClickMult, offlineEfficiency, goldenChanceMult, goldenValueMult,
-                goldenDurationMult, comboMult);
+                goldenDurationMult, comboMult, rarityMults);
     }
 
     private double treeTotal(CookieProfile profile, PrestigeTreeEffectType type) {
@@ -261,11 +277,42 @@ public final class CookieEngine {
         profile.incrementClicks();
         CookieAmount reward = CookieAmount.ZERO;
         if (!rateLimited) {
-            reward = CookieAmount.of(stats.clickValue().multiply(BigDecimal.valueOf(comboMultiplier), MC));
+            BigDecimal payout = stats.clickValue().multiply(BigDecimal.valueOf(comboMultiplier), MC);
+            BigDecimal cap = specialClickCap(profile, stats, now, comboMultiplier);
+            if (cap != null && payout.compareTo(cap) > 0) {
+                payout = cap;
+            }
+            reward = CookieAmount.of(payout);
             profile.earn(reward);
         }
         profile.markDirty();
         return new ClickResult(reward, stage, comboMultiplier, rateLimited, advanced, profile.cookies());
+    }
+
+    /**
+     * Ceiling for a single click while a special cookie's click buff is active: a click may never pay more than
+     * {@code balancing.specialClickClampCpsSeconds()} seconds of unbuffed production (and never less than the
+     * unbuffed click itself). Without it a MASTER click frenzy plus an autoclicker outperforms every other reward
+     * by orders of magnitude. Returns {@code null} when no clamp applies.
+     */
+    private BigDecimal specialClickCap(CookieProfile profile, CookieStats stats, Instant now, double comboMultiplier) {
+        long seconds = balancing.specialClickClampCpsSeconds();
+        if (seconds <= 0 || stats.unbuffedCps().signum() <= 0) {
+            return null;
+        }
+        boolean specialClickBuff = false;
+        for (ActiveBuff buff : profile.activeBuffs()) {
+            if (buff.isActiveAt(now) && buff.type().affectsClicks() && buff.source().startsWith(SPECIAL_BUFF_SOURCE)) {
+                specialClickBuff = true;
+                break;
+            }
+        }
+        if (!specialClickBuff) {
+            return null;
+        }
+        BigDecimal cap = stats.unbuffedCps().multiply(BigDecimal.valueOf(seconds), MC);
+        BigDecimal unbuffedClick = stats.baseClickValue().multiply(BigDecimal.valueOf(comboMultiplier), MC);
+        return cap.max(unbuffedClick);
     }
 
     /** Resets the combo if the player has been idle longer than the (multiplied) decay time. */
@@ -585,72 +632,167 @@ public final class CookieEngine {
     }
 
     // =====================================================================================
-    // Golden cookies
+    // Special cookies
     // =====================================================================================
 
-    /** Per-second spawn probability for the profile. */
-    public double goldenSpawnProbabilityPerSecond(CookieProfile profile) {
+    /** Rarities the profile has unlocked, in ascending rarity (empty below prestige 1). */
+    public List<SpecialCookieRarity> unlockedRarities(CookieProfile profile) {
+        Objects.requireNonNull(profile, "profile");
+        return SpecialCookieRarity.unlockedFor(profile.prestigeLevel());
+    }
+
+    /**
+     * Effective, not yet normalised draw weights of the unlocked rarities
+     * ({@code balancing weight × upgrades × prestige tree}); rarities weighted to zero are omitted.
+     */
+    public Map<SpecialCookieRarity, Double> rarityWeights(CookieProfile profile) {
         CookieStats stats = compute(profile);
-        return Math.min(1.0, stats.goldenChanceMultiplier() / balancing.goldenBaseIntervalSeconds());
+        Map<SpecialCookieRarity, Double> weights = new EnumMap<>(SpecialCookieRarity.class);
+        for (SpecialCookieRarity rarity : unlockedRarities(profile)) {
+            double weight = balancing.tuning(rarity).weight() * stats.specialWeightMultiplier(rarity);
+            if (weight > 0) weights.put(rarity, weight);
+        }
+        return weights;
     }
 
-    /** Rolls a golden cookie spawn for one elapsed second. */
-    public GoldenCookieRoll roll(CookieProfile profile, RandomGenerator rng, Instant now) {
-        return roll(profile, rng, now, 1.0);
+    /** Draw chances of the unlocked rarities, normalised to 1 (empty when the profile draws nothing). */
+    public Map<SpecialCookieRarity, Double> rarityChances(CookieProfile profile) {
+        Map<SpecialCookieRarity, Double> weights = rarityWeights(profile);
+        double total = 0;
+        for (double weight : weights.values()) total += weight;
+        if (total <= 0) return Map.of();
+        Map<SpecialCookieRarity, Double> chances = new EnumMap<>(SpecialCookieRarity.class);
+        for (Map.Entry<SpecialCookieRarity, Double> entry : weights.entrySet()) {
+            chances.put(entry.getKey(), entry.getValue() / total);
+        }
+        return chances;
     }
 
-    /** Rolls a golden cookie spawn for {@code elapsedSeconds} (probability {@code 1-(1-p)^t}). */
-    public GoldenCookieRoll roll(CookieProfile profile, RandomGenerator rng, Instant now, double elapsedSeconds) {
+    /** Draws one rarity by weight; empty when the profile has none unlocked (prestige 0). */
+    public Optional<SpecialCookieRarity> rollRarity(CookieProfile profile, RandomGenerator rng) {
         Objects.requireNonNull(rng, "rng");
-        double perSecond = goldenSpawnProbabilityPerSecond(profile);
-        double p = elapsedSeconds == 1.0 ? perSecond : 1.0 - Math.pow(1.0 - perSecond, Math.max(0.0, elapsedSeconds));
-        boolean spawned = rng.nextDouble() < p;
-        Instant expiresAt = spawned ? now.plusSeconds(balancing.goldenLifetimeSeconds()) : null;
-        return new GoldenCookieRoll(spawned, p, now, expiresAt);
+        Map<SpecialCookieRarity, Double> weights = rarityWeights(profile);
+        double total = 0;
+        for (double weight : weights.values()) total += weight;
+        if (total <= 0) return Optional.empty();
+        double roll = rng.nextDouble() * total;
+        SpecialCookieRarity last = null;
+        for (Map.Entry<SpecialCookieRarity, Double> entry : weights.entrySet()) {
+            last = entry.getKey();
+            roll -= entry.getValue();
+            if (roll < 0) return Optional.of(last);
+        }
+        return Optional.ofNullable(last); // rounding fallback: the highest unlocked rarity
     }
 
-    /** Picks a reward for a clicked golden cookie without applying it. */
-    public GoldenCookieReward rewardFor(CookieProfile profile, RandomGenerator rng, Instant now) {
-        GoldenRewardType type = pickRewardType(rng);
-        return rewardOfType(profile, type, now);
+    /**
+     * Draws the instant of the profile's next special cookie:
+     * {@code now + uniform(minInterval, maxInterval) / chanceMultiplier}, never sooner than the
+     * configured floor. The timer is per session and always redrawn from a full interval, so
+     * reconnecting can only lengthen the wait, never shorten it below the floor.
+     */
+    public Instant scheduleNextSpecial(CookieProfile profile, RandomGenerator rng, Instant now) {
+        Objects.requireNonNull(rng, "rng");
+        Objects.requireNonNull(now, "now");
+        double chance = Math.max(MIN_CHANCE_MULTIPLIER, compute(profile).goldenChanceMultiplier());
+        double min = balancing.specialMinIntervalSeconds();
+        double max = balancing.specialMaxIntervalSeconds();
+        double drawn = min + rng.nextDouble() * (max - min);
+        double seconds = Math.max(balancing.specialFloorIntervalSeconds(), drawn / chance);
+        return now.plusMillis(Math.round(seconds * 1000.0));
     }
 
-    /** Builds the reward of a specific type (deterministic). */
-    public GoldenCookieReward rewardOfType(CookieProfile profile, GoldenRewardType type, Instant now) {
+    /**
+     * Draws the rarity of a special cookie that just became due, together with the window a
+     * cookie spawned in the world stays clickable. Empty below prestige 1.
+     */
+    public Optional<SpecialCookieRoll> rollSpecial(CookieProfile profile, RandomGenerator rng, Instant now) {
+        Objects.requireNonNull(now, "now");
+        return rollRarity(profile, rng)
+                .map(rarity -> new SpecialCookieRoll(rarity, now, now.plusSeconds(balancing.specialLifetimeSeconds())));
+    }
+
+    /** Picks a reward of the rarity without applying it. */
+    public SpecialCookieReward rewardFor(CookieProfile profile, SpecialCookieRarity rarity, RandomGenerator rng, Instant now) {
+        return rewardFor(profile, rarity, rng, now, true);
+    }
+
+    /**
+     * Rolls a reward for the rarity. {@code clickableCookie} tells the engine whether the player can actually
+     * click a cookie right now (the main cookie stands in the lobby; the open world has none) – click-only
+     * rewards are dropped from the draw when they would be worth nothing, and the remaining weights renormalise.
+     */
+    public SpecialCookieReward rewardFor(CookieProfile profile, SpecialCookieRarity rarity, RandomGenerator rng,
+                                         Instant now, boolean clickableCookie) {
+        Objects.requireNonNull(rng, "rng");
+        Map<GoldenRewardType, Integer> weights = balancing.tuning(rarity).rewardWeights();
+        if (!clickableCookie) {
+            Map<GoldenRewardType, Integer> reachable = new EnumMap<>(GoldenRewardType.class);
+            for (Map.Entry<GoldenRewardType, Integer> entry : weights.entrySet()) {
+                if (entry.getKey() != GoldenRewardType.CLICK_FRENZY && entry.getValue() > 0) {
+                    reachable.put(entry.getKey(), entry.getValue());
+                }
+            }
+            if (!reachable.isEmpty()) {
+                weights = reachable;
+            }
+        }
+        return rewardOfType(profile, rarity, pickRewardType(weights, rng), now);
+    }
+
+    /** Prefix of every buff a special cookie hands out ({@code special:<RARITY>:<TYPE>}). */
+    static final String SPECIAL_BUFF_SOURCE = "special:";
+
+    /** Builds the reward of a specific rarity and type (deterministic). */
+    public SpecialCookieReward rewardOfType(CookieProfile profile, SpecialCookieRarity rarity, GoldenRewardType type, Instant now) {
+        Objects.requireNonNull(type, "type");
+        SpecialCookieTuning tuning = balancing.tuning(rarity);
         CookieStats stats = compute(profile);
         BigDecimal valueMult = BigDecimal.valueOf(stats.goldenValueMultiplier());
         BigDecimal bank = profile.cookies().toBigDecimal();
         switch (type) {
             case LUCKY -> {
-                BigDecimal bankShare = bank.multiply(BigDecimal.valueOf(balancing.luckyBankFraction()), MC);
-                BigDecimal cpsShare = stats.unbuffedCps().multiply(BigDecimal.valueOf(balancing.luckyCpsSeconds()));
-                BigDecimal amount = bankShare.min(cpsShare).add(BigDecimal.valueOf(balancing.luckyFlatBonus()))
+                BigDecimal bankShare = bank.multiply(BigDecimal.valueOf(tuning.luckyBankFraction()), MC);
+                BigDecimal cpsShare = stats.unbuffedCps().multiply(BigDecimal.valueOf(tuning.luckyCpsSeconds()));
+                BigDecimal amount = bankShare.min(cpsShare).add(BigDecimal.valueOf(tuning.luckyFlatBonus()))
                         .multiply(valueMult, MC);
-                return new GoldenCookieReward(type, CookieAmount.of(amount), null);
+                return SpecialCookieReward.instant(rarity, type, CookieAmount.of(amount));
             }
             case CHAIN_BONUS -> {
-                BigDecimal amount = bank.multiply(BigDecimal.valueOf(balancing.chainBonusBankFraction()), MC)
-                        .multiply(valueMult, MC);
-                return new GoldenCookieReward(type, CookieAmount.of(amount), null);
+                BigDecimal bankShare = bank.multiply(BigDecimal.valueOf(tuning.chainBankFraction()), MC);
+                if (tuning.chainCpsSeconds() > 0 && stats.unbuffedCps().signum() > 0) {
+                    // same two-term shape as LUCKY: hoarding must not turn a chain bonus into hours of production
+                    bankShare = bankShare.min(stats.unbuffedCps().multiply(BigDecimal.valueOf(tuning.chainCpsSeconds()), MC));
+                }
+                BigDecimal amount = bankShare.multiply(valueMult, MC);
+                return SpecialCookieReward.instant(rarity, type, CookieAmount.of(amount));
             }
             case FRENZY -> {
-                long millis = (long) Math.ceil(balancing.goldenBuffSeconds() * 1000.0 * stats.goldenDurationMultiplier());
-                ActiveBuff buff = ActiveBuff.of(BuffType.FRENZY, balancing.goldenFrenzyMultiplier(), now,
-                        Duration.ofMillis(millis), "golden:FRENZY");
-                return new GoldenCookieReward(type, CookieAmount.ZERO, buff);
+                return SpecialCookieReward.buffed(rarity, type, buff(BuffType.FRENZY, tuning.frenzyMultiplier(),
+                        tuning.frenzySeconds(), stats, now, rarity, type));
             }
             case CLICK_FRENZY -> {
-                long millis = (long) Math.ceil(balancing.goldenClickFrenzySeconds() * 1000.0 * stats.goldenDurationMultiplier());
-                ActiveBuff buff = ActiveBuff.of(BuffType.CLICK_FRENZY, balancing.goldenClickFrenzyMultiplier(), now,
-                        Duration.ofMillis(millis), "golden:CLICK_FRENZY");
-                return new GoldenCookieReward(type, CookieAmount.ZERO, buff);
+                return SpecialCookieReward.buffed(rarity, type, buff(BuffType.CLICK_FRENZY, tuning.clickFrenzyMultiplier(),
+                        tuning.clickFrenzySeconds(), stats, now, rarity, type));
+            }
+            case BLESSING -> {
+                // two buffs so the stats maths stays untouched: one CPS-only, one click-only
+                return SpecialCookieReward.buffed(rarity, type,
+                        buff(BuffType.CPS_MULTIPLIER, tuning.blessingCpsMultiplier(), tuning.blessingSeconds(), stats, now, rarity, type),
+                        buff(BuffType.CLICK_MULTIPLIER, tuning.blessingClickMultiplier(), tuning.blessingSeconds(), stats, now, rarity, type));
             }
             default -> throw new IllegalArgumentException("Unhandled reward type " + type);
         }
     }
 
-    private GoldenRewardType pickRewardType(RandomGenerator rng) {
-        Map<GoldenRewardType, Integer> weights = balancing.goldenRewardWeights();
+    private static ActiveBuff buff(BuffType buffType, double multiplier, int seconds, CookieStats stats, Instant now,
+                                   SpecialCookieRarity rarity, GoldenRewardType type) {
+        long millis = (long) Math.ceil(seconds * 1000.0 * stats.goldenDurationMultiplier());
+        return ActiveBuff.of(buffType, multiplier, now, Duration.ofMillis(millis),
+                SPECIAL_BUFF_SOURCE + rarity.name() + ":" + type.name());
+    }
+
+    private static GoldenRewardType pickRewardType(Map<GoldenRewardType, Integer> weights, RandomGenerator rng) {
         int total = 0;
         for (int w : weights.values()) total += w;
         int roll = rng.nextInt(total);
@@ -663,12 +805,13 @@ public final class CookieEngine {
         return GoldenRewardType.LUCKY;
     }
 
-    /** Applies a golden reward: credits cookies / adds the buff and counts the golden click. */
-    public void applyGoldenReward(CookieProfile profile, GoldenCookieReward reward, Instant now) {
+    /** Applies a special cookie reward: credits cookies / adds the buffs and counts the cookie. */
+    public void applySpecialReward(CookieProfile profile, SpecialCookieReward reward, Instant now) {
+        Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(reward, "reward");
         expireBuffs(profile, now);
         if (!reward.cookies().isZero()) profile.earn(reward.cookies());
-        if (reward.buff() != null) profile.addBuff(reward.buff());
+        for (ActiveBuff buff : reward.buffs()) profile.addBuff(buff);
         profile.incrementGoldenCookiesClicked();
         profile.markDirty();
     }

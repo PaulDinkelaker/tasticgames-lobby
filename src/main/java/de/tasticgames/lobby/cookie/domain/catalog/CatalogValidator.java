@@ -68,8 +68,8 @@ public final class CatalogValidator {
             if (u.requiredCount() < 0) throw new IllegalArgumentException("Upgrade " + u.id() + " has negative requiredCount");
             UpgradeEffect e = u.effect();
             switch (e.type()) {
-                case CLICK_POWER_MULTIPLIER, GLOBAL_CPS_MULTIPLIER, GENERATOR_MULTIPLIER,
-                     GOLDEN_COOKIE_FREQUENCY, GOLDEN_COOKIE_VALUE, COMBO_DURATION -> {
+                case CLICK_POWER_MULTIPLIER, GLOBAL_CPS_MULTIPLIER, GENERATOR_MULTIPLIER, GOLDEN_COOKIE_FREQUENCY,
+                     GOLDEN_COOKIE_VALUE, SPECIAL_RARITY_WEIGHT, COMBO_DURATION -> {
                     if (e.value() <= 0) throw new IllegalArgumentException("Upgrade " + u.id() + " multiplier must be > 0");
                 }
                 case CLICK_POWER_ADD_CPS_PERCENT, OFFLINE_EFFICIENCY -> {

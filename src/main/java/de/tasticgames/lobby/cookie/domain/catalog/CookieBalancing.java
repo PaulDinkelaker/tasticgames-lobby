@@ -1,6 +1,6 @@
 package de.tasticgames.lobby.cookie.domain.catalog;
 
-import de.tasticgames.lobby.cookie.domain.model.GoldenRewardType;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -20,17 +20,14 @@ import java.util.Objects;
  * @param offlineEnabled             whether offline production is granted
  * @param offlineMaxSeconds          maximum offline seconds credited
  * @param offlineEfficiency          base offline efficiency fraction (0.5 = 50%)
- * @param goldenBaseIntervalSeconds  mean seconds between golden cookie spawns at chance multiplier 1
- * @param goldenLifetimeSeconds      seconds a spawned golden cookie stays clickable
- * @param goldenBuffSeconds          base duration of golden buffs (Frenzy)
- * @param goldenClickFrenzySeconds   base duration of the Click Frenzy buff
- * @param goldenFrenzyMultiplier     Frenzy multiplier (CPS and clicks)
- * @param goldenClickFrenzyMultiplier Click Frenzy click multiplier
- * @param luckyBankFraction          Lucky reward: fraction of the bank
- * @param luckyCpsSeconds            Lucky reward: seconds of CPS cap
- * @param luckyFlatBonus             Lucky reward: flat bonus cookies
- * @param chainBonusBankFraction     Chain bonus: fraction of the bank
- * @param goldenRewardWeights        relative weights of golden reward types
+ * @param specialMinIntervalSeconds  shortest drawn wait between two special cookies at chance multiplier 1
+ * @param specialMaxIntervalSeconds  longest drawn wait between two special cookies at chance multiplier 1
+ * @param specialFloorIntervalSeconds hard lower bound of the wait, however high the chance multiplier gets
+ * @param specialLifetimeSeconds     seconds a special cookie spawned in the world stays clickable
+ * @param specialClickClampCpsSeconds while a special click buff is active a single click can never pay more than
+ *                               this many seconds of unbuffed CPS (0 = no clamp). Without it a x7777 click buff
+ *                               plus an autoclicker is worth hours of production per activation.
+ * @param rarities                   per rarity balancing (weight, reward weights, magnitudes, durations)
  */
 public record CookieBalancing(
         double costGrowth,
@@ -42,17 +39,12 @@ public record CookieBalancing(
         boolean offlineEnabled,
         long offlineMaxSeconds,
         double offlineEfficiency,
-        double goldenBaseIntervalSeconds,
-        int goldenLifetimeSeconds,
-        int goldenBuffSeconds,
-        int goldenClickFrenzySeconds,
-        double goldenFrenzyMultiplier,
-        double goldenClickFrenzyMultiplier,
-        double luckyBankFraction,
-        long luckyCpsSeconds,
-        long luckyFlatBonus,
-        double chainBonusBankFraction,
-        Map<GoldenRewardType, Integer> goldenRewardWeights
+        long specialMinIntervalSeconds,
+        long specialMaxIntervalSeconds,
+        long specialFloorIntervalSeconds,
+        int specialLifetimeSeconds,
+        long specialClickClampCpsSeconds,
+        Map<SpecialCookieRarity, SpecialCookieTuning> rarities
 ) {
 
     public CookieBalancing {
@@ -71,24 +63,21 @@ public record CookieBalancing(
         if (maxClicksPerSecond < 1) throw new IllegalArgumentException("maxClicksPerSecond must be >= 1");
         if (offlineMaxSeconds < 0) throw new IllegalArgumentException("offlineMaxSeconds must be >= 0");
         if (offlineEfficiency < 0 || offlineEfficiency > 1) throw new IllegalArgumentException("offlineEfficiency must be within [0,1]");
-        if (goldenBaseIntervalSeconds <= 0) throw new IllegalArgumentException("goldenBaseIntervalSeconds must be > 0");
-        if (goldenLifetimeSeconds <= 0) throw new IllegalArgumentException("goldenLifetimeSeconds must be > 0");
-        if (goldenBuffSeconds <= 0) throw new IllegalArgumentException("goldenBuffSeconds must be > 0");
-        if (goldenClickFrenzySeconds <= 0) throw new IllegalArgumentException("goldenClickFrenzySeconds must be > 0");
-        if (goldenFrenzyMultiplier < 1) throw new IllegalArgumentException("goldenFrenzyMultiplier must be >= 1");
-        if (goldenClickFrenzyMultiplier < 1) throw new IllegalArgumentException("goldenClickFrenzyMultiplier must be >= 1");
-        if (luckyBankFraction < 0 || chainBonusBankFraction < 0) throw new IllegalArgumentException("bank fractions must be >= 0");
-        if (luckyCpsSeconds < 0 || luckyFlatBonus < 0) throw new IllegalArgumentException("lucky parameters must be >= 0");
-        Objects.requireNonNull(goldenRewardWeights, "goldenRewardWeights");
-        Map<GoldenRewardType, Integer> weights = new EnumMap<>(GoldenRewardType.class);
-        int total = 0;
-        for (Map.Entry<GoldenRewardType, Integer> e : goldenRewardWeights.entrySet()) {
-            if (e.getValue() < 0) throw new IllegalArgumentException("golden weight must be >= 0");
-            weights.put(e.getKey(), e.getValue());
-            total += e.getValue();
+        if (specialMinIntervalSeconds <= 0) throw new IllegalArgumentException("specialMinIntervalSeconds must be > 0");
+        if (specialMaxIntervalSeconds < specialMinIntervalSeconds) {
+            throw new IllegalArgumentException("specialMaxIntervalSeconds must be >= specialMinIntervalSeconds");
         }
-        if (total <= 0) throw new IllegalArgumentException("golden reward weights must sum to > 0");
-        goldenRewardWeights = Map.copyOf(weights);
+        if (specialFloorIntervalSeconds <= 0) throw new IllegalArgumentException("specialFloorIntervalSeconds must be > 0");
+        if (specialLifetimeSeconds <= 0) throw new IllegalArgumentException("specialLifetimeSeconds must be > 0");
+        if (specialClickClampCpsSeconds < 0) throw new IllegalArgumentException("specialClickClampCpsSeconds must be >= 0");
+        Objects.requireNonNull(rarities, "rarities");
+        Map<SpecialCookieRarity, SpecialCookieTuning> tunings = new EnumMap<>(SpecialCookieRarity.class);
+        for (SpecialCookieRarity rarity : SpecialCookieRarity.values()) {
+            SpecialCookieTuning tuning = rarities.get(rarity);
+            if (tuning == null) throw new IllegalArgumentException("Missing balancing for rarity " + rarity);
+            tunings.put(rarity, tuning);
+        }
+        rarities = Map.copyOf(tunings);
     }
 
     public static CookieBalancing defaults() {
@@ -110,17 +99,12 @@ public record CookieBalancing(
         b.offlineEnabled = offlineEnabled;
         b.offlineMaxSeconds = offlineMaxSeconds;
         b.offlineEfficiency = offlineEfficiency;
-        b.goldenBaseIntervalSeconds = goldenBaseIntervalSeconds;
-        b.goldenLifetimeSeconds = goldenLifetimeSeconds;
-        b.goldenBuffSeconds = goldenBuffSeconds;
-        b.goldenClickFrenzySeconds = goldenClickFrenzySeconds;
-        b.goldenFrenzyMultiplier = goldenFrenzyMultiplier;
-        b.goldenClickFrenzyMultiplier = goldenClickFrenzyMultiplier;
-        b.luckyBankFraction = luckyBankFraction;
-        b.luckyCpsSeconds = luckyCpsSeconds;
-        b.luckyFlatBonus = luckyFlatBonus;
-        b.chainBonusBankFraction = chainBonusBankFraction;
-        b.goldenRewardWeights = goldenRewardWeights;
+        b.specialMinIntervalSeconds = specialMinIntervalSeconds;
+        b.specialMaxIntervalSeconds = specialMaxIntervalSeconds;
+        b.specialFloorIntervalSeconds = specialFloorIntervalSeconds;
+        b.specialLifetimeSeconds = specialLifetimeSeconds;
+        b.specialClickClampCpsSeconds = specialClickClampCpsSeconds;
+        b.rarities = rarities;
         return b;
     }
 
@@ -135,6 +119,11 @@ public record CookieBalancing(
         return comboStages.get(idx);
     }
 
+    /** Balancing of one rarity (never null – the constructor requires every rarity). */
+    public SpecialCookieTuning tuning(SpecialCookieRarity rarity) {
+        return rarities.get(Objects.requireNonNull(rarity, "rarity"));
+    }
+
     /** Mutable builder; every field starts at its default value. */
     public static final class Builder {
         private double costGrowth = 1.15;
@@ -146,21 +135,12 @@ public record CookieBalancing(
         private boolean offlineEnabled = true;
         private long offlineMaxSeconds = 8L * 3600L;
         private double offlineEfficiency = 0.5;
-        private double goldenBaseIntervalSeconds = 300;
-        private int goldenLifetimeSeconds = 15;
-        private int goldenBuffSeconds = 30;
-        private int goldenClickFrenzySeconds = 13;
-        private double goldenFrenzyMultiplier = 7;
-        private double goldenClickFrenzyMultiplier = 777;
-        private double luckyBankFraction = 0.15;
-        private long luckyCpsSeconds = 15L * 60L;
-        private long luckyFlatBonus = 13;
-        private double chainBonusBankFraction = 0.05;
-        private Map<GoldenRewardType, Integer> goldenRewardWeights = Map.of(
-                GoldenRewardType.LUCKY, 45,
-                GoldenRewardType.FRENZY, 35,
-                GoldenRewardType.CLICK_FRENZY, 10,
-                GoldenRewardType.CHAIN_BONUS, 10);
+        private long specialMinIntervalSeconds = 15L * 60L;
+        private long specialMaxIntervalSeconds = 120L * 60L;
+        private long specialFloorIntervalSeconds = 5L * 60L;
+        private int specialLifetimeSeconds = 45;
+        private long specialClickClampCpsSeconds = 60L;
+        private Map<SpecialCookieRarity, SpecialCookieTuning> rarities = SpecialCookieTuning.defaults();
 
         private Builder() {
         }
@@ -174,24 +154,32 @@ public record CookieBalancing(
         public Builder offlineEnabled(boolean v) { this.offlineEnabled = v; return this; }
         public Builder offlineMaxSeconds(long v) { this.offlineMaxSeconds = v; return this; }
         public Builder offlineEfficiency(double v) { this.offlineEfficiency = v; return this; }
-        public Builder goldenBaseIntervalSeconds(double v) { this.goldenBaseIntervalSeconds = v; return this; }
-        public Builder goldenLifetimeSeconds(int v) { this.goldenLifetimeSeconds = v; return this; }
-        public Builder goldenBuffSeconds(int v) { this.goldenBuffSeconds = v; return this; }
-        public Builder goldenClickFrenzySeconds(int v) { this.goldenClickFrenzySeconds = v; return this; }
-        public Builder goldenFrenzyMultiplier(double v) { this.goldenFrenzyMultiplier = v; return this; }
-        public Builder goldenClickFrenzyMultiplier(double v) { this.goldenClickFrenzyMultiplier = v; return this; }
-        public Builder luckyBankFraction(double v) { this.luckyBankFraction = v; return this; }
-        public Builder luckyCpsSeconds(long v) { this.luckyCpsSeconds = v; return this; }
-        public Builder luckyFlatBonus(long v) { this.luckyFlatBonus = v; return this; }
-        public Builder chainBonusBankFraction(double v) { this.chainBonusBankFraction = v; return this; }
-        public Builder goldenRewardWeights(Map<GoldenRewardType, Integer> v) { this.goldenRewardWeights = v; return this; }
+        public Builder specialMinIntervalSeconds(long v) { this.specialMinIntervalSeconds = v; return this; }
+        public Builder specialMaxIntervalSeconds(long v) { this.specialMaxIntervalSeconds = v; return this; }
+        public Builder specialFloorIntervalSeconds(long v) { this.specialFloorIntervalSeconds = v; return this; }
+        public Builder specialLifetimeSeconds(int v) { this.specialLifetimeSeconds = v; return this; }
+        public Builder specialClickClampCpsSeconds(long v) { this.specialClickClampCpsSeconds = v; return this; }
+        public Builder rarities(Map<SpecialCookieRarity, SpecialCookieTuning> v) { this.rarities = v; return this; }
+
+        /** Replaces the tuning of a single rarity, starting from the value currently held. */
+        public Builder rarity(SpecialCookieRarity rarity, SpecialCookieTuning tuning) {
+            Map<SpecialCookieRarity, SpecialCookieTuning> copy = new EnumMap<>(SpecialCookieRarity.class);
+            copy.putAll(rarities);
+            copy.put(Objects.requireNonNull(rarity, "rarity"), Objects.requireNonNull(tuning, "tuning"));
+            this.rarities = copy;
+            return this;
+        }
+
+        /** Current tuning of a rarity, e.g. to derive an override via {@link SpecialCookieTuning#toBuilder()}. */
+        public SpecialCookieTuning rarity(SpecialCookieRarity rarity) {
+            return rarities.get(Objects.requireNonNull(rarity, "rarity"));
+        }
 
         public CookieBalancing build() {
             return new CookieBalancing(costGrowth, comboStages, clicksPerComboStage, comboWindowMillis, comboDecayMillis,
-                    maxClicksPerSecond, offlineEnabled, offlineMaxSeconds, offlineEfficiency, goldenBaseIntervalSeconds,
-                    goldenLifetimeSeconds, goldenBuffSeconds, goldenClickFrenzySeconds, goldenFrenzyMultiplier,
-                    goldenClickFrenzyMultiplier, luckyBankFraction, luckyCpsSeconds, luckyFlatBonus,
-                    chainBonusBankFraction, goldenRewardWeights);
+                    maxClicksPerSecond, offlineEnabled, offlineMaxSeconds, offlineEfficiency, specialMinIntervalSeconds,
+                    specialMaxIntervalSeconds, specialFloorIntervalSeconds, specialLifetimeSeconds,
+                    specialClickClampCpsSeconds, rarities);
         }
     }
 }

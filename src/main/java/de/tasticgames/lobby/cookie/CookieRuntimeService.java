@@ -50,6 +50,12 @@ public final class CookieRuntimeService implements Service {
     private final java.util.List<Consumer<CookieSession>> tickListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
     private volatile java.util.function.Predicate<CookieSession> productionGate = session -> true;
     private volatile java.util.function.BiConsumer<CookieSession, Boolean> productionStateListener = (s, active) -> { };
+    private volatile CookieProgressListener progress = CookieProgressListener.NONE;
+
+    /** Consumer of prestige progress (season pass XP/metrics); {@link CookieProgressListener#NONE} by default. */
+    public void setProgressListener(CookieProgressListener listener) {
+        this.progress = Objects.requireNonNull(listener);
+    }
 
     /** Generators/passive production only run while the gate allows it (inside the cookie zone / open world). */
     public void setProductionGate(java.util.function.Predicate<CookieSession> gate) {
@@ -373,6 +379,7 @@ public final class CookieRuntimeService implements Service {
                 profile.markDirty();
                 save(session, true);
                 telemetry.event("cookie.prestige_completed", session.player(), Map.of("to", plan.toLevel(), "crumbs", plan.crumbsGained()));
+                progress.onPrestige(session.player(), plan.toLevel());
                 return new PrestigeResult(true, response.outcome(), plan);
             }
             if (response.duplicate()) {

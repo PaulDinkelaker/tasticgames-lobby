@@ -1,0 +1,42 @@
+# TasticPass – the season pass experience in the lobby. The season itself (100 tiers, quests,
+# rewards, premium entitlements) is owned by the TasticGames API; this file only configures how the
+# lobby reports progress and how the pass is presented. Everything degrades gracefully: with the pass
+# API unavailable the dialogs show "temporarily unavailable" and the rest of the lobby is unaffected.
+enabled: true
+
+# Service NPC that opens the pass overview (spawned by the lobby NPC service) and the pass dialogs.
+# Turning dialogs off leaves the XP reporting intact – useful while a season is being prepared.
+npc: true
+dialogs: true
+
+# Places shown in the leaderboard dialog (the API clamps to 1..100).
+leaderboard-size: 10
+
+# XP reported for Cookie Clicker progress. Values are batched locally and handed to TasticCore, which
+# batches again per player and source before it talks to the API – the API enforces the daily caps
+# (clicks 400, purchases 300, golden 200, zones 150 per UTC day), so generous rates here are safe.
+xp:
+  # seconds between two local flushes (clicks are accumulated, never sent per click)
+  flush-interval-seconds: 10
+  # cookies baked by hand: this many clicks earn 1 XP (leftover clicks are carried over)
+  clicks-per-xp: 25
+  # XP per generator/upgrade purchase (generators count per unit bought)
+  per-purchase: 2
+  # XP for a prestige – uncapped, this is the big season milestone
+  per-prestige: 500
+  # XP per golden cookie (activated automatically or clicked)
+  per-golden: 15
+  # XP for discovering a zone of the cookie open world
+  per-zone: 50
+  # Extra XP per cookie achievement. The API already grants the achievement's own XP reward
+  # (150 / 400) when it is unlocked, so this is an optional lobby-side bonus – 0 keeps it off.
+  per-achievement: 0
+  # XP for completing a cookie NPC quest
+  per-npc-quest: 100
+
+# Premium is an entitlement, never a payment form: the dialog explains what premium gives and where
+# to get it. store-url is shown as clickable text when it is set, info-key is the message key with
+# the instructions (both are localized through the message bundles).
+premium:
+  store-url: "https://tasticgames.de/store/pass"
+  info-key: "pass.premium.howto"

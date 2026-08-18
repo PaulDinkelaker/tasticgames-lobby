@@ -93,6 +93,7 @@ public final class CookieClickService implements Service, Listener {
     private final Map<UUID, Long> unavailableNoticeAt = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> lastClickTick = new ConcurrentHashMap<>();
     private volatile Consumer<Player> menuOpener = p -> { };
+    private volatile CookieProgressListener progress = CookieProgressListener.NONE;
     private volatile String backend = "none";
     private volatile UUID interactionId;
     private volatile UUID visualId;
@@ -178,6 +179,11 @@ public final class CookieClickService implements Service, Listener {
 
     public void setMenuOpener(Consumer<Player> opener) {
         this.menuOpener = Objects.requireNonNull(opener);
+    }
+
+    /** Consumer of the baking progress (season pass XP/metrics); {@link CookieProgressListener#NONE} by default. */
+    public void setProgressListener(CookieProgressListener listener) {
+        this.progress = Objects.requireNonNull(listener);
     }
 
     public NamespacedKey markerKey() {
@@ -611,11 +617,15 @@ public final class CookieClickService implements Service, Listener {
             return;
         }
         feedback(player, session, result);
+        progress.onClick(player.getUniqueId(), result.reward());
         List<String> unlocked = runtime.engine().evaluateAchievements(session.profile());
         for (String achievement : unlocked) {
             messages.send(player, "cookie.achievement.unlocked", Map.of("name", CookieNames.achievement(messages, runtime.engine(), player, achievement)));
             sounds.play(player, "minecraft:ui.toast.challenge_complete", 0.8f, 1.0f);
             telemetry.event("cookie.achievement_unlocked", player.getUniqueId(), Map.of("achievement", achievement));
+        }
+        if (!unlocked.isEmpty()) {
+            progress.onAchievementsUnlocked(player.getUniqueId(), unlocked);
         }
     }
 

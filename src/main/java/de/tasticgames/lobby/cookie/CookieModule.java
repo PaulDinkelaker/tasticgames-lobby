@@ -42,7 +42,7 @@ import java.util.logging.Logger;
 
 /**
  * Cookie Clicker module facade: wires the domain engine with the runtime services (main cookie in
- * the lobby, golden cookies, NPCs, prestige-10 open world, dialogs, admin) and exposes the
+ * the lobby, special cookies, NPCs, prestige-10 open world, dialogs, admin) and exposes the
  * integration points used by the lobby (item, command, placeholders, diagnostics). The layout
  * configuration lives in a shared holder so {@code /cookieadmin} edits apply without a restart.
  */
@@ -63,12 +63,13 @@ public final class CookieModule implements Service {
     private final Logger logger;
     private final CookieNumberFormatter formatter = new CookieNumberFormatter();
     private final AtomicReference<CookieConfiguration> configuration = new AtomicReference<>();
+    private final AtomicReference<CookieProgressListener> progress = new AtomicReference<>(CookieProgressListener.NONE);
 
     private CookieEngine engine;
     private CookieRuntimeService runtime;
     private CookieWorldService world;
     private CookieClickService clicks;
-    private GoldenCookieService golden;
+    private SpecialCookieService special;
     private CookieNpcService npcs;
     private CookieLeaderboardService leaderboards;
     private CookieDialogService dialogService;
@@ -112,7 +113,7 @@ public final class CookieModule implements Service {
         runtime = add(new CookieRuntimeService(plugin, api, configuration::get, engine, telemetry, mainThread, logger));
         world = add(new CookieWorldService(configuration::get, runtime, players, spawn, messages, sounds, telemetry, mainThread, logger));
         clicks = add(new CookieClickService(plugin, coreApi, configuration::get, runtime, integrations.mobs(), integrations.models(), messages, sounds, telemetry, mainThread, logger));
-        golden = add(new GoldenCookieService(plugin, coreApi, configuration::get, runtime, world, messages, sounds, telemetry, logger));
+        special = add(new SpecialCookieService(plugin, coreApi, configuration::get, runtime, world, messages, sounds, telemetry));
         npcs = add(new CookieNpcService(configuration::get, runtime, integrations.npcs(), integrations.models(), messages, sounds, telemetry, logger));
         leaderboards = add(new CookieLeaderboardService(api, Duration.ofSeconds(loaded.runtime().leaderboardCacheSeconds())));
         dialogService = new CookieDialogService(runtime, world, leaderboards, messages, dialogs, mainThread, sounds, telemetry, logger);
@@ -123,11 +124,11 @@ public final class CookieModule implements Service {
         for (Service service : services) {
             service.start();
         }
-        for (org.bukkit.event.Listener listener : List.of(world, clicks, golden, npcs)) {
+        for (org.bukkit.event.Listener listener : List.of(world, clicks, special, npcs)) {
             Bukkit.getPluginManager().registerEvents(listener, plugin);
             listeners.add(listener);
         }
-        world.onExit(player -> golden.remove(player.getUniqueId()));
+        world.onExit(player -> special.remove(player.getUniqueId()));
         runtime.addTickListener(clicks::tickActionbar);
         runtime.setProductionGate(session -> {
             Player player = Bukkit.getPlayer(session.player());
@@ -214,6 +215,20 @@ public final class CookieModule implements Service {
 
     // ------------------------------------------------------------------ integration points
 
+    /**
+     * Registers the consumer of the baking progress (today the season pass) on every cookie service.
+     * Must be called after {@link #start()}; the listener replaces a previously registered one.
+     */
+    public void setProgressListener(CookieProgressListener listener) {
+        progress.set(Objects.requireNonNull(listener));
+        clicks.setProgressListener(listener);
+        dialogService.setProgressListener(listener);
+        runtime.setProgressListener(listener);
+        special.setProgressListener(listener);
+        npcs.setProgressListener(listener);
+        world.setProgressListener(listener);
+    }
+
     public CookieConfiguration configuration() { return configuration.get(); }
     public CookieRuntimeService runtime() { return runtime; }
     public CookieWorldService world() { return world; }
@@ -269,12 +284,15 @@ public final class CookieModule implements Service {
                 if (!player.isOnline()) return;
                 List<String> unlocked = engine.evaluateAchievements(s.profile());
                 unlocked.forEach(a -> messages.send(player, "cookie.achievement.unlocked", Map.of("name", CookieNames.achievement(messages, engine, player, a))));
+                if (!unlocked.isEmpty()) {
+                    progress.get().onAchievementsUnlocked(player.getUniqueId(), unlocked);
+                }
             });
         });
     }
 
     public void onQuit(Player player) {
-        golden.remove(player.getUniqueId());
+        special.forget(player.getUniqueId());
         clicks.forget(player.getUniqueId());
         LobbyPlayer lobbyPlayer = players.find(player.getUniqueId()).orElse(null);
         if (lobbyPlayer != null) {
@@ -332,7 +350,8 @@ public final class CookieModule implements Service {
         status.put("Main cookie", (clicks.spawned() ? "spawned (" + clicks.backend() + ")" : "NOT SPAWNED") + " in " + config.mainCookie().world()
                 + " @ " + (int) config.mainCookie().location().x() + "," + (int) config.mainCookie().location().y() + "," + (int) config.mainCookie().location().z());
         status.put("Cookie NPCs", npcs.count() + "/" + config.npcs().list().size() + " via " + npcs.backend());
-        status.put("Golden cookies", golden.activeCount() + " active");
+        status.put("Special cookies", special.activeCount() + " spawned, every "
+                + config.balancing().specialMinIntervalSeconds() / 60 + "-" + config.balancing().specialMaxIntervalSeconds() / 60 + " min per player");
         status.put("Cookie open world", !config.openWorld().enabled() ? "disabled" : (world.worldReady() ? config.openWorld().name() + " ready" : "NOT AVAILABLE")
                 + ", prestige " + config.openWorld().requiredPrestige() + "+, " + config.zones().size() + " zones, " + config.pois().size() + " POIs"
                 + (config.legacyFile() ? " (LEGACY cookie-clicker.yml – delete to regenerate)" : ""));
@@ -344,7 +363,10 @@ public final class CookieModule implements Service {
                 "Cookie: loaded, prestige " + s.profile().prestigeLevel() + ", cookies " + formatter.format(s.profile().cookies()) + ", version " + s.profile().version()
                         + (s.profile().isDirty() ? " (dirty)" : "") + (s.paused() ? " PAUSED" : ""),
                 "Cookie buffs: " + s.profile().activeBuffs().size() + ", generators " + s.profile().totalGenerators()
-                        + ", open world " + (players.find(player.getUniqueId()).map(LobbyPlayer::inCookieWorld).orElse(false) ? "inside" : "outside")))
+                        + ", open world " + (players.find(player.getUniqueId()).map(LobbyPlayer::inCookieWorld).orElse(false) ? "inside" : "outside"),
+                "Cookie special: next in " + special.nextSpecialAt(player.getUniqueId())
+                        .map(at -> Math.max(0, Duration.between(java.time.Instant.now(), at).toMinutes()) + " min")
+                        .orElse("not scheduled") + ", " + CookieNames.specialChances(engine.rarityChances(s.profile()))))
                 .orElse(List.of("Cookie: not loaded"));
     }
 

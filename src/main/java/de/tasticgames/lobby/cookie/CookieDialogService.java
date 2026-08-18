@@ -18,6 +18,7 @@ import de.tasticgames.lobby.cookie.domain.model.OfflineResult;
 import de.tasticgames.lobby.cookie.domain.model.PrestigeCheck;
 import de.tasticgames.lobby.cookie.domain.model.PrestigePlan;
 import de.tasticgames.lobby.cookie.domain.model.PurchaseResult;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity;
 import de.tasticgames.lobby.cookie.domain.model.ZoneAccess;
 import de.tasticgames.lobby.dialog.DialogSupport;
 import de.tasticgames.lobby.locale.LobbyMessages;
@@ -61,6 +62,7 @@ public final class CookieDialogService {
     private final CookieNumberFormatter formatter = new CookieNumberFormatter();
     private final Map<UUID, BuyMode> buyModes = new ConcurrentHashMap<>();
     private final java.util.Set<UUID> prestiging = ConcurrentHashMap.newKeySet();
+    private volatile CookieProgressListener progress = CookieProgressListener.NONE;
 
     public CookieDialogService(CookieRuntimeService runtime, CookieWorldService world, CookieLeaderboardService leaderboards, LobbyMessages messages,
                                DialogSupport dialogs, MainThread mainThread, LobbySounds sounds, LobbyTelemetryService telemetry, Logger logger) {
@@ -73,6 +75,11 @@ public final class CookieDialogService {
         this.sounds = Objects.requireNonNull(sounds);
         this.telemetry = Objects.requireNonNull(telemetry);
         this.logger = Objects.requireNonNull(logger);
+    }
+
+    /** Consumer of shop progress (season pass XP/metrics); {@link CookieProgressListener#NONE} by default. */
+    public void setProgressListener(CookieProgressListener listener) {
+        this.progress = Objects.requireNonNull(listener);
     }
 
     private CookieEngine engine() {
@@ -230,12 +237,23 @@ public final class CookieDialogService {
             sounds.success(player);
             messages.send(player, "cookie.shop.bought", Map.of("count", result.count(), "name", generatorName(player, generator.id()), "cost", fmt(player, result.totalCost())));
             telemetry.event("cookie.generator_bought", player.getUniqueId(), Map.of("generator", generator.id(), "count", result.count(), "cost", result.totalCost().toPlainString()));
-            engine().evaluateAchievements(session.profile()).forEach(a -> messages.send(player, "cookie.achievement.unlocked", Map.of("name", world.achievementName(player, a))));
+            progress.onGeneratorsBought(player.getUniqueId(), generator.id(), result.count());
+            notifyAchievements(player, session);
         } else {
             sounds.error(player);
             messages.send(player, "cookie.shop.cannot_afford");
         }
         openShop(player);
+    }
+
+    /** Announces newly unlocked achievements and forwards them to the progress listener. */
+    private void notifyAchievements(Player player, CookieSession session) {
+        List<String> unlocked = engine().evaluateAchievements(session.profile());
+        if (unlocked.isEmpty()) {
+            return;
+        }
+        unlocked.forEach(a -> messages.send(player, "cookie.achievement.unlocked", Map.of("name", world.achievementName(player, a))));
+        progress.onAchievementsUnlocked(player.getUniqueId(), unlocked);
     }
 
     private static String modeKey(BuyMode mode) {
@@ -266,6 +284,8 @@ public final class CookieDialogService {
                         sounds.success(p);
                         messages.send(p, "cookie.upgrades.bought", Map.of("name", name));
                         telemetry.event("cookie.upgrade_bought", p.getUniqueId(), Map.of("upgrade", upgrade.id()));
+                        progress.onUpgradeBought(p.getUniqueId(), upgrade.id());
+                        notifyAchievements(p, session);
                     } else {
                         sounds.error(p);
                         messages.send(p, "cookie.shop.cannot_afford");
@@ -291,8 +311,9 @@ public final class CookieDialogService {
             case CLICK_POWER_ADD_CPS_PERCENT -> "click +" + trim(e.value()) + "% CPS";
             case GLOBAL_CPS_MULTIPLIER -> "CPS x" + trim(e.value());
             case GENERATOR_MULTIPLIER -> e.generatorId() + " x" + trim(e.value());
-            case GOLDEN_COOKIE_FREQUENCY -> "golden chance x" + trim(e.value());
-            case GOLDEN_COOKIE_VALUE -> "golden value x" + trim(e.value());
+            case GOLDEN_COOKIE_FREQUENCY -> "special chance x" + trim(e.value());
+            case GOLDEN_COOKIE_VALUE -> "special value x" + trim(e.value());
+            case SPECIAL_RARITY_WEIGHT -> e.rarity().displayName() + " weight x" + trim(e.value());
             case COMBO_DURATION -> "combo x" + trim(e.value());
             case OFFLINE_EFFICIENCY -> "offline +" + trim(e.value() * 100) + "%";
         };
@@ -342,6 +363,8 @@ public final class CookieDialogService {
         List<String> names = new ArrayList<>();
         if (plan.unlockedZoneId() != null) names.add(world.zoneName(player, plan.unlockedZoneId()));
         plan.unlockedGeneratorIds().forEach(g -> names.add(generatorName(player, g)));
+        SpecialCookieRarity.unlockedBetween(plan.fromLevel(), plan.toLevel())
+                .forEach(rarity -> names.add(rarity.displayName()));
         plan.rewardCosmeticIds().forEach(names::add);
         return names;
     }
@@ -372,6 +395,9 @@ public final class CookieDialogService {
                     return;
                 }
                 messages.send(p, "cookie.prestige.done", Map.of("level", result.plan().toLevel(), "multiplier", trim(result.plan().newMultiplier()), "crumbs", result.plan().crumbsGained()));
+                for (SpecialCookieRarity rarity : SpecialCookieRarity.unlockedBetween(result.plan().fromLevel(), result.plan().toLevel())) {
+                    messages.send(p, "cookie.special.unlocked", Map.of("rarity", messages.get(p, rarity.nameKey())));
+                }
                 sounds.play(p, "minecraft:ui.toast.challenge_complete", 1f, 1f);
                 openPrestige(p);
             }));
@@ -425,7 +451,8 @@ public final class CookieDialogService {
             body.add(line(lang, "Prestige", profile.prestigeLevel() + " (x" + trim(stats.prestigeMultiplier()) + ")"));
             body.add(line(lang, "Crumbs", profile.crumbs()));
             body.add(line(lang, "Clicks", profile.totalClicks()));
-            body.add(line(lang, "Golden cookies", profile.goldenCookiesClicked()));
+            body.add(line(lang, "Special cookies", profile.goldenCookiesClicked()));
+            body.add(line(lang, "Special chances", CookieNames.specialChances(engine().rarityChances(profile), messages, player)));
             body.add(line(lang, "Highest combo", profile.highestCombo()));
             body.add(line(lang, "Generators", profile.totalGenerators()));
             body.add(line(lang, "Achievements", profile.achievements().size() + "/" + engine().catalog().achievements().size()));

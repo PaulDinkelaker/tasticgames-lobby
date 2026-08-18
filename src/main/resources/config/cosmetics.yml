@@ -157,3 +157,194 @@ cosmetics:
     unlock-requirement-key: lobby.cosmetics.requirement.achievement_first_prestige
     render: "particle:FIREWORK;count:40"
     sort: 10
+  # ---- season 1 pass exclusives (granted by the premium pass only, never purchasable)
+  s1_frame_crumb:
+    category: PROFILE_FRAME
+    rarity: RARE
+    preview: ITEM_FRAME
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 110
+  s1_frame_icing:
+    category: PROFILE_FRAME
+    rarity: EPIC
+    preview: SNOW_BLOCK
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 111
+  s1_frame_crown:
+    category: PROFILE_FRAME
+    rarity: LEGENDARY
+    preview: GOLDEN_HELMET
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 112
+  s1_bg_bakery_dawn:
+    category: PROFILE_BACKGROUND
+    rarity: RARE
+    preview: ORANGE_STAINED_GLASS
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 110
+  s1_bg_sugar_storm:
+    category: PROFILE_BACKGROUND
+    rarity: EPIC
+    preview: POWDER_SNOW_BUCKET
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 111
+  s1_bg_crown_vault:
+    category: PROFILE_BACKGROUND
+    rarity: LEGENDARY
+    preview: GOLD_BLOCK
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 112
+  s1_title_crumb_collector:
+    category: TITLE
+    rarity: RARE
+    preview: NAME_TAG
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 110
+  s1_title_dough_master:
+    category: TITLE
+    rarity: EPIC
+    preview: WHEAT
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 111
+  s1_title_crown_baker:
+    category: TITLE
+    rarity: LEGENDARY
+    preview: CAKE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 112
+  s1_title_season_one:
+    category: TITLE
+    rarity: MYTHIC
+    preview: NETHER_STAR
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    sort: 113
+  s1_hat_chef_toque:
+    category: HAT
+    rarity: RARE
+    preview: WHITE_BANNER
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "material:WHITE_BANNER"
+    sort: 110
+  s1_hat_cookie_stack:
+    category: HAT
+    rarity: EPIC
+    preview: COOKIE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "material:COOKIE"
+    sort: 111
+  s1_hat_cookie_jar:
+    category: HAT
+    rarity: EPIC
+    preview: DECORATED_POT
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "material:DECORATED_POT"
+    sort: 112
+  s1_hat_whisk_helm:
+    category: HAT
+    rarity: LEGENDARY
+    preview: BRUSH
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "material:BRUSH"
+    sort: 113
+  s1_back_rolling_pin:
+    category: BACK_ITEM
+    rarity: RARE
+    preview: STICK
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "material:STICK"
+    sort: 110
+  s1_back_sugar_sack:
+    category: BACK_ITEM
+    rarity: EPIC
+    preview: SUGAR
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "material:SUGAR"
+    sort: 111
+  s1_aura_flour_dust:
+    category: AURA
+    rarity: RARE
+    preview: WHITE_DYE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "particle:DUST;count:6;color:FFFFFF"
+    sort: 110
+  s1_aura_caramel_glow:
+    category: AURA
+    rarity: EPIC
+    preview: HONEY_BLOCK
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "particle:DUST;count:8;color:C87F2A"
+    sort: 111
+  s1_aura_sugar_sparks:
+    category: AURA
+    rarity: EPIC
+    preview: GLOWSTONE_DUST
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "particle:ELECTRIC_SPARK;count:8"
+    sort: 112
+  s1_aura_royal_shine:
+    category: AURA
+    rarity: LEGENDARY
+    preview: GOLD_INGOT
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "particle:DUST;count:10;color:FFD82B"
+    sort: 113
+  s1_trail_crumbs:
+    category: TRAIL
+    rarity: RARE
+    preview: COCOA_BEANS
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "particle:DUST;count:4;color:8B5A2B"
+    sort: 110
+  s1_trail_choco_drip:
+    category: TRAIL
+    rarity: EPIC
+    preview: BROWN_DYE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "particle:DUST;count:5;color:5A3A1E"
+    sort: 111
+  s1_trail_icing_swirl:
+    category: TRAIL
+    rarity: EPIC
+    preview: SNOWBALL
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "particle:SNOWFLAKE;count:5"
+    sort: 112
+  s1_trail_golden_dust:
+    category: TRAIL
+    rarity: LEGENDARY
+    preview: GOLD_NUGGET
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "particle:DUST;count:6;color:FFD700"
+    sort: 113
+  s1_join_oven_burst:
+    category: JOIN_EFFECT
+    rarity: LEGENDARY
+    preview: BLAST_FURNACE
+    unlock: ADMIN
+    unlock-requirement-key: lobby.cosmetics.requirement.pass_premium_s1
+    render: "particle:FLAME;count:40"
+    sort: 110

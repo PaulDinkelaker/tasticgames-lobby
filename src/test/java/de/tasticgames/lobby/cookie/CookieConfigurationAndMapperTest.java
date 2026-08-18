@@ -4,6 +4,8 @@ import de.tasticgames.client.dto.lobby.CookieProfileResponse;
 import de.tasticgames.client.dto.lobby.CookieProfileSaveRequest;
 import de.tasticgames.lobby.cookie.domain.catalog.CookieCatalog;
 import de.tasticgames.lobby.cookie.domain.model.CookieProfile;
+import de.tasticgames.lobby.cookie.domain.model.GoldenRewardType;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +35,7 @@ class CookieConfigurationAndMapperTest {
         assertEquals(12.5, configuration.mainCookie().location().z(), 1e-9);
         assertEquals("fv_cookie_clicker", configuration.mainCookie().mythicMobsType());
         assertEquals("fv_cookie_clicker_hit", configuration.mainCookie().clickSkill());
-        assertEquals(1, configuration.mainCookie().goldenAreas().size());
+        assertEquals(1, configuration.mainCookie().specialAreas().size());
         assertTrue(!configuration.legacyFile());
         for (var zone : CookieCatalog.defaults().zones()) {
             assertTrue(configuration.zones().containsKey(zone.id()), "layout missing zone " + zone.id());
@@ -42,8 +44,8 @@ class CookieConfigurationAndMapperTest {
         assertTrue(configuration.npcs().list().containsKey("mama_bakewell"));
         assertTrue(configuration.npcs().list().containsKey("gustave"));
         assertTrue(configuration.npcs().list().values().stream().allMatch(n -> n.location().world().equals("spawn")));
-        assertTrue(configuration.mainCookie().goldenAuto(), "golden cookies activate directly by default");
-        assertTrue(configuration.openWorld().goldenAuto());
+        assertTrue(configuration.mainCookie().specialAuto(), "special cookies activate directly by default");
+        assertTrue(configuration.openWorld().specialAuto());
         assertEquals(CookieConfiguration.CURRENT_VERSION, yaml.getInt("config-version"));
         assertTrue(configuration.pois().containsKey("cookie.main_cookie"));
         assertEquals("spawn", configuration.pois().get("cookie.main_cookie").location().world());
@@ -51,6 +53,41 @@ class CookieConfigurationAndMapperTest {
         assertTrue(!configuration.balancing().offlineEnabled(), "offline production is disabled by default (generators only run inside the cookie zone)");
         assertEquals(8.0, configuration.mainCookie().zoneRadius(), 1e-9);
         assertTrue(configuration.npcs().list().values().stream().allMatch(n -> !n.skinValue().isBlank() && !n.skinSignature().isBlank()));
+        // special cookies: the bundled file carries the shipped balancing
+        assertEquals(900, configuration.balancing().specialMinIntervalSeconds());
+        assertEquals(7200, configuration.balancing().specialMaxIntervalSeconds());
+        assertEquals(300, configuration.balancing().specialFloorIntervalSeconds());
+        assertEquals(45, configuration.balancing().specialLifetimeSeconds());
+        assertEquals(60, configuration.balancing().specialClickClampCpsSeconds());
+        for (SpecialCookieRarity rarity : SpecialCookieRarity.values()) {
+            assertEquals(rarity.baseWeight(), configuration.balancing().tuning(rarity).weight(), 1e-9, rarity + " weight");
+        }
+        assertEquals(7777.0, configuration.balancing().tuning(SpecialCookieRarity.MASTER).clickFrenzyMultiplier(), 1e-9);
+        assertEquals(0, configuration.balancing().tuning(SpecialCookieRarity.SILVER).rewardWeight(GoldenRewardType.CHAIN_BONUS));
+        assertEquals(15, configuration.balancing().tuning(SpecialCookieRarity.DIAMOND).rewardWeight(GoldenRewardType.BLESSING));
+    }
+
+    @Test
+    void balancingOverridesApplyPerRarity() throws Exception {
+        YamlConfiguration bundled = YamlConfiguration.loadConfiguration(new InputStreamReader(
+                getClass().getClassLoader().getResourceAsStream("config/cookie-clicker.yml"), StandardCharsets.UTF_8));
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("config-version", CookieConfiguration.CURRENT_VERSION);
+        yaml.set("balancing.special.min-interval-seconds", 60);
+        yaml.set("balancing.special.max-interval-seconds", 120);
+        yaml.set("balancing.special.rarities.master.weight", 5.0);
+        yaml.set("balancing.special.rarities.master.frenzy.multiplier", 99.0);
+        yaml.setDefaults(bundled);
+        CookieConfiguration configuration = CookieConfiguration.load(yaml, "spawn");
+        assertEquals(60, configuration.balancing().specialMinIntervalSeconds());
+        assertEquals(120, configuration.balancing().specialMaxIntervalSeconds());
+        assertEquals(5.0, configuration.balancing().tuning(SpecialCookieRarity.MASTER).weight(), 1e-9);
+        assertEquals(99.0, configuration.balancing().tuning(SpecialCookieRarity.MASTER).frenzyMultiplier(), 1e-9);
+        assertEquals(3, configuration.balancing().tuning(SpecialCookieRarity.MASTER).clickFrenzySeconds(), "untouched values are kept");
+        assertEquals(60.0, configuration.balancing().tuning(SpecialCookieRarity.SILVER).weight(), 1e-9);
+
+        yaml.set("balancing.special.rarities.bronze.weight", 1.0);
+        assertThrows(IllegalArgumentException.class, () -> CookieConfiguration.load(yaml, "spawn"));
     }
 
     @Test
@@ -67,6 +104,7 @@ class CookieConfigurationAndMapperTest {
         v2.setDefaults(bundled);
         List<String> changes = CookieConfiguration.migrate(v2);
         assertEquals(3, changes.size(), changes.toString());
+        assertEquals(4, CookieConfiguration.CURRENT_VERSION);
         assertEquals(CookieConfiguration.CURRENT_VERSION, v2.getInt("config-version"));
         assertTrue(!v2.isConfigurationSection("npcs.list.babette"));
         assertTrue(!v2.isConfigurationSection("npcs.list.king_frosting"));
@@ -82,17 +120,70 @@ class CookieConfigurationAndMapperTest {
     }
 
     @Test
-    void goldenModeIsValidated() {
+    void migrationRenamesTheGoldenSectionsAndBalancing() throws Exception {
+        YamlConfiguration bundled = YamlConfiguration.loadConfiguration(new InputStreamReader(
+                getClass().getClassLoader().getResourceAsStream("config/cookie-clicker.yml"), StandardCharsets.UTF_8));
+        YamlConfiguration v3 = new YamlConfiguration();
+        v3.set("config-version", 3);
+        v3.set("main-cookie.location.x", -1.5);
+        v3.set("main-cookie.golden-cookies.enabled", true);
+        v3.set("main-cookie.golden-cookies.mode", "spawn");
+        v3.set("main-cookie.golden-cookies.areas.bakery_plaza.min.x", -82);
+        v3.set("main-cookie.golden-cookies.areas.bakery_plaza.max.x", -42);
+        v3.set("open-world.golden-cookies.mode", "auto");
+        v3.set("balancing.golden.base-interval-seconds", 300);
+        v3.set("balancing.golden.lifetime-seconds", 20);
+        v3.set("balancing.golden.buff-seconds", 45);
+        v3.setDefaults(bundled);
+
+        List<String> changes = CookieConfiguration.migrate(v3);
+        assertEquals(4, changes.size(), changes.toString());
+        assertEquals(CookieConfiguration.CURRENT_VERSION, v3.getInt("config-version"));
+        assertTrue(!v3.isConfigurationSection("main-cookie.golden-cookies"));
+        assertEquals("spawn", v3.getString("main-cookie.special-cookies.mode"), "own settings survive the rename");
+        assertEquals(-82, v3.getInt("main-cookie.special-cookies.areas.bakery_plaza.min.x"), "areas survive the rename");
+        assertEquals("auto", v3.getString("open-world.special-cookies.mode"));
+        assertEquals(20, v3.getInt("balancing.special.lifetime-seconds"), "the spawn lifetime is carried over");
+        assertEquals(45, v3.getInt("balancing.special.rarities.golden.frenzy.seconds"), "the golden buff duration is carried over");
+        assertTrue(!v3.isSet("balancing.golden.base-interval-seconds"), "the per-second interval has no successor");
+        assertTrue(CookieConfiguration.migrate(v3).isEmpty(), "migration is idempotent");
+
+        CookieConfiguration configuration = CookieConfiguration.load(v3, "spawn");
+        assertTrue(!configuration.mainCookie().specialAuto());
+        assertEquals(1, configuration.mainCookie().specialAreas().size());
+        assertEquals(20, configuration.balancing().specialLifetimeSeconds());
+        assertEquals(45, configuration.balancing().tuning(SpecialCookieRarity.GOLDEN).frenzySeconds());
+        assertEquals(900, configuration.balancing().specialMinIntervalSeconds(), "the new interval defaults apply");
+    }
+
+    @Test
+    void unmigratedGoldenKeysStillWork() throws Exception {
+        YamlConfiguration bundled = YamlConfiguration.loadConfiguration(new InputStreamReader(
+                getClass().getClassLoader().getResourceAsStream("config/cookie-clicker.yml"), StandardCharsets.UTF_8));
+        YamlConfiguration v3 = new YamlConfiguration();
+        v3.set("config-version", 3);
+        v3.set("main-cookie.golden-cookies.mode", "spawn");
+        v3.set("main-cookie.golden-cookies.enabled", false);
+        v3.set("balancing.golden.lifetime-seconds", 25);
+        v3.setDefaults(bundled);
+        CookieConfiguration configuration = CookieConfiguration.load(v3, "spawn");
+        assertTrue(!configuration.mainCookie().specialAuto(), "golden-cookies.mode is still read");
+        assertTrue(!configuration.mainCookie().specialEnabled());
+        assertEquals(25, configuration.balancing().specialLifetimeSeconds(), "balancing.golden is still read");
+    }
+
+    @Test
+    void specialModeIsValidated() {
         YamlConfiguration bundled = YamlConfiguration.loadConfiguration(new InputStreamReader(
                 getClass().getClassLoader().getResourceAsStream("config/cookie-clicker.yml"), StandardCharsets.UTF_8));
         YamlConfiguration yaml = new YamlConfiguration();
-        yaml.set("config-version", 3);
-        yaml.set("main-cookie.golden-cookies.mode", "spawn");
+        yaml.set("config-version", CookieConfiguration.CURRENT_VERSION);
+        yaml.set("main-cookie.special-cookies.mode", "spawn");
         yaml.setDefaults(bundled);
         CookieConfiguration configuration = CookieConfiguration.load(yaml, "spawn");
-        assertTrue(!configuration.mainCookie().goldenAuto());
-        assertTrue(configuration.openWorld().goldenAuto());
-        yaml.set("main-cookie.golden-cookies.mode", "sometimes");
+        assertTrue(!configuration.mainCookie().specialAuto());
+        assertTrue(configuration.openWorld().specialAuto());
+        yaml.set("main-cookie.special-cookies.mode", "sometimes");
         assertThrows(IllegalArgumentException.class, () -> CookieConfiguration.load(yaml, "spawn"));
     }
 

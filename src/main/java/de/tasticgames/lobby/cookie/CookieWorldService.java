@@ -51,6 +51,7 @@ public final class CookieWorldService implements Service, Listener {
     private final List<Consumer<Player>> enterHooks = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final List<Consumer<Player>> exitHooks = new java.util.concurrent.CopyOnWriteArrayList<>();
     private volatile boolean worldReady;
+    private volatile CookieProgressListener progress = CookieProgressListener.NONE;
 
     public CookieWorldService(java.util.function.Supplier<CookieConfiguration> configuration, CookieRuntimeService runtime, LobbyPlayerService players, LobbySpawnService spawn,
                               LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry, MainThread mainThread, Logger logger) {
@@ -63,6 +64,11 @@ public final class CookieWorldService implements Service, Listener {
         this.telemetry = Objects.requireNonNull(telemetry);
         this.mainThread = Objects.requireNonNull(mainThread);
         this.logger = Objects.requireNonNull(logger);
+    }
+
+    /** Consumer of zone discoveries (season pass XP/metrics); {@link CookieProgressListener#NONE} by default. */
+    public void setProgressListener(CookieProgressListener listener) {
+        this.progress = Objects.requireNonNull(listener);
     }
 
     @Override
@@ -333,8 +339,12 @@ public final class CookieWorldService implements Service, Listener {
                 messages.send(player, "cookie.world.zone_discovered", Map.of("zone", name));
                 sounds.play(player, "minecraft:ui.toast.challenge_complete", 0.8f, 1.2f);
                 telemetry.event("cookie.zone_discovered", player.getUniqueId(), Map.of("zone", zoneId));
+                progress.onZoneDiscovered(player.getUniqueId(), zoneId);
                 List<String> unlocked = runtime.engine().evaluateAchievements(session.profile());
                 unlocked.forEach(a -> messages.send(player, "cookie.achievement.unlocked", Map.of("name", achievementName(player, a))));
+                if (!unlocked.isEmpty()) {
+                    progress.onAchievementsUnlocked(player.getUniqueId(), unlocked);
+                }
             }
             player.showTitle(Title.title(messages.get(player, "cookie.world.zone_title", Map.of("zone", name)), net.kyori.adventure.text.Component.empty(),
                     Title.Times.times(Duration.ofMillis(300), Duration.ofMillis(1500), Duration.ofMillis(500))));

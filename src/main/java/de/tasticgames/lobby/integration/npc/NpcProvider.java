@@ -27,9 +27,18 @@ public interface NpcProvider extends Integration {
      * @param model         optional ModelEngine model id (bound by the caller via ModelProvider once the models are registered)
      * @param externalId    optional id of an NPC created by an admin in the backend (Citizens id); when
      *                      present the NPC is linked instead of created and never destroyed by us
+     * @param mirrorSkin    every player sees their own skin (PLAYER type); wins over the skin fields
+     * @param lookClose     whether the NPC turns towards nearby players
      */
     record NpcSpec(String id, Component displayName, Location location, EntityType entityType, String skin, String skinValue, String skinSignature,
-                   String model, OptionalInt externalId) {
+                   String model, OptionalInt externalId, boolean mirrorSkin, boolean lookClose) {
+
+        /** Spec with a fixed skin and look-close enabled. */
+        public NpcSpec(String id, Component displayName, Location location, EntityType entityType, String skin, String skinValue, String skinSignature,
+                       String model, OptionalInt externalId) {
+            this(id, displayName, location, entityType, skin, skinValue, skinSignature, model, externalId, false, true);
+        }
+
         public boolean hasSkinData() {
             return skinValue != null && !skinValue.isBlank() && skinSignature != null && !skinSignature.isBlank();
         }

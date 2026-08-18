@@ -2,6 +2,9 @@ package de.tasticgames.lobby.cookie;
 
 import de.tasticgames.lobby.config.LobbyConfiguration;
 import de.tasticgames.lobby.cookie.domain.catalog.CookieBalancing;
+import de.tasticgames.lobby.cookie.domain.catalog.SpecialCookieTuning;
+import de.tasticgames.lobby.cookie.domain.model.GoldenRewardType;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
@@ -11,16 +14,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
- * cookie-clicker.yml (config-version 3): main cookie in the lobby world, quest NPCs, the
+ * cookie-clicker.yml (config-version 4): main cookie in the lobby world, quest NPCs, the
  * prestige-10 open world with zones/POIs, runtime and balancing. Layout is data – builders
  * replace coordinates without code changes. Files are migrated in place ({@link #migrate}):
- * version 3 removed the NPCs {@code babette} and {@code king_frosting}.
+ * version 3 removed the NPCs {@code babette} and {@code king_frosting}, version 4 renamed the
+ * {@code golden-cookies} sections to {@code special-cookies} and replaced
+ * {@code balancing.golden} with {@code balancing.special} (rarities instead of one golden cookie).
  */
 public record CookieConfiguration(
         MainCookie mainCookie,
@@ -33,13 +36,16 @@ public record CookieConfiguration(
         boolean legacyFile
 ) {
 
-    public static final int CURRENT_VERSION = 3;
+    public static final int CURRENT_VERSION = 4;
     /** First version with the current layout (main cookie in the lobby); older files are replaced by the bundled defaults. */
     public static final int LAYOUT_VERSION = 2;
     /** NPC ids removed with config-version 3 (only the baker and the merchant remain). */
     public static final List<String> REMOVED_NPCS_V3 = List.of("babette", "king_frosting");
-    public static final String GOLDEN_MODE_AUTO = "auto";
-    public static final String GOLDEN_MODE_SPAWN = "spawn";
+    /** Section renamed to {@link #SPECIAL_SECTION} with config-version 4; still read as a fallback. */
+    public static final String GOLDEN_SECTION = "golden-cookies";
+    public static final String SPECIAL_SECTION = "special-cookies";
+    public static final String MODE_AUTO = "auto";
+    public static final String MODE_SPAWN = "spawn";
 
     public CookieConfiguration {
         Objects.requireNonNull(mainCookie);
@@ -71,20 +77,20 @@ public record CookieConfiguration(
      * @param clickSkill       MythicMobs skill cast on the mob for every bake click (hit animation), empty = none
      * @param model            ModelEngine model id used when MythicMobs is not available (empty = skip)
      * @param zoneRadius       cookie zone radius: generators produce and the actionbar shows only inside it
-     * @param goldenAreas      golden cookies only trigger inside these regions (empty = anywhere in the cookie's world)
-     * @param goldenMode       {@code auto} = the golden cookie activates for the player directly, {@code spawn} = it appears
+     * @param specialAreas     special cookies only trigger inside these regions (empty = anywhere in the cookie's world)
+     * @param specialMode      {@code auto} = the special cookie activates for the player directly, {@code spawn} = it appears
      *                         nearby in the world and has to be clicked
      */
     public record MainCookie(Point location, String mythicMobsType, String clickSkill, String model, double hitboxWidth, double hitboxHeight, boolean label,
-                             double zoneRadius, long actionbarIntervalMillis, boolean goldenEnabled, int goldenMaxPerPlayer,
-                             List<LobbyConfiguration.Region> goldenAreas, String goldenMode) {
+                             double zoneRadius, long actionbarIntervalMillis, boolean specialEnabled,
+                             List<LobbyConfiguration.Region> specialAreas, String specialMode) {
         public MainCookie {
             Objects.requireNonNull(location);
             mythicMobsType = mythicMobsType == null ? "" : mythicMobsType.trim();
             clickSkill = clickSkill == null ? "" : clickSkill.trim();
             model = model == null ? "" : model.trim();
-            goldenAreas = goldenAreas == null ? List.of() : List.copyOf(goldenAreas);
-            goldenMode = normalizeGoldenMode(goldenMode);
+            specialAreas = specialAreas == null ? List.of() : List.copyOf(specialAreas);
+            specialMode = normalizeMode(specialMode);
             if (hitboxWidth <= 0 || hitboxHeight <= 0) {
                 throw new IllegalArgumentException("main-cookie.hitbox must be positive");
             }
@@ -92,15 +98,14 @@ public record CookieConfiguration(
                 throw new IllegalArgumentException("main-cookie.zone-radius must be positive");
             }
             actionbarIntervalMillis = Math.max(250, actionbarIntervalMillis);
-            goldenMaxPerPlayer = Math.max(1, goldenMaxPerPlayer);
         }
 
         public String world() {
             return location.world();
         }
 
-        public boolean goldenAuto() {
-            return GOLDEN_MODE_AUTO.equals(goldenMode);
+        public boolean specialAuto() {
+            return MODE_AUTO.equals(specialMode);
         }
 
         /** Whether the location lies inside the cookie zone (same world, within zoneRadius). */
@@ -144,34 +149,34 @@ public record CookieConfiguration(
 
     /**
      * @param requiredPrestige minimum prestige level to enter the open world
-     * @param goldenAreas      golden cookie areas inside the open world (empty = anywhere)
-     * @param goldenMode       {@code auto} (activates directly) or {@code spawn} (appears in the world)
+     * @param specialAreas     special cookie areas inside the open world (empty = anywhere)
+     * @param specialMode      {@code auto} (activates directly) or {@code spawn} (appears in the world)
      */
     public record OpenWorld(boolean enabled, String name, boolean createIfMissing, int requiredPrestige, Point entry,
-                            boolean goldenEnabled, List<LobbyConfiguration.Region> goldenAreas, String goldenMode) {
+                            boolean specialEnabled, List<LobbyConfiguration.Region> specialAreas, String specialMode) {
         public OpenWorld {
             Objects.requireNonNull(name);
             Objects.requireNonNull(entry);
-            goldenAreas = goldenAreas == null ? List.of() : List.copyOf(goldenAreas);
-            goldenMode = normalizeGoldenMode(goldenMode);
+            specialAreas = specialAreas == null ? List.of() : List.copyOf(specialAreas);
+            specialMode = normalizeMode(specialMode);
             if (name.isBlank()) {
                 throw new IllegalArgumentException("open-world.world must not be blank");
             }
             requiredPrestige = Math.max(0, requiredPrestige);
         }
 
-        public boolean goldenAuto() {
-            return GOLDEN_MODE_AUTO.equals(goldenMode);
+        public boolean specialAuto() {
+            return MODE_AUTO.equals(specialMode);
         }
     }
 
-    static String normalizeGoldenMode(String value) {
-        String mode = value == null ? GOLDEN_MODE_AUTO : value.trim().toLowerCase(Locale.ROOT);
+    static String normalizeMode(String value) {
+        String mode = value == null ? MODE_AUTO : value.trim().toLowerCase(Locale.ROOT);
         if (mode.isEmpty()) {
-            return GOLDEN_MODE_AUTO;
+            return MODE_AUTO;
         }
-        if (!mode.equals(GOLDEN_MODE_AUTO) && !mode.equals(GOLDEN_MODE_SPAWN)) {
-            throw new IllegalArgumentException("cookie-clicker.yml: golden-cookies.mode must be 'auto' or 'spawn', got '" + value + "'");
+        if (!mode.equals(MODE_AUTO) && !mode.equals(MODE_SPAWN)) {
+            throw new IllegalArgumentException("cookie-clicker.yml: " + SPECIAL_SECTION + ".mode must be 'auto' or 'spawn', got '" + value + "'");
         }
         return mode;
     }
@@ -196,9 +201,45 @@ public record CookieConfiguration(
                 }
             }
         }
+        if (version < 4) {
+            for (String parent : List.of("main-cookie", "open-world")) {
+                if (moveSection(yaml, parent + "." + GOLDEN_SECTION, parent + "." + SPECIAL_SECTION)) {
+                    changes.add("renamed " + parent + "." + GOLDEN_SECTION + " -> " + SPECIAL_SECTION);
+                }
+            }
+            if (yaml.isSet("balancing.golden.lifetime-seconds")) {
+                yaml.set("balancing.special.lifetime-seconds", yaml.getInt("balancing.golden.lifetime-seconds"));
+            }
+            if (yaml.isSet("balancing.golden.buff-seconds")) {
+                // the single golden buff duration becomes the GOLDEN rarity's frenzy duration
+                yaml.set("balancing.special.rarities.golden.frenzy.seconds", yaml.getInt("balancing.golden.buff-seconds"));
+            }
+            if (yaml.isSet("balancing.golden")) {
+                yaml.set("balancing.golden", null);
+                // base-interval-seconds has no successor: the wait is now drawn from min/max/floor-interval-seconds
+                changes.add("replaced balancing.golden with balancing.special (base-interval-seconds dropped, "
+                        + "the wait is now drawn from min/max/floor-interval-seconds)");
+            }
+        }
         yaml.set("config-version", CURRENT_VERSION);
         changes.add("config-version " + version + " -> " + CURRENT_VERSION);
         return changes;
+    }
+
+    /** Moves every value of {@code from} under {@code to} and deletes the old section. Returns whether anything moved. */
+    private static boolean moveSection(YamlConfiguration yaml, String from, String to) {
+        ConfigurationSection section = yaml.getConfigurationSection(from);
+        if (section == null) {
+            return false;
+        }
+        for (String key : section.getKeys(true)) {
+            Object value = section.get(key);
+            if (!(value instanceof ConfigurationSection)) {
+                yaml.set(to + "." + key, value);
+            }
+        }
+        yaml.set(from, null);
+        return true;
     }
 
     public record Zone(String id, LobbyConfiguration.Region region, Point entry, Point gateReturn) {
@@ -248,14 +289,14 @@ public record CookieConfiguration(
         ConfigurationSection mainSection = req(source, "main-cookie");
         String mainWorld = mainSection.getString("world", lobbyWorldName);
         Point mainLocation = point(req(mainSection, "location"), mainWorld);
-        ConfigurationSection goldenMain = mainSection.getConfigurationSection("golden-cookies");
+        ConfigurationSection specialMain = specialSection(mainSection);
         MainCookie mainCookie = new MainCookie(mainLocation,
                 mainSection.getString("mythicmobs-type", ""), mainSection.getString("click-skill", ""), mainSection.getString("model", ""),
                 mainSection.getDouble("hitbox.width", 2.2), mainSection.getDouble("hitbox.height", 2.4), mainSection.getBoolean("label", false),
                 mainSection.getDouble("zone-radius", 8.0), mainSection.getLong("actionbar.interval-millis", 1000),
-                goldenMain == null || goldenMain.getBoolean("enabled", true), goldenMain == null ? 1 : goldenMain.getInt("max-per-player", 1),
-                regions(goldenMain == null ? null : goldenMain.getConfigurationSection("areas"), mainWorld),
-                goldenMain == null ? GOLDEN_MODE_AUTO : goldenMain.getString("mode", GOLDEN_MODE_AUTO));
+                specialMain == null || specialMain.getBoolean("enabled", true),
+                regions(specialMain == null ? null : specialMain.getConfigurationSection("areas"), mainWorld),
+                specialMain == null ? MODE_AUTO : specialMain.getString("mode", MODE_AUTO));
 
         Map<String, Npc> npcMap = new LinkedHashMap<>();
         ConfigurationSection npcRoot = source.getConfigurationSection("npcs");
@@ -279,12 +320,12 @@ public record CookieConfiguration(
 
         ConfigurationSection openSection = req(source, "open-world");
         String openWorldName = openSection.getString("world", "cookie");
-        ConfigurationSection goldenOpen = openSection.getConfigurationSection("golden-cookies");
+        ConfigurationSection specialOpen = specialSection(openSection);
         OpenWorld openWorld = new OpenWorld(openSection.getBoolean("enabled", true), openWorldName, openSection.getBoolean("create-if-missing", true),
                 openSection.getInt("required-prestige", 10), point(req(openSection, "entry"), openWorldName),
-                goldenOpen == null || goldenOpen.getBoolean("enabled", true),
-                regions(goldenOpen == null ? null : goldenOpen.getConfigurationSection("areas"), openWorldName),
-                goldenOpen == null ? GOLDEN_MODE_AUTO : goldenOpen.getString("mode", GOLDEN_MODE_AUTO));
+                specialOpen == null || specialOpen.getBoolean("enabled", true),
+                regions(specialOpen == null ? null : specialOpen.getConfigurationSection("areas"), openWorldName),
+                specialOpen == null ? MODE_AUTO : specialOpen.getString("mode", MODE_AUTO));
 
         Map<String, Zone> zones = new LinkedHashMap<>();
         ConfigurationSection zoneSection = source.getConfigurationSection("zones");
@@ -331,11 +372,90 @@ public record CookieConfiguration(
             if (bal.contains("offline.enabled")) b.offlineEnabled(bal.getBoolean("offline.enabled"));
             if (bal.contains("offline.max-seconds")) b.offlineMaxSeconds(bal.getLong("offline.max-seconds"));
             if (bal.contains("offline.efficiency")) b.offlineEfficiency(bal.getDouble("offline.efficiency"));
-            if (bal.contains("golden.base-interval-seconds")) b.goldenBaseIntervalSeconds(bal.getDouble("golden.base-interval-seconds"));
-            if (bal.contains("golden.lifetime-seconds")) b.goldenLifetimeSeconds(bal.getInt("golden.lifetime-seconds"));
-            if (bal.contains("golden.buff-seconds")) b.goldenBuffSeconds(bal.getInt("golden.buff-seconds"));
+            special(b, bal);
         }
         return new CookieConfiguration(mainCookie, npcs, openWorld, zones, pois, runtime, b.build(), legacy);
+    }
+
+    /**
+     * {@code special-cookies} of a layout section, falling back to the pre-4 {@code golden-cookies}
+     * of a file that was not migrated yet. Empty sections are ignored: asking for a section the
+     * bundled defaults define materializes an empty one, which would hide the file's own settings.
+     */
+    private static ConfigurationSection specialSection(ConfigurationSection parent) {
+        ConfigurationSection section = parent.getConfigurationSection(SPECIAL_SECTION);
+        if (section != null && !section.getKeys(false).isEmpty()) {
+            return section;
+        }
+        ConfigurationSection legacy = parent.getConfigurationSection(GOLDEN_SECTION);
+        if (legacy != null && !legacy.getKeys(false).isEmpty()) {
+            return legacy;
+        }
+        return section != null ? section : legacy;
+    }
+
+    /** Applies {@code balancing.special} (intervals, spawn lifetime and the per-rarity tuning). */
+    private static void special(CookieBalancing.Builder b, ConfigurationSection bal) {
+        ConfigurationSection special = bal.getConfigurationSection("special");
+        if (special == null || special.getKeys(false).isEmpty()) {
+            ConfigurationSection legacy = bal.getConfigurationSection("golden"); // pre-4, not migrated yet
+            if (legacy != null && !legacy.getKeys(false).isEmpty()) special = legacy;
+        }
+        if (special == null) {
+            return;
+        }
+        if (special.contains("min-interval-seconds")) b.specialMinIntervalSeconds(special.getLong("min-interval-seconds"));
+        if (special.contains("max-interval-seconds")) b.specialMaxIntervalSeconds(special.getLong("max-interval-seconds"));
+        if (special.contains("floor-interval-seconds")) b.specialFloorIntervalSeconds(special.getLong("floor-interval-seconds"));
+        if (special.contains("lifetime-seconds")) b.specialLifetimeSeconds(special.getInt("lifetime-seconds"));
+        if (special.contains("click-clamp-cps-seconds")) b.specialClickClampCpsSeconds(special.getLong("click-clamp-cps-seconds"));
+        ConfigurationSection rarities = special.getConfigurationSection("rarities");
+        if (rarities == null) {
+            return;
+        }
+        for (String key : rarities.getKeys(false)) {
+            ConfigurationSection r = rarities.getConfigurationSection(key);
+            if (r == null) continue;
+            SpecialCookieRarity rarity = rarity(key);
+            b.rarity(rarity, tuning(b.rarity(rarity).toBuilder(), r).build());
+        }
+    }
+
+    private static SpecialCookieRarity rarity(String key) {
+        try {
+            return SpecialCookieRarity.valueOf(key.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("cookie-clicker.yml: unknown special cookie rarity '" + key + "'");
+        }
+    }
+
+    private static SpecialCookieTuning.Builder tuning(SpecialCookieTuning.Builder t, ConfigurationSection r) {
+        if (r.contains("weight")) t.weight(r.getDouble("weight"));
+        ConfigurationSection weights = r.getConfigurationSection("reward-weights");
+        if (weights != null && !weights.getKeys(false).isEmpty()) {
+            Map<GoldenRewardType, Integer> map = new LinkedHashMap<>();
+            for (String type : weights.getKeys(false)) {
+                try {
+                    map.put(GoldenRewardType.valueOf(type.trim().toUpperCase(Locale.ROOT)), weights.getInt(type));
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("cookie-clicker.yml: unknown special cookie reward type '" + type + "'");
+                }
+            }
+            t.rewardWeights(map);
+        }
+        if (r.contains("lucky.bank-fraction")) t.luckyBankFraction(r.getDouble("lucky.bank-fraction"));
+        if (r.contains("lucky.cps-seconds")) t.luckyCpsSeconds(r.getLong("lucky.cps-seconds"));
+        if (r.contains("lucky.flat-bonus")) t.luckyFlatBonus(r.getLong("lucky.flat-bonus"));
+        if (r.contains("chain.bank-fraction")) t.chainBankFraction(r.getDouble("chain.bank-fraction"));
+        if (r.contains("chain.cps-seconds")) t.chainCpsSeconds(r.getLong("chain.cps-seconds"));
+        if (r.contains("frenzy.multiplier")) t.frenzyMultiplier(r.getDouble("frenzy.multiplier"));
+        if (r.contains("frenzy.seconds")) t.frenzySeconds(r.getInt("frenzy.seconds"));
+        if (r.contains("click-frenzy.multiplier")) t.clickFrenzyMultiplier(r.getDouble("click-frenzy.multiplier"));
+        if (r.contains("click-frenzy.seconds")) t.clickFrenzySeconds(r.getInt("click-frenzy.seconds"));
+        if (r.contains("blessing.cps-multiplier")) t.blessingCpsMultiplier(r.getDouble("blessing.cps-multiplier"));
+        if (r.contains("blessing.click-multiplier")) t.blessingClickMultiplier(r.getDouble("blessing.click-multiplier"));
+        if (r.contains("blessing.seconds")) t.blessingSeconds(r.getInt("blessing.seconds"));
+        return t;
     }
 
     private static EntityType entityType(String name, String npcId) {

@@ -45,6 +45,7 @@ public final class CookieNpcService implements Service, Listener {
     private final Logger logger;
     private final Map<String, NpcProvider.NpcHandle> handles = new LinkedHashMap<>();
     private final java.util.Set<String> pendingWorlds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private volatile CookieProgressListener progress = CookieProgressListener.NONE;
 
     public CookieNpcService(Supplier<CookieConfiguration> configuration, CookieRuntimeService runtime, NpcProvider npcs, ModelProvider models,
                             LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry, Logger logger) {
@@ -56,6 +57,11 @@ public final class CookieNpcService implements Service, Listener {
         this.sounds = Objects.requireNonNull(sounds);
         this.telemetry = Objects.requireNonNull(telemetry);
         this.logger = Objects.requireNonNull(logger);
+    }
+
+    /** Consumer of NPC quest progress (season pass XP/metrics); {@link CookieProgressListener#NONE} by default. */
+    public void setProgressListener(CookieProgressListener listener) {
+        this.progress = Objects.requireNonNull(listener);
     }
 
     @Override
@@ -234,7 +240,11 @@ public final class CookieNpcService implements Service, Listener {
         messages.send(player, "cookie.npc.quest.done", Map.of("reward", crumbs + " crumbs"));
         sounds.play(player, "minecraft:entity.villager.celebrate", 1f, 1f);
         telemetry.event("cookie.quest_completed", player.getUniqueId(), Map.of("quest", quest, "npc", npcId));
+        progress.onNpcQuestCompleted(player.getUniqueId(), quest);
         List<String> unlocked = runtime.engine().evaluateAchievements(profile);
         unlocked.forEach(a -> messages.send(player, "cookie.achievement.unlocked", Map.of("name", CookieNames.achievement(messages, runtime.engine(), player, a))));
+        if (!unlocked.isEmpty()) {
+            progress.onAchievementsUnlocked(player.getUniqueId(), unlocked);
+        }
     }
 }

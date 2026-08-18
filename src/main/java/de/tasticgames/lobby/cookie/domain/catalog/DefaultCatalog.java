@@ -2,6 +2,7 @@ package de.tasticgames.lobby.cookie.domain.catalog;
 
 import de.tasticgames.lobby.cookie.domain.catalog.AchievementCondition.Type;
 import de.tasticgames.lobby.cookie.domain.model.CookieAmount;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -73,6 +74,17 @@ public final class DefaultCatalog {
         // Utility upgrades
         list.add(UpgradeDefinition.of("golden_luck", 500_000L, UpgradeEffect.goldenFrequency(1.5)));
         list.add(UpgradeDefinition.of("golden_glow", 5_000_000L, UpgradeEffect.goldenValue(2)));
+
+        // Special cookie rarity upgrades: one per rarity, unlocked with the rarity itself
+        list.add(UpgradeDefinition.of("refined_sugar", 100_000L,
+                UpgradeEffect.rarityWeight(SpecialCookieRarity.GOLDEN, 1.5)).unlockedAtPrestige(1));
+        list.add(UpgradeDefinition.of("platinum_press", 100_000_000L,
+                UpgradeEffect.rarityWeight(SpecialCookieRarity.PLATINUM, 1.5)).unlockedAtPrestige(2));
+        list.add(UpgradeDefinition.of("diamond_cutter", "1e14",
+                UpgradeEffect.rarityWeight(SpecialCookieRarity.DIAMOND, 1.5)).unlockedAtPrestige(4));
+        list.add(UpgradeDefinition.of("master_recipe_book", "1e25",
+                UpgradeEffect.rarityWeight(SpecialCookieRarity.MASTER, 2.0)).unlockedAtPrestige(7));
+
         list.add(UpgradeDefinition.of("sugar_rush", 50_000L, UpgradeEffect.comboDuration(1.5)));
         list.add(UpgradeDefinition.of("night_shift", 250_000L, UpgradeEffect.offlineEfficiency(0.25)));
         list.add(UpgradeDefinition.of("kitchen_synergy", 1_000_000L, UpgradeEffect.globalCps(1.1)).requiring("baker", 10));
@@ -121,6 +133,7 @@ public final class DefaultCatalog {
                 PrestigeTreeNode.of("efficient_ovens", 20, 1, PrestigeTreeEffectType.GLOBAL_CPS_PERCENT, 5),
                 PrestigeTreeNode.of("night_bakers", 5, 2, PrestigeTreeEffectType.OFFLINE_EFFICIENCY_PERCENT, 10),
                 PrestigeTreeNode.of("lucky_charms", 5, 2, PrestigeTreeEffectType.GOLDEN_CHANCE_PERCENT, 10),
+                PrestigeTreeNode.of("connoisseur", 5, 5, PrestigeTreeEffectType.RARITY_LUCK_PERCENT, 10),
                 PrestigeTreeNode.of("lasting_glow", 5, 2, PrestigeTreeEffectType.GOLDEN_DURATION_PERCENT, 10),
                 PrestigeTreeNode.of("sugar_high", 5, 2, PrestigeTreeEffectType.COMBO_DURATION_PERCENT, 10),
                 PrestigeTreeNode.of("head_start", 10, 1, PrestigeTreeEffectType.STARTING_COOKIES, 1000),

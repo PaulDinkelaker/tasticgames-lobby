@@ -45,6 +45,7 @@ public final class ProfileDialogService {
             uuid -> java.util.concurrent.CompletableFuture.completedFuture(new CookieSummary(0, "0", false));
     private volatile Function<Player, String> rankResolver = p -> "Player";
     private volatile java.util.function.Consumer<Player> cosmeticsOpener = p -> { };
+    private volatile java.util.function.BiFunction<Player, UUID, java.util.Optional<Component>> passLine = (viewer, target) -> java.util.Optional.empty();
 
     public ProfileDialogService(TasticCoreApi coreApi, SocialSnapshotService social, SocialActionService socialActions, CosmeticService cosmetics,
                                 LobbyMessages messages, DialogSupport dialogs, MainThread mainThread, LobbyTelemetryService telemetry, Logger logger) {
@@ -69,6 +70,11 @@ public final class ProfileDialogService {
 
     public void setCosmeticsOpener(java.util.function.Consumer<Player> opener) {
         this.cosmeticsOpener = Objects.requireNonNull(opener);
+    }
+
+    /** Season pass line of the profile (empty when the pass is disabled). */
+    public void setPassLine(java.util.function.BiFunction<Player, UUID, java.util.Optional<Component>> resolver) {
+        this.passLine = Objects.requireNonNull(resolver);
     }
 
     public void openOwn(Player player) {
@@ -102,6 +108,7 @@ public final class ProfileDialogService {
             body.add(cookie.available()
                     ? messages.get(lang, "lobby.profile.cookie", Map.of("prestige", cookie.prestige(), "lifetime", cookie.lifetimeCookies()))
                     : messages.get(lang, "lobby.profile.cookie_unavailable", Map.of()));
+            passLine.apply(viewer, target).ifPresent(body::add);
             body.add(messages.get(lang, "lobby.profile.frame", Map.of("frame", messages.mini(frame), "background", messages.mini(background))));
             var tastic = coreApi.playerManager().find(target).orElse(null);
             if (tastic != null) {

@@ -1,0 +1,78 @@
+# TasticLobby service NPCs – the greeters in the lobby that open the season pass, route players to a
+# game mode or open the Cookie Clicker menu. Citizens backed (entity-type PLAYER, protected, never
+# persisted); without Citizens the lobby falls back to native entities and the skins are ignored.
+# Coordinates are data: builders move the NPCs without code changes.
+# yaw convention: 0 = south, 90 = west, 180 = north, -90 = east.
+#
+# action:
+#   PASS      opens the TasticPass overview dialog
+#   TRANSFER  requests a routed transfer to "target" (SURVIVAL/CREATIVE/DUELS) via TasticProxy
+#   COOKIE    opens the Cookie Clicker menu
+#   NONE      sends an info message only
+# skin.value/skin.signature are a Mojang texture pair; "skin-name" fetches a player's skin instead.
+# mirror-skin: true shows every player their own skin (Citizens MirrorTrait) – used for Survival.
+# Display names are localized per NPC via the message keys lobby.npc.<id>.name (Citizens nameplates
+# are global, so the English name is used above the NPC).
+enabled: true
+
+# NPCs turn towards nearby players.
+look-close: true
+
+npcs:
+  # TasticPass greeter (skin: the network owner Ctastic_official).
+  # Also respects "npc" in config/pass.yml – the pass module's own switch for this NPC.
+  pass:
+    action: PASS
+    world: "spawn"
+    x: -72.5
+    y: 36.0
+    z: 11.5
+    yaw: 180.0
+    skin:
+      value: "ewogICJ0aW1lc3RhbXAiIDogMTc4NzA1NzY5MTgxNSwKICAicHJvZmlsZUlkIiA6ICJjZjQ5Nzk4MTkzYjg0Yjk1ODcwZDRhMDBhYjk4NTBlYSIsCiAgInByb2ZpbGVOYW1lIiA6ICJDdGFzdGljX29mZmljaWFsIiwKICAic2lnbmF0dXJlUmVxdWlyZWQiIDogdHJ1ZSwKICAidGV4dHVyZXMiIDogewogICAgIlNLSU4iIDogewogICAgICAidXJsIiA6ICJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2U4YmYyNmIyODQzZTMzZGY0NzMzMmNkOWM4YWE1NWJmZGRjNGQ0YjNmZmU1NWE2MDM2MjYzNDQ5ZGRhY2UzZGEiCiAgICB9CiAgfQp9"
+      signature: "aLt+zqL2pccKp/XmPU+50tLT/WLfnSiqxkXARennNLRlOivn8t9AM1M5v+U5ITOGmbmyZm6LUftSBzBULzPhWw9sA4QvRUq1K1ZguRbt/aSwbnLr3bPXxnjVJRJA/uUSnqKdnwkFY1CcZvv+dnvqOntNtjwMTuJfIB3cByvOVsrCkf5XlxEfkoCw1+4e3GR68W1NQMgH2nn6QFFl7EFiNY5NqSxB5Px0k+/i5kX/bQezV2DdJKXXksiMt9nbslfcBib1Ea0GIWKyY4sX0T3Y2IXMhUmwhuBXbam7jLYlj0BIv75OD9+uKwjXWOCderiM+ErsfIoi5F2QzIdjUBiv0hL/J22GmkU6u9i/5t8LHOh4XAzESkrW92KRHSucyFTDqBzvnjjZSQ/8p1ObIRi5lIk6OgsN7nQpk8XUZ/ncubpkK/x1Ld7VSJbFJwI3nnTLUuklC8H7vYRaitzqaJN4Ww6UBgJnVG8ykYCa36/jM3Is362Tze4t9vr7ATnpeqt6ao7m/iTH1ZUTtMeVF/Nl5diao562uEJpRC3lsamrElmdznWPF5LJ8BdxTAq7mOOW64H7/iWqBP34q+jEVtE7fjsC7iiRcBn+aZOSNTiyUGKrIOzZLR0SuWPoOCjqsL8So6SsJg9OPdvMRJJXK+9HLXf38gsxo5WYzRxA6oxnFiQ="
+
+  # Creative – builder/architect look
+  creative:
+    action: TRANSFER
+    target: CREATIVE
+    x: -77.5
+    y: 36.0
+    z: 1.5
+    yaw: -90.0
+    skin:
+      value: "ewogICJ0aW1lc3RhbXAiIDogMTc4NjgwNDY1MjA4MiwKICAicHJvZmlsZUlkIiA6ICJkYTA1Y2Q3OWZkYjc0MDJlYTdjNjMzY2NkZmYzMDI4YyIsCiAgInByb2ZpbGVOYW1lIiA6ICJGZXJuYW5kMGFsMG5zMCIsCiAgInNpZ25hdHVyZVJlcXVpcmVkIiA6IHRydWUsCiAgInRleHR1cmVzIiA6IHsKICAgICJTS0lOIiA6IHsKICAgICAgInVybCIgOiAiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS9iOTI2YzZmOTEwOGQ5ZDc4Mzk5ODhjYmMyNWFhY2M3ODZmMzhhMDM3NDA5NzcwZjMyMGZlYjA5NGIwNzJhNmU5IgogICAgfQogIH0KfQ=="
+      signature: "nJulOCqL9f529yb9ts+/xTvEuAX72sbaiAADaV0ICpF2s4kQTTzSkvJhjBs2K6SR0K+NZSDptNoxQuxNNs11LGw8mZhd4KIpi/MaNGqlJBrVB/uGvjUSLCsO1riEN5WNvtJbpmICNdBb4Q5u1VKeEmpjk7j+0yjEc6ceSn1dIdujKXfnnZc2IL+jLoM0Hw5RhQWXSGLP5tUKQexvxjeXVe+IVze7+uLTlqdgTfxiDzSnMDu8s1yOUuu6HjBmaAYdgOKPYB/HDz/TJQZRJuhb6Z2Jcv0K+iIKlXnQqHoIa62Wlf2BIjTuUsXGsjRN5IOBPPEmqXiGKxJKnHNnjviniyejkrKBQX83jwgN4ENmfMaltwRHCduPtDELvmxfe2qhNIJeroq/AsQqOchLRZKphUPEC74s5H5suaNrcObe0voPHfI5789+amD53nCKvkRcYYAMsie+h4/bIx2YpnviApI/kD4M3YicBYQ5MZDOdJw8LqRXqOwFRUovWUvcJCvok66WKk6uIengiE0zzPmEpJEID10PCwzQ2sIix7zVwce+WVQlg1WsxZWaWS+YB96w2D9UmodGNg4R6VvMPVlr7gq7xspoE0NbA+h0SUERxRk43PeyIt5uZMHFP3reIKH6mCz8gDgwcAtxPCXPWgDqYBQ3tlw+IXYSGPuyfMCN8kw="
+
+  # Survival – mirrors the viewer's own skin, so everyone meets themselves
+  survival:
+    action: TRANSFER
+    target: SURVIVAL
+    x: -76.5
+    y: 36.0
+    z: -3.5
+    yaw: -90.0
+    mirror-skin: true
+
+  # Duels – knight/warrior look
+  duels:
+    action: TRANSFER
+    target: DUELS
+    x: -77.5
+    y: 36.0
+    z: -8.5
+    yaw: -90.0
+    skin:
+      value: "ewogICJ0aW1lc3RhbXAiIDogMTc4NzA1ODMwODMyNiwKICAicHJvZmlsZUlkIiA6ICI3OTI0MDQ0N2ViNTk0ZDBkOTVmY2E3YmJiMWZiMjVhNSIsCiAgInByb2ZpbGVOYW1lIiA6ICJqdW5pb3JraW9iciIsCiAgInNpZ25hdHVyZVJlcXVpcmVkIiA6IHRydWUsCiAgInRleHR1cmVzIiA6IHsKICAgICJTS0lOIiA6IHsKICAgICAgInVybCIgOiAiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS8xNzk3ZTEzN2IwZmQ3Y2I4Mjk1NmM4OGRhYTljNmQ0NDVjZjY4OGUxZWIzYzM5ZjZiZTRmZTY2OWI3M2YzZjBjIgogICAgfQogIH0KfQ=="
+      signature: "eiMYT3NQj/82bGxTkqdMRNVHjJ36iJ8CUFQcYvXipKX2tXFNrleM5oNLXIFjphcphtkcMlhAnB93zzicd/VKWkwkOxNmRwDbKNyODYmFO/3hiR3LpfUadL/t3ZAokiumo+7low+YWBSx2yEA+DsyBbrHAZqLuyKXiRb9aNNqIk6uWC6N9Xh3f/rJD1QWfLx7cvlTyXnhf+RoBI/x1MQz+To1yeePuTjxJpKNPC8PI6K5+JmX9SZASjXFyTe5RwehgvyY2xcmFXx1NeuRxG+otPAYJX3VdrbP3p8waG8b1hd1Va9qOWJYKtjy8yugw/B9WqQNIQZG8vGcpZi0iErbcLJZ5S+J+f3VRbTAfevHcuhfUKm3hZ83m0O8WSKrb6HIxCT0T9Wanyy8z4S2w4XaO82qlzpwcFtYp59gNx6F7mB3U51VRa+2wktCK4M68tdXvYgLH1AmtKDOlQF4yZfqaDr8LTu9wpI/8M/+LluttVeGUG/cEvV6Z2B0FwmA8UbYWQC7B9zmb0HfJ09TksHHGqN3kQf53JwyOdLz5T+dplFKELAQec2tWZVb++r4XhlifusJcnyClXyRSLj6hB3NOfkMMw6UjfEFsPKXkkOP97+JVdsQdb0Fi6B4ELd7Kb34ealDUyDusoV4YlkCG+3NSKsG6tFx+iCrPiUbOBFxbpw="
+
+  # Games & events – opens the Cookie Clicker menu
+  games:
+    action: COOKIE
+    x: -72.5
+    y: 36.0
+    z: -18.5
+    yaw: -90.0
+    skin:
+      value: "ewogICJ0aW1lc3RhbXAiIDogMTc4NjU4NzkzNjM3NCwKICAicHJvZmlsZUlkIiA6ICJjMjVlMWMxZTE1YTQ0N2IwOTQ2Zjg2YzYzYzhjYjZkOCIsCiAgInByb2ZpbGVOYW1lIiA6ICJiaWdpYm9zMzIxIiwKICAic2lnbmF0dXJlUmVxdWlyZWQiIDogdHJ1ZSwKICAidGV4dHVyZXMiIDogewogICAgIlNLSU4iIDogewogICAgICAidXJsIiA6ICJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzFhMTI5ZmI1ODM0YmFiYTQ4MzhhYTM2MjcxMjg0MzczZjQ5YjMzNTcxYmI0NzhmNDE3ODEzMTA5MmIyODU4ZDIiCiAgICB9CiAgfQp9"
+      signature: "Q7hp/wrcI5UPKmmgflcWJpu5er17N0OHfIKdDZSPhssip5pWPiettWqiGaWhvKPvJUy8qPIoVzcBDE/MpC0xacBTLwGyCvrOyksgr3d0Q65sB5L9fzeQLRkElK5uV/g7RRVabW+qyGXUc+iv8QnqjNiGjGwGwnQwlhsKi4CRHjyfwhL5J+fMFx/GfTTHbAoVyrOPJdw2GeevsTzt+NpcRelYJ4AMmO09PFVrtiN4UUWutWUu1PoHSkVtvLy5OnbnkCZJfRJBSxpv1yPtL/sSVmvaJfGjt9RPs2qh7XM5CS0dXxVvHaQxpNw/qaHAy7YKxquvE8xb905dQoLM8vKvF9gtFn6yC1JqH9ZZAPUHs64PTzd66KWztyU4WE3xiMLlTx2IzQJEByTQ/8mgjiruvYnz2gNlCWCMaMbaKRjfgPJtVNUAAzW13PAm45nTwzYxCQANM+52QWndwboRXChN0AanrvixouGvXe9V/ZRZklOu8D633T3MVKUVRdyttgczMuFtXWp9lkucwPfFureVuNRz1eq1v2gv8ilbSVLGuWQaZ2sufme5cC5QA/iOSc1UF2DChzoOxR4sK8j22krfcsCb7+1DSJRSyRMeqVRsD3xQrUvm1dEnH8TcrKT0M9+QpyXL1RlCCnXW9Dy6w49M0K+or6fTN74uCxyKGXr1Vz0="

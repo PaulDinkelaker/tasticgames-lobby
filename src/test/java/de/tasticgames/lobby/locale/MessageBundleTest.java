@@ -58,7 +58,11 @@ class MessageBundleTest {
                 "lobby.gateway.title", "lobby.settings.title", "lobby.profile.title_own", "lobby.social.title", "lobby.cosmetics.title",
                 "cookie.overview.title", "cookie.prestige.confirm", "cookie.offline.title", "cookie.generator.cursor.name",
                 "cookie.zone.ascendant_sanctum", "cookie.prestige.p10", "cookie.tree.iron_fingers", "cookie.achievement.prestige_10",
-                "cookie.upgrade.reality_forge_tier_2")) {
+                "cookie.upgrade.reality_forge_tier_2", "pass.overview.title", "pass.unavailable", "pass.rewards.claim_all",
+                "pass.quests.title", "pass.premium.price", "pass.leaderboard.title", "pass.levelup.chat", "pass.reward.xp_boost",
+                "pass.outcome.premium_required", "pass.track.premium", "lobby.profile.pass",
+                "lobby.npc.pass.name", "lobby.npc.creative.name", "lobby.npc.survival.name", "lobby.npc.duels.name",
+                "lobby.npc.games.name", "lobby.npc.none")) {
             assertTrue(en.containsKey(key), "missing key " + key);
         }
     }

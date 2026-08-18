@@ -8,8 +8,10 @@ public enum PrestigeTreeEffectType {
     GLOBAL_CPS_PERCENT,
     /** +{@code valuePerLevel} percentage points offline efficiency per level (total capped at 100%). */
     OFFLINE_EFFICIENCY_PERCENT,
-    /** +{@code valuePerLevel}% golden cookie spawn chance per level. */
+    /** +{@code valuePerLevel}% special cookie chance per level (shortens the wait). */
     GOLDEN_CHANCE_PERCENT,
+    /** +{@code valuePerLevel}% draw weight per level for every rarity from PLATINUM upwards. */
+    RARITY_LUCK_PERCENT,
     /** +{@code valuePerLevel}% golden cookie buff duration per level. */
     GOLDEN_DURATION_PERCENT,
     /** +{@code valuePerLevel}% combo duration per level. */

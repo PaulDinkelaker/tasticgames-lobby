@@ -1,9 +1,12 @@
 # Cookie Clicker – layout, runtime and balancing. Coordinates are data: builders adjust them
-# without code changes (/cookieadmin setcookie|npc|zone|golden ... write into this file).
-# config-version 3: main cookie in the lobby world, cookie world = prestige-10 open world; the quest NPCs are the
-# baker (mama_bakewell) and the merchant (gustave) – existing files are migrated automatically (config-version 2 -> 3
-# removes the NPCs babette and king_frosting).
-config-version: 3
+# without code changes (/cookieadmin setcookie|npc|zone|special ... write into this file).
+# config-version 4: main cookie in the lobby world, cookie world = prestige-10 open world; the quest NPCs are the
+# baker (mama_bakewell) and the merchant (gustave). Existing files are migrated automatically:
+#   2 -> 3 removes the NPCs babette and king_frosting
+#   3 -> 4 renames "golden-cookies" to "special-cookies" and replaces balancing.golden with balancing.special
+#          (lifetime-seconds and buff-seconds are carried over, base-interval-seconds is dropped – the wait between
+#           two special cookies is now drawn from min/max/floor-interval-seconds instead of rolled every second)
+config-version: 4
 
 # ---------------------------------------------------------------------------------------------
 # The MAIN COOKIE stands in the lobby. Clicking it earns cookies; the actionbar shows the balance.
@@ -27,13 +30,12 @@ main-cookie:
   zone-radius: 8.0
   actionbar:
     interval-millis: 1000
-  golden-cookies:
+  special-cookies:
     enabled: true
-    max-per-player: 1
-    # auto  = the golden cookie activates for the player directly (title + reward, nothing to find)
+    # auto  = the special cookie activates for the player directly (title + reward, nothing to find)
     # spawn = it appears near the player in the world and has to be clicked within its lifetime
     mode: auto
-    # golden cookies only trigger inside these areas (lobby: around the main cookie)
+    # special cookies only trigger inside these areas (lobby: around the main cookie)
     areas:
       bakery_plaza:
         world: "spawn"
@@ -74,7 +76,7 @@ open-world:
   create-if-missing: true
   required-prestige: 10
   entry: { x: 0.5, y: -60.0, z: 0.5, yaw: 0.0, pitch: 0.0 }
-  golden-cookies:
+  special-cookies:
     enabled: true
     mode: auto
     # empty = anywhere in the open world
@@ -150,7 +152,57 @@ balancing:
     enabled: false
     max-seconds: 28800
     efficiency: 0.5
-  golden:
-    base-interval-seconds: 300
-    lifetime-seconds: 15
-    buff-seconds: 30
+  # Special cookies: every player has their own timer, drawn as
+  #   uniform(min-interval-seconds, max-interval-seconds) / chance multiplier
+  # and never shorter than floor-interval-seconds. The chance multiplier comes from the golden_luck upgrade (x1.5)
+  # and the lucky_charms tree node (+10 %/level), so those now shorten the wait. lifetime-seconds only matters in
+  # mode "spawn". The rarity is drawn by weight over the rarities the player's prestige level unlocked
+  # (silver/golden at prestige 1, platinum at 2, diamond at 4, master at 7 – prestige 0 gets none at all);
+  # the weights are additionally scaled per player by the rarity upgrades and the connoisseur tree node.
+  # A reward type with weight 0 never rolls for that rarity (no chain bonus below golden, blessing is diamond+).
+  special:
+    min-interval-seconds: 900
+    max-interval-seconds: 7200
+    floor-interval-seconds: 300
+    lifetime-seconds: 45
+    # While a special click buff runs, one click can never pay more than this many seconds of unbuffed
+    # production. Without it a x7777 click frenzy plus an autoclicker is worth hours of CPS per activation
+    # (0 disables the clamp).
+    click-clamp-cps-seconds: 60
+    # Per rarity: draw weight, which reward types it can roll, and how strong each of them is.
+    # lucky/chain are always capped by BOTH a bank fraction and a window of unbuffed CPS.
+    rarities:
+      silver:
+        weight: 60
+        reward-weights: { LUCKY: 50, FRENZY: 40, CLICK_FRENZY: 10 }
+        lucky: { bank-fraction: 0.05, cps-seconds: 300, flat-bonus: 13 }
+        frenzy: { multiplier: 3, seconds: 30 }
+        click-frenzy: { multiplier: 30, seconds: 12 }
+      golden:
+        weight: 30
+        reward-weights: { LUCKY: 45, FRENZY: 35, CLICK_FRENZY: 10, CHAIN_BONUS: 10 }
+        lucky: { bank-fraction: 0.15, cps-seconds: 900, flat-bonus: 13 }
+        chain: { bank-fraction: 0.05, cps-seconds: 900 }
+        frenzy: { multiplier: 7, seconds: 30 }
+        click-frenzy: { multiplier: 777, seconds: 3 }
+      platinum:
+        weight: 7
+        reward-weights: { LUCKY: 40, FRENZY: 35, CLICK_FRENZY: 15, CHAIN_BONUS: 10 }
+        lucky: { bank-fraction: 0.25, cps-seconds: 1800, flat-bonus: 0 }
+        chain: { bank-fraction: 0.08, cps-seconds: 1800 }
+        frenzy: { multiplier: 15, seconds: 45 }
+        click-frenzy: { multiplier: 1500, seconds: 4 }
+      diamond:
+        weight: 3.0
+        reward-weights: { LUCKY: 35, FRENZY: 30, CLICK_FRENZY: 20, BLESSING: 15 }
+        lucky: { bank-fraction: 0.40, cps-seconds: 2700, flat-bonus: 0 }
+        frenzy: { multiplier: 30, seconds: 60 }
+        click-frenzy: { multiplier: 2000, seconds: 5 }
+        blessing: { cps-multiplier: 30, click-multiplier: 100, seconds: 30 }
+      master:
+        weight: 1.5
+        reward-weights: { LUCKY: 30, FRENZY: 25, CLICK_FRENZY: 20, BLESSING: 25 }
+        lucky: { bank-fraction: 0.77, cps-seconds: 5400, flat-bonus: 0 }
+        frenzy: { multiplier: 77, seconds: 77 }
+        click-frenzy: { multiplier: 7777, seconds: 3 }
+        blessing: { cps-multiplier: 77, click-multiplier: 250, seconds: 45 }

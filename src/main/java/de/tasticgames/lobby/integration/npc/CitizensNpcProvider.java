@@ -7,6 +7,7 @@ import net.citizensnpcs.api.event.NPCRightClickEvent;
 import net.citizensnpcs.api.npc.NPC;
 import net.citizensnpcs.api.npc.NPCRegistry;
 import net.citizensnpcs.trait.LookClose;
+import net.citizensnpcs.trait.MirrorTrait;
 import net.citizensnpcs.trait.SkinTrait;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
@@ -118,17 +119,21 @@ public final class CitizensNpcProvider implements NpcProvider, Listener {
                 npc.data().set(NPC.Metadata.COLLIDABLE, false);
                 npc.setProtected(true);
                 try {
-                    npc.getOrAddTrait(LookClose.class).lookClose(true);
+                    npc.getOrAddTrait(LookClose.class).lookClose(spec.lookClose());
                 } catch (Throwable ignored) {
                     // trait not available in this Citizens build
                 }
                 if (type == EntityType.PLAYER) {
                     try {
-                        SkinTrait skinTrait = npc.getOrAddTrait(SkinTrait.class);
-                        if (spec.hasSkinData()) {
-                            skinTrait.setSkinPersistent(spec.id(), spec.skinSignature(), spec.skinValue());
-                        } else if (!spec.skin().isBlank()) {
-                            skinTrait.setSkinName(spec.skin());
+                        if (spec.mirrorSkin()) {
+                            npc.getOrAddTrait(MirrorTrait.class).setEnabled(true);
+                        } else {
+                            SkinTrait skinTrait = npc.getOrAddTrait(SkinTrait.class);
+                            if (spec.hasSkinData()) {
+                                skinTrait.setSkinPersistent(spec.id(), spec.skinSignature(), spec.skinValue());
+                            } else if (!spec.skin().isBlank()) {
+                                skinTrait.setSkinName(spec.skin());
+                            }
                         }
                     } catch (Throwable t) {
                         warnOnce("skin", t);

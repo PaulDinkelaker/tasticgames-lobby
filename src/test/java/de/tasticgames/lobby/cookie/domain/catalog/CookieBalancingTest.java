@@ -1,6 +1,7 @@
 package de.tasticgames.lobby.cookie.domain.catalog;
 
 import de.tasticgames.lobby.cookie.domain.model.GoldenRewardType;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -24,13 +25,56 @@ class CookieBalancingTest {
         assertTrue(b.offlineEnabled());
         assertEquals(8 * 3600, b.offlineMaxSeconds());
         assertEquals(0.5, b.offlineEfficiency());
-        assertEquals(300, b.goldenBaseIntervalSeconds());
-        assertEquals(15, b.goldenLifetimeSeconds());
-        assertEquals(30, b.goldenBuffSeconds());
+        assertEquals(15 * 60, b.specialMinIntervalSeconds());
+        assertEquals(120 * 60, b.specialMaxIntervalSeconds());
+        assertEquals(5 * 60, b.specialFloorIntervalSeconds());
+        assertEquals(45, b.specialLifetimeSeconds());
+        assertEquals(60, b.specialClickClampCpsSeconds());
         assertEquals(4, b.maxComboStage());
         assertEquals(2.0, b.comboMultiplier(99));
         assertEquals(1.0, b.comboMultiplier(-1));
-        assertEquals(100, b.goldenRewardWeights().values().stream().mapToInt(Integer::intValue).sum());
+    }
+
+    @Test
+    void everyRarityIsBalancedAndTheRewardTypesFollowTheDesignTable() {
+        CookieBalancing b = CookieBalancing.defaults();
+        assertEquals(SpecialCookieRarity.values().length, b.rarities().size());
+        for (SpecialCookieRarity rarity : SpecialCookieRarity.values()) {
+            SpecialCookieTuning t = b.tuning(rarity);
+            assertEquals(rarity.baseWeight(), t.weight());
+            assertEquals(100, t.rewardWeights().values().stream().mapToInt(Integer::intValue).sum(), rarity + " reward weights");
+            assertTrue(t.rewardWeight(GoldenRewardType.LUCKY) > 0);
+            assertTrue(t.rewardWeight(GoldenRewardType.FRENZY) > 0);
+            assertTrue(t.rewardWeight(GoldenRewardType.CLICK_FRENZY) > 0);
+        }
+        assertEquals(0, b.tuning(SpecialCookieRarity.SILVER).rewardWeight(GoldenRewardType.CHAIN_BONUS));
+        assertEquals(10, b.tuning(SpecialCookieRarity.GOLDEN).rewardWeight(GoldenRewardType.CHAIN_BONUS));
+        assertEquals(0, b.tuning(SpecialCookieRarity.PLATINUM).rewardWeight(GoldenRewardType.BLESSING));
+        assertEquals(15, b.tuning(SpecialCookieRarity.DIAMOND).rewardWeight(GoldenRewardType.BLESSING));
+        assertEquals(25, b.tuning(SpecialCookieRarity.MASTER).rewardWeight(GoldenRewardType.BLESSING));
+        // magnitudes rise strictly with the rarity
+        double frenzy = 0;
+        double clickFrenzy = 0;
+        double bankFraction = 0;
+        for (SpecialCookieRarity rarity : SpecialCookieRarity.values()) {
+            SpecialCookieTuning t = b.tuning(rarity);
+            assertTrue(t.frenzyMultiplier() > frenzy, rarity + " frenzy");
+            assertTrue(t.clickFrenzyMultiplier() > clickFrenzy, rarity + " click frenzy");
+            assertTrue(t.luckyBankFraction() > bankFraction, rarity + " lucky bank fraction");
+            frenzy = t.frenzyMultiplier();
+            clickFrenzy = t.clickFrenzyMultiplier();
+            bankFraction = t.luckyBankFraction();
+        }
+        assertEquals(77.0, b.tuning(SpecialCookieRarity.MASTER).blessingCpsMultiplier());
+        assertEquals(250.0, b.tuning(SpecialCookieRarity.MASTER).blessingClickMultiplier());
+        assertEquals(45, b.tuning(SpecialCookieRarity.MASTER).blessingSeconds());
+        // every instant reward is bounded by a window of unbuffed CPS, chain bonuses included
+        for (SpecialCookieRarity rarity : SpecialCookieRarity.values()) {
+            SpecialCookieTuning t = b.tuning(rarity);
+            if (t.rewardWeight(GoldenRewardType.CHAIN_BONUS) > 0) {
+                assertTrue(t.chainCpsSeconds() > 0, rarity + " chain bonus must be capped");
+            }
+        }
     }
 
     @Test
@@ -46,9 +90,13 @@ class CookieBalancingTest {
         assertThrows(IllegalArgumentException.class, () -> CookieBalancing.builder().comboDecayMillis(100).build());
         assertThrows(IllegalArgumentException.class, () -> CookieBalancing.builder().maxClicksPerSecond(0).build());
         assertThrows(IllegalArgumentException.class, () -> CookieBalancing.builder().offlineEfficiency(1.5).build());
-        assertThrows(IllegalArgumentException.class, () -> CookieBalancing.builder().goldenRewardWeights(Map.of()).build());
+        assertThrows(IllegalArgumentException.class, () -> CookieBalancing.builder().specialMinIntervalSeconds(0).build());
         assertThrows(IllegalArgumentException.class, () -> CookieBalancing.builder()
-                .goldenRewardWeights(Map.of(GoldenRewardType.LUCKY, -1)).build());
+                .specialMinIntervalSeconds(600).specialMaxIntervalSeconds(300).build());
+        assertThrows(IllegalArgumentException.class, () -> CookieBalancing.builder().specialFloorIntervalSeconds(0).build());
+        assertThrows(IllegalArgumentException.class, () -> CookieBalancing.builder().specialLifetimeSeconds(0).build());
+        assertThrows(IllegalArgumentException.class, () -> CookieBalancing.builder()
+                .rarities(Map.of(SpecialCookieRarity.SILVER, CookieBalancing.defaults().tuning(SpecialCookieRarity.SILVER))).build());
     }
 
     @Test

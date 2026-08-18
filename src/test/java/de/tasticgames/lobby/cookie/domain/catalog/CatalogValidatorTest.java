@@ -27,7 +27,7 @@ class CatalogValidatorTest {
         assertEquals(11, c.generators().size());
         assertEquals(11, c.prestiges().size());
         assertEquals(11, c.zones().size());
-        assertEquals(8, c.prestigeTree().size());
+        assertEquals(9, c.prestigeTree().size());
         assertEquals(15, c.achievements().size());
         assertTrue(c.upgrades().size() >= 25, "expected at least 25 upgrades, got " + c.upgrades().size());
         assertEquals(10, c.maxPrestigeLevel());
@@ -147,6 +147,8 @@ class CatalogValidatorTest {
         assertThrows(IllegalArgumentException.class, () -> c.requireGenerator("nope"));
         assertEquals(2, c.upgradesForGenerator("oven").size());
         assertTrue(c.treeNode("iron_fingers").isPresent());
+        assertTrue(c.treeNode("connoisseur").isPresent());
+        assertTrue(c.upgrade("master_recipe_book").isPresent());
         assertTrue(c.zone("rift_bakery").isPresent());
         assertTrue(c.achievement("first_cookie").isPresent());
     }

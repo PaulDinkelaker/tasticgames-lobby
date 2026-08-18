@@ -130,6 +130,43 @@ Seit `config-version 3` gibt es nur noch die Bäckerin und den Händler; bestehe
 mit `/npc select` gewählten Citizens-NPC. Eigene NPCs liegen im In-Memory-Registry `tasticlobby` (nicht in
 Citizens' saves.yml).
 
+### Service-NPCs (`config/npcs.yml`)
+
+Unabhängig von den Cookie-Quest-NPCs stehen fünf Service-NPCs in der Lobby: `pass` (TasticPass-Übersicht),
+`creative`/`survival`/`duels` (Transfer über TasticProxy) und `games` (Cookie-Menü). Linke **und** rechte Maustaste
+lösen dieselbe Aktion aus (kurzer Cooldown pro Spieler).
+
+```yaml
+enabled: true
+look-close: true
+npcs:
+  pass:
+    action: PASS            # PASS | TRANSFER | COOKIE | NONE
+    world: "spawn"          # optional, sonst die Lobby-Welt
+    x: -72.5
+    y: 36.0
+    z: 11.5
+    yaw: 180.0              # 0 = Süd, 90 = West, 180 = Nord, -90 = Ost
+    skin:
+      value: "…"            # Base64-Textur; alternativ skin-name: "<Spielername>"
+      signature: "…"
+  survival:
+    action: TRANSFER
+    target: SURVIVAL        # SURVIVAL | CREATIVE | DUELS
+    x: -76.5
+    y: 36.0
+    z: -3.5
+    yaw: -90.0
+    mirror-skin: true       # Citizens MirrorTrait: jeder Spieler sieht seinen eigenen Skin
+```
+
+Die Namensschilder kommen aus den Nachrichten `lobby.npc.<id>.name` (Citizens-Namen sind global – oben am NPC steht
+der englische Text). Ist das Ziel offline oder das Netzwerk in Wartung, erscheint dieselbe lokalisierte Meldung wie
+im Gateway-Dialog und es wird kein Transfer gestartet. Der `pass`-NPC beachtet zusätzlich `npc: false` aus
+`config/pass.yml` (der eigene Schalter des Pass-Moduls). `/tasticlobby reload` liest `npcs.yml` neu und spawnt die
+NPCs neu; `/tasticlobby status` zeigt sie unter `Service NPCs` neben den Cookie-NPCs. Ohne Citizens fällt die Lobby
+auf native Entities zurück – die NPCs erscheinen dann als Villager ohne Skin.
+
 ## ItemsAdder
 
 `config/items.yml`: `itemsadder: "tasticgames:gateway_compass"` pro Item; solange die Daten nicht geladen sind

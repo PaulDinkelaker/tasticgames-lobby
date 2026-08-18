@@ -10,10 +10,12 @@ public enum UpgradeEffectType {
     GLOBAL_CPS_MULTIPLIER,
     /** Multiplies the output of one generator ({@code generatorId}) by {@code value}. */
     GENERATOR_MULTIPLIER,
-    /** Multiplies the golden cookie spawn chance by {@code value}. */
+    /** Multiplies the special cookie chance by {@code value} (shortens the wait between two of them). */
     GOLDEN_COOKIE_FREQUENCY,
-    /** Multiplies instant golden cookie rewards by {@code value}. */
+    /** Multiplies instant special cookie rewards by {@code value}. */
     GOLDEN_COOKIE_VALUE,
+    /** Multiplies the draw weight of one special cookie rarity ({@code rarity}) by {@code value}. */
+    SPECIAL_RARITY_WEIGHT,
     /** Multiplies the combo decay duration by {@code value}. */
     COMBO_DURATION,
     /** Adds {@code value} (fraction, e.g. 0.25 = +25 percentage points) to the offline efficiency. */

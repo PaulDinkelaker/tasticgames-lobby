@@ -6,6 +6,7 @@ import de.tasticgames.lobby.cookie.domain.model.BuffType;
 import de.tasticgames.lobby.cookie.domain.model.Contribution;
 import de.tasticgames.lobby.cookie.domain.model.CookieProfile;
 import de.tasticgames.lobby.cookie.domain.model.CookieStats;
+import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -116,7 +117,7 @@ class StatsTest {
     }
 
     @Test
-    void offlineGoldenAndComboMultipliers() {
+    void offlineSpecialAndComboMultipliers() {
         CookieProfile p = TestSupport.fresh();
         p.addUpgrade("night_shift");                                     // +25 pp
         p.setPrestigeUpgradeLevel("night_bakers", 5);                    // +50 pp → capped at 100%
@@ -132,6 +133,24 @@ class StatsTest {
         assertEquals(2.0, s.goldenValueMultiplier());
         assertEquals(1.1, s.goldenDurationMultiplier(), 1e-12);
         assertEquals(1.8, s.comboDurationMultiplier(), 1e-12);
+        // no rarity upgrade yet: every rarity keeps its catalog weight
+        for (SpecialCookieRarity rarity : SpecialCookieRarity.values()) {
+            assertEquals(1.0, s.specialWeightMultiplier(rarity), 1e-12);
+        }
+    }
+
+    @Test
+    void rarityWeightMultipliersCombineUpgradesAndTheConnoisseurNode() {
+        CookieProfile p = TestSupport.fresh();
+        p.addUpgrade("platinum_press");                                  // PLATINUM x1.5
+        p.addUpgrade("diamond_cutter");                                  // DIAMOND x1.5
+        p.setPrestigeUpgradeLevel("connoisseur", 3);                     // +30% for PLATINUM and above
+        CookieStats s = engine.compute(p);
+        assertEquals(1.0, s.specialWeightMultiplier(SpecialCookieRarity.SILVER), 1e-12);
+        assertEquals(1.0, s.specialWeightMultiplier(SpecialCookieRarity.GOLDEN), 1e-12);
+        assertEquals(1.95, s.specialWeightMultiplier(SpecialCookieRarity.PLATINUM), 1e-12);
+        assertEquals(1.95, s.specialWeightMultiplier(SpecialCookieRarity.DIAMOND), 1e-12);
+        assertEquals(1.3, s.specialWeightMultiplier(SpecialCookieRarity.MASTER), 1e-12);
     }
 
     @Test
