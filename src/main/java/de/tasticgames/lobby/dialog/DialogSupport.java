@@ -10,6 +10,8 @@ import io.papermc.paper.registry.data.dialog.body.DialogBody;
 import io.papermc.paper.registry.data.dialog.input.DialogInput;
 import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.event.ClickEvent;
 import org.bukkit.entity.Player;
@@ -29,12 +31,32 @@ import java.util.function.Consumer;
 public final class DialogSupport {
 
     public static final int BUTTON_WIDTH = 200;
+    /** Characters of a progress bar; the block glyphs exist in the vanilla font in every language. */
+    private static final int BAR_WIDTH = 24;
     public static final int WIDE_BUTTON_WIDTH = 300;
 
     private final MainThread mainThread;
 
     public DialogSupport(MainThread mainThread) {
         this.mainThread = Objects.requireNonNull(mainThread);
+    }
+
+    /**
+     * Progress bar for dialog bodies: {@code ▉▉▉▉░░░░░░ 42%}. Dialogs have no widgets of their own, so a bar
+     * built from block glyphs is what makes a "how far am I" line readable at a glance.
+     */
+    public static Component bar(double fraction, TextColor filledColor) {
+        double clamped = Math.max(0, Math.min(1, fraction));
+        int filled = (int) Math.round(clamped * BAR_WIDTH);
+        return Component.text("\u2503", NamedTextColor.DARK_GRAY)
+                .append(Component.text("\u2589".repeat(filled), filledColor))
+                .append(Component.text("\u2591".repeat(BAR_WIDTH - filled), NamedTextColor.DARK_GRAY))
+                .append(Component.text("\u2503 ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(Math.round(clamped * 100) + "%", NamedTextColor.GRAY));
+    }
+
+    public static Component bar(double fraction) {
+        return bar(fraction, NamedTextColor.GREEN);
     }
 
     public Dialog menu(Component title, List<Component> body, List<ActionButton> buttons, ActionButton exit, int columns, boolean escapable) {

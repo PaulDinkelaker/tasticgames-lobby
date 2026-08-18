@@ -48,6 +48,8 @@ public final class CookieRuntimeService implements Service {
     private final Map<UUID, CookieSession> sessions = new ConcurrentHashMap<>();
     private final Map<UUID, CompletableFuture<CookieSession>> loading = new ConcurrentHashMap<>();
     private final java.util.List<Consumer<CookieSession>> tickListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private volatile java.util.function.BiConsumer<CookieSession, de.tasticgames.lobby.cookie.domain.model.CookieAmount> productionListener = (session, produced) -> {
+    };
     private volatile java.util.function.Predicate<CookieSession> productionGate = session -> true;
     private volatile java.util.function.BiConsumer<CookieSession, Boolean> productionStateListener = (s, active) -> { };
     private volatile CookieProgressListener progress = CookieProgressListener.NONE;
@@ -63,6 +65,11 @@ public final class CookieRuntimeService implements Service {
     }
 
     /** Notified (main thread) when a session's production switches between active and paused. */
+    /** Receives every produced amount (idle production only, not clicks) – used by the shift orders. */
+    public void setProductionListener(java.util.function.BiConsumer<CookieSession, de.tasticgames.lobby.cookie.domain.model.CookieAmount> listener) {
+        this.productionListener = java.util.Objects.requireNonNull(listener, "listener");
+    }
+
     public void setProductionStateListener(java.util.function.BiConsumer<CookieSession, Boolean> listener) {
         this.productionStateListener = Objects.requireNonNull(listener);
     }
@@ -193,7 +200,7 @@ public final class CookieRuntimeService implements Service {
                     productionStateListener.accept(session, active);
                 }
                 if (active) {
-                    engine.produce(profile, session.lastTickAt(), now);
+                    productionListener.accept(session, engine.produce(profile, session.lastTickAt(), now));
                 }
                 engine.expireBuffs(profile, now);
                 engine.decayCombo(profile, now);

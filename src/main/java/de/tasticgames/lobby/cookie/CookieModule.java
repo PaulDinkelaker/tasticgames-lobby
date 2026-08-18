@@ -72,6 +72,7 @@ public final class CookieModule implements Service {
     private SpecialCookieService special;
     private CookieNpcService npcs;
     private CookieLeaderboardService leaderboards;
+    private CookieOrderService orders;
     private CookieDialogService dialogService;
     private CookieAdminCommand adminCommand;
     private final List<Service> services = new ArrayList<>();
@@ -116,7 +117,8 @@ public final class CookieModule implements Service {
         special = add(new SpecialCookieService(plugin, coreApi, configuration::get, runtime, world, messages, sounds, telemetry));
         npcs = add(new CookieNpcService(configuration::get, runtime, integrations.npcs(), integrations.models(), messages, sounds, telemetry, logger));
         leaderboards = add(new CookieLeaderboardService(api, Duration.ofSeconds(loaded.runtime().leaderboardCacheSeconds())));
-        dialogService = new CookieDialogService(runtime, world, leaderboards, messages, dialogs, mainThread, sounds, telemetry, logger);
+        orders = new CookieOrderService(coreApi, runtime, messages, sounds, telemetry);
+        dialogService = new CookieDialogService(coreApi, runtime, world, leaderboards, orders, messages, dialogs, mainThread, sounds, telemetry, logger);
         adminCommand = new CookieAdminCommand(api, runtime, world, clicks, telemetry, mainThread,
                 new File(configurationService.configDirectory(), "cookie-clicker.yml"), this::reloadLayout, integrations.selections(),
                 this::selectedCitizensNpc, logger);
@@ -130,6 +132,8 @@ public final class CookieModule implements Service {
         }
         world.onExit(player -> special.remove(player.getUniqueId()));
         runtime.addTickListener(clicks::tickActionbar);
+        runtime.setProductionListener((session, produced) -> orders.onProduced(session.player(), produced.toBigDecimal()));
+        setProgressListener(progress.get()); // installs the order board as an internal progress consumer
         runtime.setProductionGate(session -> {
             Player player = Bukkit.getPlayer(session.player());
             return player != null && (clicks.inZone(player) || world.isOpenWorld(player.getWorld()));
@@ -219,14 +223,72 @@ public final class CookieModule implements Service {
      * Registers the consumer of the baking progress (today the season pass) on every cookie service.
      * Must be called after {@link #start()}; the listener replaces a previously registered one.
      */
+    /** Fans one progress event out to both consumers; a failing consumer never stops the other. */
+    private static CookieProgressListener compose(CookieProgressListener first, CookieProgressListener second) {
+        if (second == CookieProgressListener.NONE) {
+            return first;
+        }
+        return new CookieProgressListener() {
+            @Override
+            public void onClick(java.util.UUID player, de.tasticgames.lobby.cookie.domain.model.CookieAmount baked) {
+                first.onClick(player, baked);
+                second.onClick(player, baked);
+            }
+
+            @Override
+            public void onGeneratorsBought(java.util.UUID player, String generatorId, int count) {
+                first.onGeneratorsBought(player, generatorId, count);
+                second.onGeneratorsBought(player, generatorId, count);
+            }
+
+            @Override
+            public void onUpgradeBought(java.util.UUID player, String upgradeId) {
+                first.onUpgradeBought(player, upgradeId);
+                second.onUpgradeBought(player, upgradeId);
+            }
+
+            @Override
+            public void onPrestige(java.util.UUID player, int level) {
+                first.onPrestige(player, level);
+                second.onPrestige(player, level);
+            }
+
+            @Override
+            public void onSpecialCookie(java.util.UUID player, de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity rarity) {
+                first.onSpecialCookie(player, rarity);
+                second.onSpecialCookie(player, rarity);
+            }
+
+            @Override
+            public void onZoneDiscovered(java.util.UUID player, String zoneId) {
+                first.onZoneDiscovered(player, zoneId);
+                second.onZoneDiscovered(player, zoneId);
+            }
+
+            @Override
+            public void onNpcQuestCompleted(java.util.UUID player, String questId) {
+                first.onNpcQuestCompleted(player, questId);
+                second.onNpcQuestCompleted(player, questId);
+            }
+
+            @Override
+            public void onAchievementsUnlocked(java.util.UUID player, java.util.List<String> achievementIds) {
+                first.onAchievementsUnlocked(player, achievementIds);
+                second.onAchievementsUnlocked(player, achievementIds);
+            }
+        };
+    }
+
     public void setProgressListener(CookieProgressListener listener) {
         progress.set(Objects.requireNonNull(listener));
-        clicks.setProgressListener(listener);
-        dialogService.setProgressListener(listener);
-        runtime.setProgressListener(listener);
-        special.setProgressListener(listener);
-        npcs.setProgressListener(listener);
-        world.setProgressListener(listener);
+        // the shift orders always listen; the external consumer (season pass) is chained behind them
+        CookieProgressListener combined = orders == null ? listener : compose(orders, listener);
+        clicks.setProgressListener(combined);
+        dialogService.setProgressListener(combined);
+        runtime.setProgressListener(combined);
+        special.setProgressListener(combined);
+        npcs.setProgressListener(combined);
+        world.setProgressListener(combined);
     }
 
     public CookieConfiguration configuration() { return configuration.get(); }
@@ -294,6 +356,7 @@ public final class CookieModule implements Service {
     public void onQuit(Player player) {
         special.forget(player.getUniqueId());
         clicks.forget(player.getUniqueId());
+        orders.forget(player.getUniqueId());
         LobbyPlayer lobbyPlayer = players.find(player.getUniqueId()).orElse(null);
         if (lobbyPlayer != null) {
             lobbyPlayer.mode(LobbyPlayer.Mode.LOBBY);

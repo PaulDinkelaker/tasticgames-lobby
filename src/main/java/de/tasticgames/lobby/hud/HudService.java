@@ -7,6 +7,7 @@ import de.tasticgames.lobby.placeholder.HudContextProvider;
 import de.tasticgames.lobby.player.LobbyPlayer;
 import de.tasticgames.lobby.player.LobbyPlayerService;
 import de.tasticgames.lobby.settings.LobbySettings;
+import de.tasticgames.player.TasticPlayer;
 import de.tasticgames.service.Service;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
@@ -227,7 +228,7 @@ public final class HudService implements Service {
             return;
         }
         List<BossBar> list = bars.computeIfAbsent(player.getUniqueId(), ignored -> new ArrayList<>());
-        int rows = rowCount();
+        int rows = rowCount(player);
         while (list.size() < rows) {
             list.add(BossBar.bossBar(Component.empty(), 0f, configuration.bossbarColor(), BossBar.Overlay.PROGRESS));
         }
@@ -275,8 +276,9 @@ public final class HudService implements Service {
                 hide(player);
                 continue;
             }
-            if (!bars.containsKey(player.getUniqueId())) {
-                show(player);
+            List<BossBar> current = bars.get(player.getUniqueId());
+            if (current == null || current.size() != rowCount(player)) {
+                show(player); // first HUD or the player changed the HUD mode – rebuild the bars
             } else {
                 refresh(player);
             }
@@ -287,13 +289,29 @@ public final class HudService implements Service {
         return coreApi.playerManager().find(player.getUniqueId()).map(p -> p.settings().get(LobbySettings.HUD_ENABLED)).orElse(true);
     }
 
-    private int rowCount() {
+    /** How many bars this player gets: the configured rows minus the ones their settings switch off. */
+    private int rowCount(Player player) {
+        Layout layout = layout(player);
         int rows = 0;
         if (configuration.rowValues()) rows++;
-        if (configuration.rowHint()) rows++;
-        if (configuration.rowObjective()) rows++;
-        if (configuration.rowStatus()) rows++;
+        if (configuration.rowHint() && layout.hints()) rows++;
+        if (configuration.rowObjective() && !layout.minimal()) rows++;
+        if (configuration.rowStatus() && layout.status()) rows++;
         return rows;
+    }
+
+    /** What a single player wants to see: HUD mode plus the two row toggles. */
+    private record Layout(boolean minimal, boolean compact, boolean hints, boolean status) {
+    }
+
+    private Layout layout(Player player) {
+        var settings = coreApi.playerManager().find(player.getUniqueId()).map(TasticPlayer::settings).orElse(null);
+        String mode = settings == null ? "FULL" : settings.get(LobbySettings.HUD_MODE);
+        boolean minimal = "MINIMAL".equals(mode);
+        boolean compact = minimal || "COMPACT".equals(mode);
+        boolean hints = !compact && (settings == null || settings.get(LobbySettings.HUD_HINTS));
+        boolean status = !minimal && (settings == null || settings.get(LobbySettings.HUD_STATUS_ROW));
+        return new Layout(minimal, compact, hints, status);
     }
 
     private boolean boxesReady() {
@@ -322,6 +340,7 @@ public final class HudService implements Service {
         HudContextProvider.Context ctx = context.contextOf(player);
         boolean icons = configuration.iaIcons() && customItems.fontImagesSupported();
         boolean boxes = boxesAvailable;
+        Layout layout = layout(player);
         if (configuration.rowValues()) {
             List<Measured> cells = new ArrayList<>();
             cells.add(cell(context.contextIcon(ctx), context.title(player), null, configuration.titleColor(), icons));
@@ -332,15 +351,20 @@ public final class HudService implements Service {
             }
             rows.add(row(cells, boxes));
         }
-        if (configuration.rowHint()) {
+        if (configuration.rowHint() && layout.hints()) {
             String hint = context.hint(player);
             rows.add(hint.isEmpty() ? Component.empty() : row(List.of(cell(null, hint, null, configuration.hintColor(), icons)), boxes));
         }
-        if (configuration.rowObjective()) {
+        if (configuration.rowObjective() && !layout.minimal()) {
             String objective = context.objective(player);
-            rows.add(objective.isEmpty() ? Component.empty() : row(List.of(cell(null, objective, null, configuration.objectiveColor(), icons)), boxes));
+            // with the hint row switched off the objective row carries the hint whenever there is no objective,
+            // so the HUD keeps its controls without spending a fourth line on them
+            boolean fallback = objective.isEmpty() && !(configuration.rowHint() && layout.hints()) && layout.hints();
+            String text = fallback ? context.hint(player) : objective;
+            TextColor color = fallback ? configuration.hintColor() : configuration.objectiveColor();
+            rows.add(text.isEmpty() ? Component.empty() : row(List.of(cell(null, text, null, color, icons)), boxes));
         }
-        if (configuration.rowStatus()) {
+        if (configuration.rowStatus() && layout.status()) {
             List<Measured> cells = List.of(
                     cell("rank", null, rankDisplay.apply(player), configuration.statusColor(), icons),
                     cell("playtime", null, playtime.apply(player), configuration.statusColor(), icons),

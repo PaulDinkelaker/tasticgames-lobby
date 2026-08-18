@@ -4,6 +4,7 @@ import de.tasticgames.api.TasticCoreApi;
 import de.tasticgames.lobby.config.LobbyConfigurationService;
 import de.tasticgames.lobby.dialog.LanguageDialogService;
 import de.tasticgames.lobby.dialog.WelcomeDialogService;
+import de.tasticgames.lobby.settings.LobbySettings;
 import de.tasticgames.lobby.telemetry.LobbyTelemetryService;
 import de.tasticgames.lobby.world.LobbySpawnService;
 import de.tasticgames.onboarding.PlayerOnboarding;
@@ -67,6 +68,24 @@ public final class LobbyConnectionListener implements Listener {
         quitHooks.add(hook);
     }
 
+    /**
+     * Join and quit messages are taken off the event and delivered by hand, because whether someone wants to
+     * read them is a per-player setting ({@link LobbySettings#JOIN_MESSAGES}) and the vanilla broadcast cannot
+     * be filtered per receiver. With {@code suppress-join-quit-messages} nobody gets them at all.
+     */
+    private void deliver(Component message) {
+        if (message == null || configurationService.configuration().world().suppressJoinQuitMessages()) {
+            return;
+        }
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            boolean wants = coreApi.playerManager().find(online.getUniqueId())
+                    .map(p -> p.settings().get(LobbySettings.JOIN_MESSAGES)).orElse(true);
+            if (wants) {
+                online.sendMessage(message);
+            }
+        }
+    }
+
     /** Runs async during the configuration phase: only the spawn location is decided here. */
     @EventHandler
     public void onSpawnLocation(AsyncPlayerSpawnLocationEvent event) {
@@ -75,9 +94,8 @@ public final class LobbyConnectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onJoin(PlayerJoinEvent event) {
-        if (configurationService.configuration().world().suppressJoinQuitMessages()) {
-            event.joinMessage(null);
-        }
+        deliver(event.joinMessage());
+        event.joinMessage(null);
         players.getOrCreate(event.getPlayer());
         telemetry.event("lobby.join", event.getPlayer().getUniqueId(), Map.of());
     }
@@ -145,9 +163,8 @@ public final class LobbyConnectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onQuit(PlayerQuitEvent event) {
-        if (configurationService.configuration().world().suppressJoinQuitMessages()) {
-            event.quitMessage((Component) null);
-        }
+        deliver(event.quitMessage());
+        event.quitMessage((Component) null);
         Player player = event.getPlayer();
         for (Consumer<Player> hook : quitHooks) {
             try {

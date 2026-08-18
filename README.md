@@ -54,6 +54,11 @@ Permissions: `tasticlobby.admin` (parent), `tasticlobby.status`, `tasticlobby.re
 
 ## Settings (TasticCore SettingRegistry)
 
+
+Lobby (per player, `/settings`): `lobby.hud.enabled|mode|status-row|hints`, `lobby.items.enabled`, `lobby.launchpads.enabled`,
+`lobby.teleport-pads.enabled`, `lobby.double-jump.enabled`, `lobby.player-visibility`, `lobby.join-messages`,
+`lobby.cookie-clicker.hud|effects|notifications|actionbar|click-sounds|combo-popups|special-alerts|offline-prompt|confirm-prestige`.
+
 Core: `music.enabled`, `music.volume`, `sounds.enabled`, `sounds.volume`, `language`, `ui.animations`,
 `accessibility.reduced-effects`, `notifications.events`, `chat.private-messages`, `social.friend-requests`,
 `social.party-invites`, `cosmetics.visible`.

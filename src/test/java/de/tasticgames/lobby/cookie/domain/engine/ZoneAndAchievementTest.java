@@ -82,7 +82,11 @@ class ZoneAndAchievementTest {
         List<String> last = engine.evaluateAchievements(p);
         assertTrue(last.contains("prestige_10"));
         assertTrue(last.contains("all_zones_discovered"));
-        assertEquals(engine.catalog().achievements().size() - 1, p.achievements().size()); // golden_100 missing
+        // everything this profile qualifies for is unlocked; the untouched thresholds (more clicks, more
+        // cookies, more special cookies) stay locked, so the count is derived instead of hard-coded
+        int qualifying = new AchievementEvaluator(engine.catalog()).satisfied(p.snapshot()).size();
+        assertEquals(qualifying, p.achievements().size());
+        assertFalse(p.achievements().contains("golden_100"));
     }
 
     @Test

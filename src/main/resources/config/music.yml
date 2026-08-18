@@ -1,3 +1,14 @@
+# Music. The TasticGames soundtrack replaces Minecraft's own music: drop the .ogg files into
+# plugins/TasticLobby/ost/ and TasticLobby installs them into the ItemsAdder pack on every start, reads each
+# track length from the file and plays them in the MUSIC category (so the player's music slider applies).
+# Players switch music off in /settings - then nothing plays, because the vanilla tracks are silenced.
+ost:
+  enabled: true
+  # replace Minecraft's music events with silence so vanilla and soundtrack can never play at the same time
+  silence-vanilla: true
+  # build the playlist from the installed tracks (off = use the playlists below)
+  auto-playlist: true
+
 # Resource-pack music. Replace the vanilla discs with tasticgames:music.* keys once the pack ships them.
 enabled: true
 shuffle: true

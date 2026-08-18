@@ -15,6 +15,7 @@ import java.util.Optional;
  * @param requiredGeneratorId generator that must be owned {@code requiredCount} times, or {@code null}
  * @param requiredCount       required owned count of {@code requiredGeneratorId} (ignored if id is null)
  * @param unlockPrestige      minimum prestige level to see/buy this upgrade
+ * @param exclusiveGroup      group of upgrades of which only one can be owned per run, or {@code null}
  */
 public record UpgradeDefinition(
         String id,
@@ -23,7 +24,8 @@ public record UpgradeDefinition(
         UpgradeEffect effect,
         String requiredGeneratorId,
         int requiredCount,
-        int unlockPrestige
+        int unlockPrestige,
+        String exclusiveGroup
 ) {
 
     public UpgradeDefinition {
@@ -34,34 +36,46 @@ public record UpgradeDefinition(
         if (requiredGeneratorId != null && requiredGeneratorId.isBlank()) {
             requiredGeneratorId = null;
         }
+        if (exclusiveGroup != null && exclusiveGroup.isBlank()) {
+            exclusiveGroup = null;
+        }
     }
 
     public static UpgradeDefinition of(String id, long cost, UpgradeEffect effect) {
-        return new UpgradeDefinition(id, "cookie.upgrade." + id, CookieAmount.of(cost), effect, null, 0, 0);
+        return new UpgradeDefinition(id, "cookie.upgrade." + id, CookieAmount.of(cost), effect, null, 0, 0, null);
     }
 
     public static UpgradeDefinition of(String id, String cost, UpgradeEffect effect) {
-        return new UpgradeDefinition(id, "cookie.upgrade." + id, CookieAmount.of(cost), effect, null, 0, 0);
+        return new UpgradeDefinition(id, "cookie.upgrade." + id, CookieAmount.of(cost), effect, null, 0, 0, null);
     }
 
     public UpgradeDefinition requiring(String generatorId, int count) {
-        return new UpgradeDefinition(id, nameKey, cost, effect, generatorId, count, unlockPrestige);
+        return new UpgradeDefinition(id, nameKey, cost, effect, generatorId, count, unlockPrestige, exclusiveGroup);
     }
 
     public UpgradeDefinition unlockedAtPrestige(int prestige) {
-        return new UpgradeDefinition(id, nameKey, cost, effect, requiredGeneratorId, requiredCount, prestige);
+        return new UpgradeDefinition(id, nameKey, cost, effect, requiredGeneratorId, requiredCount, prestige, exclusiveGroup);
+    }
+
+    /** Only one upgrade of a group can be owned at a time – a prestige clears the choice with the upgrades. */
+    public UpgradeDefinition exclusiveIn(String group) {
+        return new UpgradeDefinition(id, nameKey, cost, effect, requiredGeneratorId, requiredCount, unlockPrestige, group);
     }
 
     public UpgradeDefinition withCost(long newCost) {
-        return new UpgradeDefinition(id, nameKey, CookieAmount.of(newCost), effect, requiredGeneratorId, requiredCount, unlockPrestige);
+        return new UpgradeDefinition(id, nameKey, CookieAmount.of(newCost), effect, requiredGeneratorId, requiredCount, unlockPrestige, exclusiveGroup);
     }
 
     public UpgradeDefinition withEffect(UpgradeEffect newEffect) {
-        return new UpgradeDefinition(id, nameKey, cost, newEffect, requiredGeneratorId, requiredCount, unlockPrestige);
+        return new UpgradeDefinition(id, nameKey, cost, newEffect, requiredGeneratorId, requiredCount, unlockPrestige, exclusiveGroup);
     }
 
     public Optional<String> requiredGenerator() {
         return Optional.ofNullable(requiredGeneratorId);
+    }
+
+    public boolean isExclusive() {
+        return exclusiveGroup != null;
     }
 
     public boolean hasGeneratorRequirement() {

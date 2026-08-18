@@ -132,3 +132,18 @@ after the new version was adopted on the main thread, and a prestige that still 
 server bumped the version) syncs the server state and retries with the same operationId (3 attempts); interactions only
 inside the cookie world; special cookies validated per owner and never granted below the interval floor (a relog
 redraws a full interval instead of shortening the wait); no items represent progression.
+
+## Shift orders
+Three goals run next to the normal baking (`CookieOrderService`, `OrderBoard`): bake N cookies, click N times, buy N
+generators, buy N upgrades, collect a special cookie. Every slot carries a different goal type, the targets are rolled
+from the player's own production (a "bake N cookies" order asks for 3-6 minutes of production, at least 60 clicks worth)
+and the reward is paid in seconds of that same production (150-300 s), so an order is worth the same relative amount at
+prestige 0 and at prestige 10. A claimed order is replaced immediately; at most 8 orders per player and hour count
+(`OrderBoard.CLAIMS_PER_HOUR`), which keeps the board a goal list instead of an income source. The board lives in the
+session: it is a goal for the current shift, not a multi-day task, and is deliberately not persisted.
+
+## Baking styles
+From prestige 1 a run can be steered with exactly one style (250,000 cookies, exclusive group `baking_style`):
+`style_artisan` (x4 click power), `style_industrial` (x1.4 production), `style_lucky` (x2 special cookie chance).
+The engine hides the other options once one is bought (`UpgradeDefinition#exclusiveGroup`), and a prestige clears the
+choice with the other upgrades - the next run can be played differently.

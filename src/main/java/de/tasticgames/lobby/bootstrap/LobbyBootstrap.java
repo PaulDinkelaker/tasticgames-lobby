@@ -134,7 +134,11 @@ public final class LobbyBootstrap {
         items = start(new LobbyItemService(plugin, configurationService, messages, coreApi, visibility::modeOf, integrations.customItems()));
         initialization = start(new LobbyPlayerInitializationService(coreApi, configurationService, players, spawn, items, visibility, telemetry, logger));
         cosmetics = start(new CosmeticService(plugin, coreApi, configurationService, api, telemetry, mainThread, integrations, logger));
-        music = start(new MusicService(plugin, coreApi, configurationService, players, logger));
+        de.tasticgames.lobby.music.MusicAssetInstaller soundtrack =
+                start(new de.tasticgames.lobby.music.MusicAssetInstaller(plugin, integrations.customItems(),
+                        configurationService.configuration().music().ostEnabled(),
+                        configurationService.configuration().music().ostSilenceVanilla(), logger));
+        music = start(new MusicService(plugin, coreApi, configurationService, players, soundtrack, logger));
         gateway = start(new GatewayService(plugin, api, telemetry, logger));
         NetworkNotifier notifier = new NetworkNotifier(api);
         socialActions = start(new SocialActionService(api, social, notifier, messages, sounds, mainThread, telemetry, logger));
@@ -184,7 +188,8 @@ public final class LobbyBootstrap {
                 player -> players.find(player.getUniqueId()).map(lp -> formatDuration(java.time.Duration.between(lp.joinedAt(), java.time.Instant.now()))).orElse(""));
         hud = start(new de.tasticgames.lobby.hud.HudService(plugin, coreApi, configurationService, hudContext, integrations.customItems(), players,
                 p -> ranks.rank(p).displayName(), player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
-                () -> Bukkit.getOnlinePlayers().size(), cosmeticPacks::installedContent, logger));
+                () -> Bukkit.getOnlinePlayers().size(),
+                () -> cosmeticPacks.installedContent() || soundtrack.installedContent(), logger));
         items.setProfileHeadModel(hud::profileHeadModel);
         socialActions.setAfterAction(p -> {
             visibility.apply(p);

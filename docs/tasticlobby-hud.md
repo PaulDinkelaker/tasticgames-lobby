@@ -71,3 +71,16 @@ colors: { title: "#ffd82b", label: "#aaaaaa", values: ["#24ff2b", "#c4e4ff", "#f
 ## Placeholders
 Dieselben Inhalte stehen weiterhin als `%tastic_ctx_*%` (PlaceholderAPI/TAB) bereit – z. B. für TAB-Header oder andere
 Anzeigen; ein Scoreboard/UltimateUI wird nicht mehr benötigt.
+
+## Script widths
+Box sizes come from `FontWidths`. Only ASCII uses the vanilla bitmap widths (2-7 px); everything the client renders
+with its bundled unifont advances a full cell: 9 px halfwidth (Devanagari, Cyrillic beyond the vanilla font) and 17 px
+fullwidth (CJK, Hangul). The client does no Indic shaping, so matras and the virama are cells of their own - a Hindi
+line needs roughly twice the pixels of the same text in Latin letters, and estimating it with the ASCII average is what
+made Hindi HUD rows spill out of their boxes.
+
+## Rows per player
+`hud.yml` decides which rows exist at all (shipped: values, objective, status - the hint row is off, so the objective
+row carries the hint when there is no objective). On top of that every player has `/settings` -> HUD: `HUD size`
+(FULL = every configured row, COMPACT = no hints, MINIMAL = values only), `HUD status row` and `HUD hints`. The bar
+count is rebuilt when the mode changes, so a MINIMAL player really gets one boss bar instead of an empty one.

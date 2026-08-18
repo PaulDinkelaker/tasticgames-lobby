@@ -167,7 +167,9 @@ public final class LobbyConfigurationService implements Service {
 
         LobbyConfiguration.Music musicConfig = new LobbyConfiguration.Music(
                 music.getBoolean("enabled", true), tracks(music, "playlists.lobby"), tracks(music, "playlists.cookie"),
-                music.getInt("gap-seconds", 8), music.getBoolean("shuffle", true));
+                music.getInt("gap-seconds", 8), music.getBoolean("shuffle", true),
+                music.getBoolean("ost.enabled", true), music.getBoolean("ost.silence-vanilla", true),
+                music.getBoolean("ost.auto-playlist", true));
 
         LobbyConfiguration.Api apiConfig = apiConfiguration(api);
 

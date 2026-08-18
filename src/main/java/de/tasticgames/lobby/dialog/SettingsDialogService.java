@@ -34,7 +34,11 @@ public final class SettingsDialogService {
     private record BoolSetting(SettingKey<Boolean> key, String labelKey) {
     }
 
-    private record Category(String id, String titleKey, List<BoolSetting> booleans, boolean audioSliders, boolean language, boolean visibility) {
+    private record Category(String id, String titleKey, List<BoolSetting> booleans, boolean audioSliders, boolean language, boolean visibility,
+                            boolean hudMode) {
+        Category(String id, String titleKey, List<BoolSetting> booleans, boolean audioSliders, boolean language, boolean visibility) {
+            this(id, titleKey, booleans, audioSliders, language, visibility, false);
+        }
     }
 
     private final TasticCoreApi coreApi;
@@ -65,10 +69,23 @@ public final class SettingsDialogService {
                 new Category("notifications", "lobby.settings.category.notifications", List.of(new BoolSetting(CoreSettings.EVENT_NOTIFICATIONS, "settings.notifications")), false, false, false),
                 new Category("cosmetics", "lobby.settings.category.cosmetics", List.of(new BoolSetting(CoreSettings.COSMETICS_VISIBLE, "settings.cosmetics-visible")), false, false, false),
                 new Category("lobby", "lobby.settings.category.lobby", List.of(new BoolSetting(LobbySettings.ITEMS_ENABLED, "lobby.settings.items"),
-                        new BoolSetting(LobbySettings.LAUNCHPADS_ENABLED, "lobby.settings.launchpads"), new BoolSetting(LobbySettings.TELEPORT_PADS_ENABLED, "lobby.settings.teleport-pads"),
-                        new BoolSetting(LobbySettings.DOUBLE_JUMP_ENABLED, "lobby.settings.double-jump"), new BoolSetting(LobbySettings.HUD_ENABLED, "lobby.settings.hud")), false, false, true),
-                new Category("cookie", "lobby.settings.category.cookie", List.of(new BoolSetting(LobbySettings.COOKIE_HUD, "lobby.settings.cookie-hud"),
-                        new BoolSetting(LobbySettings.COOKIE_EFFECTS, "lobby.settings.cookie-effects"), new BoolSetting(LobbySettings.COOKIE_NOTIFICATIONS, "lobby.settings.cookie-notifications")), false, false, false));
+                        new BoolSetting(LobbySettings.LAUNCHPADS_ENABLED, "lobby.settings.launchpads"),
+                        new BoolSetting(LobbySettings.TELEPORT_PADS_ENABLED, "lobby.settings.teleport-pads"),
+                        new BoolSetting(LobbySettings.DOUBLE_JUMP_ENABLED, "lobby.settings.double-jump"),
+                        new BoolSetting(LobbySettings.JOIN_MESSAGES, "lobby.settings.join-messages")), false, false, true),
+                new Category("hud", "lobby.settings.category.hud", List.of(new BoolSetting(LobbySettings.HUD_ENABLED, "lobby.settings.hud"),
+                        new BoolSetting(LobbySettings.HUD_STATUS_ROW, "lobby.settings.hud-status"),
+                        new BoolSetting(LobbySettings.HUD_HINTS, "lobby.settings.hud-hints"),
+                        new BoolSetting(LobbySettings.COOKIE_HUD, "lobby.settings.cookie-hud")), false, false, false, true),
+                new Category("cookie", "lobby.settings.category.cookie", List.of(
+                        new BoolSetting(LobbySettings.COOKIE_EFFECTS, "lobby.settings.cookie-effects"),
+                        new BoolSetting(LobbySettings.COOKIE_NOTIFICATIONS, "lobby.settings.cookie-notifications"),
+                        new BoolSetting(LobbySettings.COOKIE_ACTIONBAR, "lobby.settings.cookie-actionbar"),
+                        new BoolSetting(LobbySettings.COOKIE_CLICK_SOUNDS, "lobby.settings.cookie-click-sounds"),
+                        new BoolSetting(LobbySettings.COOKIE_COMBO_POPUPS, "lobby.settings.cookie-combo-popups"),
+                        new BoolSetting(LobbySettings.COOKIE_SPECIAL_ALERTS, "lobby.settings.cookie-special-alerts"),
+                        new BoolSetting(LobbySettings.COOKIE_OFFLINE_PROMPT, "lobby.settings.cookie-offline-prompt"),
+                        new BoolSetting(LobbySettings.COOKIE_CONFIRM_PRESTIGE, "lobby.settings.cookie-confirm-prestige")), false, false, false));
     }
 
     public void openMain(Player player) {
@@ -93,6 +110,16 @@ public final class SettingsDialogService {
         for (BoolSetting setting : category.booleans()) {
             inputs.add(DialogInput.bool(inputKey(setting.key().id()), messages.get(lang, setting.labelKey(), Map.of()))
                     .initial(tastic.settings().get(setting.key())).build());
+        }
+        if (category.hudMode()) {
+            List<SingleOptionDialogInput.OptionEntry> modes = new ArrayList<>();
+            String current = tastic.settings().get(LobbySettings.HUD_MODE);
+            for (String mode : List.of("FULL", "COMPACT", "MINIMAL")) {
+                modes.add(SingleOptionDialogInput.OptionEntry.create(mode,
+                        messages.get(lang, "lobby.settings.hud-mode." + mode.toLowerCase(java.util.Locale.ROOT), Map.of()), mode.equals(current)));
+            }
+            inputs.add(DialogInput.singleOption(inputKey(LobbySettings.HUD_MODE.id()),
+                    messages.get(lang, "lobby.settings.hud-mode", Map.of()), modes).build());
         }
         if (category.audioSliders()) {
             inputs.add(DialogInput.numberRange(inputKey(CoreSettings.MUSIC_VOLUME.id()), messages.get(lang, "settings.music-volume", Map.of()), 0f, 100f)
@@ -143,6 +170,12 @@ public final class SettingsDialogService {
             }
             if (sound != null && Math.round(sound) != tastic.settings().get(CoreSettings.SOUND_VOLUME)) {
                 futures.add(coreApi.playerSettingUpdateDispatcher().update(tastic, CoreSettings.SOUND_VOLUME, Math.round(sound)));
+            }
+        }
+        if (category.hudMode()) {
+            String mode = view.getText(inputKey(LobbySettings.HUD_MODE.id()));
+            if (mode != null && !mode.equalsIgnoreCase(tastic.settings().get(LobbySettings.HUD_MODE))) {
+                futures.add(coreApi.playerSettingUpdateDispatcher().update(tastic, LobbySettings.HUD_MODE, mode.toUpperCase(java.util.Locale.ROOT)));
             }
         }
         if (category.visibility()) {

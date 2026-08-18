@@ -648,18 +648,25 @@ public final class CookieClickService implements Service, Listener {
         var tastic = coreApi.playerManager().find(player.getUniqueId()).orElse(null);
         boolean effects = tastic == null || tastic.settings().get(LobbySettings.COOKIE_EFFECTS);
         boolean reduced = tastic != null && tastic.settings().get(CoreSettings.REDUCED_EFFECTS);
+        boolean actionbar = tastic == null || tastic.settings().get(LobbySettings.COOKIE_ACTIONBAR);
+        boolean clickSounds = tastic == null || tastic.settings().get(LobbySettings.COOKIE_CLICK_SOUNDS);
+        boolean comboPopups = tastic == null || tastic.settings().get(LobbySettings.COOKIE_COMBO_POPUPS);
         Locale locale = localeOf(player);
         CookieStats stats = runtime.engine().compute(session.profile());
-        String combo = result.comboStage() > 0
+        String combo = result.comboStage() > 0 && comboPopups
                 ? messages.raw(messages.languageOf(player), "cookie.click.combo").replace("<combo>", String.format(Locale.ROOT, "%.2f", result.comboMultiplier()))
                 : "";
-        session.lastActionbarAt(System.currentTimeMillis());
-        player.sendActionBar(messages.get(player, "cookie.click.actionbar", Map.of(
-                "gain", formatter.format(result.reward(), locale),
-                "cookies", formatter.format(session.profile().cookies(), locale),
-                "cps", formatter.formatRate(stats.effectiveCps(), locale),
-                "combo", messages.mini(combo))));
-        sounds.play(player, "minecraft:entity.item.pickup", 0.4f, result.comboAdvanced() ? 1.6f : 1.2f);
+        if (actionbar) {
+            session.lastActionbarAt(System.currentTimeMillis());
+            player.sendActionBar(messages.get(player, "cookie.click.actionbar", Map.of(
+                    "gain", formatter.format(result.reward(), locale),
+                    "cookies", formatter.format(session.profile().cookies(), locale),
+                    "cps", formatter.formatRate(stats.effectiveCps(), locale),
+                    "combo", messages.mini(combo))));
+        }
+        if (clickSounds) {
+            sounds.play(player, "minecraft:entity.item.pickup", 0.4f, result.comboAdvanced() ? 1.6f : 1.2f);
+        }
         String clickSkill = configuration.get().mainCookie().clickSkill();
         if ("mythicmobs".equals(backend) && !clickSkill.isBlank() && visualId != null) {
             Entity visual = Bukkit.getEntity(visualId);
@@ -686,7 +693,8 @@ public final class CookieClickService implements Service, Listener {
         if (!main.inZone(player.getLocation())) {
             return;
         }
-        boolean hudOn = coreApi.playerManager().find(player.getUniqueId()).map(p -> p.settings().get(LobbySettings.COOKIE_HUD)).orElse(true);
+        boolean hudOn = coreApi.playerManager().find(player.getUniqueId())
+                .map(p -> p.settings().get(LobbySettings.COOKIE_HUD) && p.settings().get(LobbySettings.COOKIE_ACTIONBAR)).orElse(true);
         if (!hudOn) return;
         session.lastActionbarAt(now);
         Locale locale = localeOf(player);

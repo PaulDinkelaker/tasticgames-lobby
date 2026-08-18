@@ -27,8 +27,8 @@ class CatalogValidatorTest {
         assertEquals(11, c.generators().size());
         assertEquals(11, c.prestiges().size());
         assertEquals(11, c.zones().size());
-        assertEquals(9, c.prestigeTree().size());
-        assertEquals(15, c.achievements().size());
+        assertEquals(13, c.prestigeTree().size());
+        assertEquals(23, c.achievements().size());
         assertTrue(c.upgrades().size() >= 25, "expected at least 25 upgrades, got " + c.upgrades().size());
         assertEquals(10, c.maxPrestigeLevel());
         assertEquals("sugar_farm", c.requirePrestige(1).unlockedGeneratorIds().getFirst());

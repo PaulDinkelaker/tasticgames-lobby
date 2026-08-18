@@ -6,7 +6,9 @@ enabled: true
 refresh-ticks: 10
 rows:
   values: true      # [context] title + 4 icon/value pairs
-  hint: true        # controls / commands for the current context
+  # Own hint row (controls / commands). Off by default so the HUD only uses three rows - the hint is then
+  # shown in the objective row whenever the context has no objective of its own.
+  hint: false
   objective: true   # goal / progress line
   status: true      # rank | playtime | online (always the same)
 # ItemsAdder styling (soft dependency): icons from font images and dark rounded boxes behind each cell.

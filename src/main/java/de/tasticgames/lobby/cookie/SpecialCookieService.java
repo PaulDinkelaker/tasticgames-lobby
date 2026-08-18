@@ -210,12 +210,15 @@ public final class SpecialCookieService implements Service, Listener {
         session.touchDirty();
         Component name = messages.get(player, rarity.nameKey());
         Component rewardLine = messages.get(player, rewardKey(reward), rewardPlaceholders(reward, now));
-        player.showTitle(Title.title(messages.get(player, "cookie.special.title", Map.of("rarity", name)), rewardLine,
-                Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(2200), Duration.ofMillis(600))));
+        if (alertsEnabled(player)) {
+            player.showTitle(Title.title(messages.get(player, "cookie.special.title", Map.of("rarity", name)), rewardLine,
+                    Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(2200), Duration.ofMillis(600))));
+            sounds.play(player, "minecraft:block.amethyst_block.chime", 1.0f, 1.3f);
+            sounds.play(player, "minecraft:entity.player.levelup", 0.9f, 1.4f);
+        }
+        // the reward line itself always goes to chat: a buff the player cannot see is worse than a line too many
         messages.send(player, "cookie.special.activated", Map.of("rarity", name));
         player.sendMessage(rewardLine);
-        sounds.play(player, "minecraft:block.amethyst_block.chime", 1.0f, 1.3f);
-        sounds.play(player, "minecraft:entity.player.levelup", 0.9f, 1.4f);
         if (effectsEnabled(player)) {
             player.spawnParticle(Particle.TOTEM_OF_UNDYING, player.getLocation().add(0, 1, 0), 40, 0.6, 0.6, 0.6, 0.25);
         }
@@ -223,6 +226,12 @@ public final class SpecialCookieService implements Service, Listener {
                 Map.of("rarity", rarity, "type", reward.type(), "trigger", trigger));
         progress.onSpecialCookie(player.getUniqueId(), rarity);
         notifyAchievements(player, session);
+    }
+
+    /** Titles and fanfare for a special cookie ({@link LobbySettings#COOKIE_SPECIAL_ALERTS}). */
+    private boolean alertsEnabled(Player player) {
+        var tastic = coreApi.playerManager().find(player.getUniqueId()).orElse(null);
+        return tastic == null || tastic.settings().get(LobbySettings.COOKIE_SPECIAL_ALERTS);
     }
 
     private boolean effectsEnabled(Player player) {
@@ -324,7 +333,9 @@ public final class SpecialCookieService implements Service, Listener {
         active.put(player.getUniqueId(), new Special(player.getUniqueId(), rarity, interaction.getUniqueId(),
                 display.getUniqueId(), label.getUniqueId(), roll.expiresAt()));
         messages.send(player, "cookie.special.spawned", Map.of("rarity", name));
-        sounds.play(player, "minecraft:block.amethyst_block.chime", 1.0f, 1.3f);
+        if (alertsEnabled(player)) {
+            sounds.play(player, "minecraft:block.amethyst_block.chime", 1.0f, 1.3f);
+        }
         telemetry.event("cookie.golden_spawned", player.getUniqueId(), Map.of("rarity", rarity));
         return true;
     }

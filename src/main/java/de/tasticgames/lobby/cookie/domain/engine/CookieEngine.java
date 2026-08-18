@@ -466,7 +466,29 @@ public final class CookieEngine {
         if (upgrade.unlockPrestige() > profile.prestigeLevel()) return false;
         if (upgrade.hasGeneratorRequirement()
                 && profile.generatorCount(upgrade.requiredGeneratorId()) < upgrade.requiredCount()) return false;
-        return true;
+        return !groupTaken(profile, upgrade);
+    }
+
+    /** Whether the profile already owns another upgrade of this upgrade's exclusive group (baking style). */
+    private boolean groupTaken(CookieProfile profile, UpgradeDefinition upgrade) {
+        if (!upgrade.isExclusive()) return false;
+        return catalog.upgrades().stream()
+                .filter(other -> upgrade.exclusiveGroup().equals(other.exclusiveGroup()))
+                .anyMatch(other -> profile.hasUpgrade(other.id()));
+    }
+
+    /** The upgrade the profile picked from an exclusive group (e.g. its baking style), if any. */
+    public Optional<UpgradeDefinition> exclusiveChoice(CookieProfile profile, String group) {
+        return catalog.upgrades().stream()
+                .filter(u -> group.equals(u.exclusiveGroup()) && profile.hasUpgrade(u.id()))
+                .findFirst();
+    }
+
+    /** Every upgrade of an exclusive group that the profile may see (unlocked by prestige). */
+    public List<UpgradeDefinition> exclusiveOptions(CookieProfile profile, String group) {
+        return catalog.upgrades().stream()
+                .filter(u -> group.equals(u.exclusiveGroup()) && u.unlockPrestige() <= profile.prestigeLevel())
+                .toList();
     }
 
     /** All upgrades the profile could buy now ignoring cost. */
@@ -487,6 +509,10 @@ public final class CookieEngine {
         if (u.unlockPrestige() > profile.prestigeLevel()) return PurchaseResult.failure(PurchaseResult.Reason.LOCKED, upgradeId, 0, profile.cookies());
         if (u.hasGeneratorRequirement() && profile.generatorCount(u.requiredGeneratorId()) < u.requiredCount()) {
             return PurchaseResult.failure(PurchaseResult.Reason.REQUIREMENT_NOT_MET, upgradeId, 0, profile.cookies());
+        }
+        if (groupTaken(profile, u)) {
+            // the run already has a baking style; changing it is a prestige decision, not a purchase
+            return PurchaseResult.failure(PurchaseResult.Reason.ALREADY_OWNED, upgradeId, 1, profile.cookies());
         }
         if (!profile.canAfford(u.cost())) return PurchaseResult.failure(PurchaseResult.Reason.INSUFFICIENT_FUNDS, upgradeId, 0, profile.cookies());
         profile.spend(u.cost());

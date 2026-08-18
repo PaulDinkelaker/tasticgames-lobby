@@ -52,6 +52,9 @@ public final class DefaultCatalog {
     /** Recipe cost = previous prestige threshold / RECIPE_COST_DIVISOR. */
     static final BigDecimal RECIPE_COST_DIVISOR = BigDecimal.valueOf(50);
 
+    /** Exclusive group of the three baking styles. */
+    public static final String STYLE_GROUP = "baking_style";
+
     public static List<UpgradeDefinition> upgrades() {
         List<UpgradeDefinition> list = new ArrayList<>();
 
@@ -71,6 +74,15 @@ public final class DefaultCatalog {
                     .requiring(g.id(), 10).unlockedAtPrestige(g.unlockPrestige()));
         }
 
+        // Baking styles: exactly one per run, bought once, and they steer how the run plays. The choice is
+        // cleared by a prestige together with the other upgrades, so every run can be played differently.
+        list.add(UpgradeDefinition.of("style_artisan", 250_000L, UpgradeEffect.clickMultiplier(4))
+                .unlockedAtPrestige(1).exclusiveIn(STYLE_GROUP));
+        list.add(UpgradeDefinition.of("style_industrial", 250_000L, UpgradeEffect.globalCps(1.4))
+                .unlockedAtPrestige(1).exclusiveIn(STYLE_GROUP));
+        list.add(UpgradeDefinition.of("style_lucky", 250_000L, UpgradeEffect.goldenFrequency(2.0))
+                .unlockedAtPrestige(1).exclusiveIn(STYLE_GROUP));
+
         // Utility upgrades
         list.add(UpgradeDefinition.of("golden_luck", 500_000L, UpgradeEffect.goldenFrequency(1.5)));
         list.add(UpgradeDefinition.of("golden_glow", 5_000_000L, UpgradeEffect.goldenValue(2)));
@@ -88,6 +100,15 @@ public final class DefaultCatalog {
         list.add(UpgradeDefinition.of("sugar_rush", 50_000L, UpgradeEffect.comboDuration(1.5)));
         list.add(UpgradeDefinition.of("night_shift", 250_000L, UpgradeEffect.offlineEfficiency(0.25)));
         list.add(UpgradeDefinition.of("kitchen_synergy", 1_000_000L, UpgradeEffect.globalCps(1.1)).requiring("baker", 10));
+        list.add(UpgradeDefinition.of("cold_storage", 5_000_000L, UpgradeEffect.offlineEfficiency(0.15)).unlockedAtPrestige(2));
+        list.add(UpgradeDefinition.of("rhythm_training", 2_500_000L, UpgradeEffect.comboDuration(1.4)).unlockedAtPrestige(2));
+        list.add(UpgradeDefinition.of("silver_polish", 25_000_000L,
+                UpgradeEffect.rarityWeight(SpecialCookieRarity.SILVER, 1.5)).unlockedAtPrestige(3));
+        list.add(UpgradeDefinition.of("double_glazing", 250_000_000L, UpgradeEffect.goldenValue(2)).unlockedAtPrestige(3));
+        list.add(UpgradeDefinition.of("assembly_line", "1e11", UpgradeEffect.globalCps(1.25))
+                .requiring("cookie_factory", 25).unlockedAtPrestige(4));
+        list.add(UpgradeDefinition.of("quantum_kneading", "1e17", UpgradeEffect.clickAddCpsPercent(2)).unlockedAtPrestige(6));
+        list.add(UpgradeDefinition.of("eternal_dough", "1e28", UpgradeEffect.globalCps(1.5)).unlockedAtPrestige(8));
 
         // Prestige-gated global recipes (see class comment)
         List<PrestigeDefinition> prestiges = prestiges();
@@ -95,7 +116,7 @@ public final class DefaultCatalog {
             BigDecimal previousThreshold = prestiges.get(level).requiredLifetimeCookies();
             CookieAmount cost = CookieAmount.of(previousThreshold.divide(RECIPE_COST_DIVISOR));
             list.add(new UpgradeDefinition(RECIPE_IDS[level], "cookie.upgrade." + RECIPE_IDS[level], cost,
-                    UpgradeEffect.globalCps(RECIPE_MULTIPLIERS[level]), null, 0, level));
+                    UpgradeEffect.globalCps(RECIPE_MULTIPLIERS[level]), null, 0, level, null));
         }
         return List.copyOf(list);
     }
@@ -138,7 +159,12 @@ public final class DefaultCatalog {
                 PrestigeTreeNode.of("sugar_high", 5, 2, PrestigeTreeEffectType.COMBO_DURATION_PERCENT, 10),
                 PrestigeTreeNode.of("head_start", 10, 1, PrestigeTreeEffectType.STARTING_COOKIES, 1000),
                 new PrestigeTreeNode("helping_hands", "cookie.tree.helping_hands", 10, 1,
-                        PrestigeTreeEffectType.STARTING_GENERATORS, 1, "cursor")
+                        PrestigeTreeEffectType.STARTING_GENERATORS, 1, "cursor"),
+                PrestigeTreeNode.of("steady_hands", 20, 3, PrestigeTreeEffectType.CLICK_POWER_PERCENT, 15),
+                PrestigeTreeNode.of("bulk_ovens", 40, 3, PrestigeTreeEffectType.GLOBAL_CPS_PERCENT, 8),
+                PrestigeTreeNode.of("golden_hoard", 15, 3, PrestigeTreeEffectType.GOLDEN_CHANCE_PERCENT, 8),
+                new PrestigeTreeNode("apprentice_bakers", "cookie.tree.apprentice_bakers", 30, 2,
+                        PrestigeTreeEffectType.STARTING_GENERATORS, 5, "baker")
         );
     }
 
@@ -178,6 +204,14 @@ public final class DefaultCatalog {
                 AchievementDefinition.of("first_prestige", AchievementCondition.of(Type.PRESTIGE_LEVEL, 1)),
                 AchievementDefinition.of("prestige_5", AchievementCondition.of(Type.PRESTIGE_LEVEL, 5)),
                 AchievementDefinition.of("prestige_10", AchievementCondition.of(Type.PRESTIGE_LEVEL, 10)),
+                AchievementDefinition.of("clicks_100000", AchievementCondition.of(Type.TOTAL_CLICKS, 100_000)),
+                AchievementDefinition.of("lifetime_1t", AchievementCondition.of(Type.LIFETIME_COOKIES, "1e12")),
+                AchievementDefinition.of("lifetime_1qa", AchievementCondition.of(Type.LIFETIME_COOKIES, "1e15")),
+                AchievementDefinition.of("generators_1000", AchievementCondition.of(Type.TOTAL_GENERATORS, 1_000)),
+                AchievementDefinition.of("golden_10", AchievementCondition.of(Type.GOLDEN_COOKIES_CLICKED, 10)),
+                AchievementDefinition.of("golden_500", AchievementCondition.of(Type.GOLDEN_COOKIES_CLICKED, 500)),
+                AchievementDefinition.of("prestige_3", AchievementCondition.of(Type.PRESTIGE_LEVEL, 3)),
+                AchievementDefinition.of("prestige_7", AchievementCondition.of(Type.PRESTIGE_LEVEL, 7)),
                 AchievementDefinition.of("all_zones_discovered", AchievementCondition.allZonesDiscovered())
         );
     }

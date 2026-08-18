@@ -209,3 +209,20 @@ Sichtbar werden die Cosmetics erst über `config/cosmetics.yml` – dort steht p
 `render: "hmc:<hmccosmetics-id>"`. Die mitgelieferte Datei enthält bereits die 52 Cosmetics aus den vier
 HMC-fähigen Packs (Samus Vol. 1, Cosmetics Expansion v1, Expansion Vol. 2 „Legends", Necros Set) – 18 im
 Free-Track, 34 exklusiv im Premium-Pass.
+
+## Soundtrack (ItemsAdder)
+`MusicAssetInstaller` turns the TasticGames OST into ItemsAdder content on every server start:
+
+1. drop the licensed `.ogg` files (Ogg Vorbis; 48 kHz stereo is fine) into `plugins/TasticLobby/ost/`,
+2. the installer copies them to
+   `plugins/ItemsAdder/contents/tasticgames/resourcepack/assets/tasticgames/sounds/ost/<id>.ogg`,
+3. writes `assets/tasticgames/sounds.json` (`"category": "music"`, `"stream": true`) so every file becomes
+   `tasticgames:ost.<id>`, and `assets/minecraft/sounds.json`, which replaces the 31 vanilla music events with nothing
+   (`music.yml` -> `ost.silence-vanilla`) - vanilla and custom music can never play at the same time,
+4. reads every track length from the Ogg header itself (`OggInfo`), so no durations have to be typed anywhere,
+5. requests the `/iazip` rebuild through the same pending-pack marker the HUD and the cosmetic packs use.
+
+The file name is the id and the title: `ES_Bohemian-Bed-Franz-Gordon.ogg` becomes `bohemian_bed_franz_gordon` /
+"Bohemian Bed Franz Gordon". Players switch the music off with the existing `music.enabled` setting; with the
+soundtrack off no music plays at all, because the vanilla tracks are replaced. The `.ogg` files are never bundled with
+the plugin - they are the operator's licensed content.

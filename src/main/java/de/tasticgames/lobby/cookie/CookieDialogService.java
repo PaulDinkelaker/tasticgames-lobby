@@ -2,6 +2,7 @@ package de.tasticgames.lobby.cookie;
 
 import de.tasticgames.client.dto.lobby.CookieLeaderboardEntryResponse;
 import de.tasticgames.client.dto.lobby.CookieLeaderboardTypeResponse;
+import de.tasticgames.api.TasticCoreApi;
 import de.tasticgames.lobby.cookie.domain.catalog.GeneratorDefinition;
 import de.tasticgames.lobby.cookie.domain.catalog.PrestigeDefinition;
 import de.tasticgames.lobby.cookie.domain.catalog.PrestigeTreeNode;
@@ -20,8 +21,12 @@ import de.tasticgames.lobby.cookie.domain.model.PrestigePlan;
 import de.tasticgames.lobby.cookie.domain.model.PurchaseResult;
 import de.tasticgames.lobby.cookie.domain.model.SpecialCookieRarity;
 import de.tasticgames.lobby.cookie.domain.model.ZoneAccess;
+import de.tasticgames.lobby.cookie.domain.order.OrderBoard;
+import de.tasticgames.lobby.cookie.domain.order.ShiftOrder;
+import de.tasticgames.lobby.cookie.domain.catalog.DefaultCatalog;
 import de.tasticgames.lobby.dialog.DialogSupport;
 import de.tasticgames.lobby.locale.LobbyMessages;
+import de.tasticgames.lobby.settings.LobbySettings;
 import de.tasticgames.lobby.sound.LobbySounds;
 import de.tasticgames.lobby.telemetry.LobbyTelemetryService;
 import de.tasticgames.lobby.util.LobbyThrowables;
@@ -38,6 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,9 +56,11 @@ import java.util.logging.Logger;
  */
 public final class CookieDialogService {
 
+    private final TasticCoreApi coreApi;
     private final CookieRuntimeService runtime;
     private final CookieWorldService world;
     private final CookieLeaderboardService leaderboards;
+    private final CookieOrderService orders;
     private final LobbyMessages messages;
     private final DialogSupport dialogs;
     private final MainThread mainThread;
@@ -64,11 +72,14 @@ public final class CookieDialogService {
     private final java.util.Set<UUID> prestiging = ConcurrentHashMap.newKeySet();
     private volatile CookieProgressListener progress = CookieProgressListener.NONE;
 
-    public CookieDialogService(CookieRuntimeService runtime, CookieWorldService world, CookieLeaderboardService leaderboards, LobbyMessages messages,
-                               DialogSupport dialogs, MainThread mainThread, LobbySounds sounds, LobbyTelemetryService telemetry, Logger logger) {
+    public CookieDialogService(TasticCoreApi coreApi, CookieRuntimeService runtime, CookieWorldService world, CookieLeaderboardService leaderboards,
+                               CookieOrderService orders, LobbyMessages messages, DialogSupport dialogs, MainThread mainThread, LobbySounds sounds,
+                               LobbyTelemetryService telemetry, Logger logger) {
+        this.coreApi = Objects.requireNonNull(coreApi);
         this.runtime = Objects.requireNonNull(runtime);
         this.world = Objects.requireNonNull(world);
         this.leaderboards = Objects.requireNonNull(leaderboards);
+        this.orders = Objects.requireNonNull(orders);
         this.messages = Objects.requireNonNull(messages);
         this.dialogs = Objects.requireNonNull(dialogs);
         this.mainThread = Objects.requireNonNull(mainThread);
@@ -130,14 +141,32 @@ public final class CookieDialogService {
             SupportedLanguage lang = messages.languageOf(player);
             CookieProfile profile = session.profile();
             CookieStats stats = engine().compute(profile);
-            List<Component> body = List.of(
+            List<Component> body = new ArrayList<>(List.of(
                     messages.get(lang, "cookie.overview.description", Map.of()),
                     messages.get(lang, "cookie.overview.stats", Map.of("cookies", fmt(player, profile.cookies()), "cps", fmt(player, stats.effectiveCps()),
-                            "prestige", profile.prestigeLevel(), "lifetime", fmt(player, profile.lifetimeCookies()))));
+                            "prestige", profile.prestigeLevel(), "lifetime", fmt(player, profile.lifetimeCookies())))));
+            PrestigeCheck check = engine().canPrestige(profile);
+            if (check.nextLevel() > profile.prestigeLevel()) {
+                body.add(messages.get(lang, "cookie.overview.next_prestige", Map.of("next", check.nextLevel(),
+                        "requirement", fmt(player, check.requiredLifetime()))));
+                body.add(DialogSupport.bar(prestigeFraction(profile, check)));
+            }
+            engine().exclusiveChoice(profile, DefaultCatalog.STYLE_GROUP).ifPresent(style ->
+                    body.add(messages.get(lang, "cookie.overview.style", Map.of("style", messages.get(lang, style.nameKey(), Map.of())))));
+            int claimable = orders.board(player.getUniqueId()).claimable();
+            if (claimable > 0) {
+                body.add(messages.get(lang, "cookie.orders.ready", Map.of("count", claimable)));
+            }
             List<ActionButton> buttons = new ArrayList<>();
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.shop", Map.of()), this::openShop));
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.upgrades", Map.of()), this::openUpgrades));
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.prestige", Map.of()), this::openPrestige));
+            buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.orders", Map.of()),
+                    messages.get(lang, "cookie.orders.tooltip", Map.of()), DialogSupport.BUTTON_WIDTH, this::openOrders));
+            if (!engine().exclusiveOptions(profile, DefaultCatalog.STYLE_GROUP).isEmpty()) {
+                buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.style_button", Map.of()),
+                        messages.get(lang, "cookie.style.tooltip", Map.of()), DialogSupport.BUTTON_WIDTH, this::openStyles));
+            }
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.stats_button", Map.of()), this::openStats));
             buttons.add(dialogs.button(player, messages.get(lang, "cookie.overview.leaderboard", Map.of()), p -> openLeaderboard(p, CookieLeaderboardTypeResponse.PRESTIGE)));
             boolean inWorld = world.isOpenWorld(player.getWorld());
@@ -164,7 +193,34 @@ public final class CookieDialogService {
     private void maybeOfferOffline(Player player, CookieSession session) {
         if (session.offlineDialogShown()) return;
         session.offlineDialogShown(true);
-        runtime.previewOffline(session).ifPresent(result -> mainThread.later(5L, () -> openOfflineClaim(player, session, result)));
+        boolean ask = setting(player, LobbySettings.COOKIE_OFFLINE_PROMPT);
+        runtime.previewOffline(session).ifPresent(result -> mainThread.later(5L, () -> {
+            if (ask) {
+                openOfflineClaim(player, session, result);
+            } else {
+                claimOffline(player, session, result); // prompt switched off: the cookies are simply booked
+            }
+        }));
+    }
+
+    /** Reads a lobby toggle of the player, defaulting to on while the profile is not loaded yet. */
+    private boolean setting(Player player, de.tasticgames.settings.SettingKey<Boolean> key) {
+        return coreApi.playerManager().find(player.getUniqueId()).map(p -> p.settings().get(key)).orElse(true);
+    }
+
+    private void claimOffline(Player player, CookieSession session, OfflineResult result) {
+        runtime.claimOffline(session, result).whenComplete((response, throwable) -> mainThread.run(() -> {
+            if (!player.isOnline()) return;
+            if (throwable != null) {
+                logger.warning("Offline claim failed for " + player.getName() + ": " + LobbyThrowables.rootMessage(throwable));
+                messages.send(player, "cookie.save_failed");
+                return;
+            }
+            if (response.applied()) {
+                messages.send(player, "cookie.offline.claimed", Map.of("cookies", fmt(player, result.cookies())));
+                sounds.success(player);
+            }
+        }));
     }
 
     public void openOfflineClaim(Player player, CookieSession session, OfflineResult result) {
@@ -173,20 +229,116 @@ public final class CookieDialogService {
         String duration = d.toHours() + "h " + (d.toMinutesPart()) + "m";
         List<Component> body = List.of(messages.get(lang, "cookie.offline.body", Map.of("duration", duration, "cookies", fmt(player, result.cookies()),
                 "rate", Math.round(result.efficiency() * 100))));
-        ActionButton claim = dialogs.button(player, messages.get(lang, "cookie.offline.claim", Map.of()), null, DialogSupport.BUTTON_WIDTH, p ->
-                runtime.claimOffline(session, result).whenComplete((response, throwable) -> mainThread.run(() -> {
-                    if (!p.isOnline()) return;
-                    if (throwable != null) {
-                        logger.warning("Offline claim failed for " + p.getName() + ": " + LobbyThrowables.rootMessage(throwable));
-                        messages.send(p, "cookie.save_failed");
-                        return;
-                    }
-                    if (response.applied()) {
-                        messages.send(p, "cookie.offline.claimed", Map.of("cookies", fmt(p, result.cookies())));
-                        sounds.success(p);
-                    }
-                })));
+        ActionButton claim = dialogs.button(player, messages.get(lang, "cookie.offline.claim", Map.of()), null, DialogSupport.BUTTON_WIDTH,
+                p -> claimOffline(p, session, result));
         dialogs.show(player, dialogs.notice(messages.get(lang, "cookie.offline.title", Map.of()), body, claim));
+    }
+
+    // ------------------------------------------------------------------ shift orders
+
+    /** The order board: three running goals with a progress bar and a claim button for finished ones. */
+    public void openOrders(Player player) {
+        withSession(player, session -> {
+            SupportedLanguage lang = messages.languageOf(player);
+            OrderBoard board = orders.board(player.getUniqueId());
+            List<Component> body = new ArrayList<>();
+            body.add(messages.get(lang, "cookie.orders.description", Map.of()));
+            List<ActionButton> buttons = new ArrayList<>();
+            List<ShiftOrder> list = board.orders();
+            for (int slot = 0; slot < list.size(); slot++) {
+                ShiftOrder order = list.get(slot);
+                String reward = orders.previewReward(player.getUniqueId(), order).map(a -> fmt(player, a)).orElse("?");
+                body.add(messages.get(lang, "cookie.orders.entry", Map.of(
+                        "goal", messages.get(lang, "cookie.order." + order.type().name().toLowerCase(Locale.ROOT),
+                                Map.of("amount", formatter.format(order.target(), localeOf(player)))),
+                        "progress", formatter.format(order.progress(), localeOf(player)),
+                        "target", formatter.format(order.target(), localeOf(player)),
+                        "reward", reward)));
+                body.add(DialogSupport.bar(order.fraction(), order.complete() ? NamedTextColor.GOLD : NamedTextColor.GREEN));
+                if (order.complete()) {
+                    int index = slot;
+                    buttons.add(dialogs.button(player, messages.get(lang, "cookie.orders.claim", Map.of()),
+                            messages.get(lang, "cookie.orders.claim_tooltip", Map.of("reward", reward)), DialogSupport.BUTTON_WIDTH,
+                            p -> claimOrder(p, index)));
+                }
+            }
+            if (board.limitReached(System.currentTimeMillis())) {
+                body.add(messages.get(lang, "cookie.orders.limit", Map.of("limit", OrderBoard.CLAIMS_PER_HOUR)));
+            }
+            buttons.add(dialogs.button(player, messages.get(lang, "common.back", Map.of()), this::openOverview));
+            dialogs.show(player, dialogs.menu(messages.get(lang, "cookie.orders.title", Map.of()), body, buttons,
+                    dialogs.close(messages.get(lang, "common.close", Map.of())), 1, true));
+        });
+    }
+
+    private void claimOrder(Player player, int slot) {
+        orders.claim(player, slot).ifPresentOrElse(reward -> {
+            messages.send(player, "cookie.orders.claimed", Map.of("cookies", fmt(player, reward)));
+            sounds.success(player);
+            openOrders(player);
+        }, () -> {
+            messages.send(player, "cookie.orders.not_claimable");
+            sounds.error(player);
+            openOrders(player);
+        });
+    }
+
+    // ------------------------------------------------------------------ baking style
+
+    /** One style per run: the pick is part of the run and is cleared by the next prestige. */
+    public void openStyles(Player player) {
+        withSession(player, session -> {
+            SupportedLanguage lang = messages.languageOf(player);
+            CookieProfile profile = session.profile();
+            List<UpgradeDefinition> options = engine().exclusiveOptions(profile, DefaultCatalog.STYLE_GROUP);
+            List<Component> body = new ArrayList<>();
+            body.add(messages.get(lang, "cookie.style.description", Map.of()));
+            Optional<UpgradeDefinition> chosen = engine().exclusiveChoice(profile, DefaultCatalog.STYLE_GROUP);
+            List<ActionButton> buttons = new ArrayList<>();
+            for (UpgradeDefinition option : options) {
+                Component name = messages.get(lang, option.nameKey(), Map.of());
+                boolean picked = chosen.filter(c -> c.id().equals(option.id())).isPresent();
+                body.add(messages.get(lang, picked ? "cookie.style.entry_active" : "cookie.style.entry", Map.of(
+                        "style", name,
+                        "effect", messages.get(lang, "cookie.style.effect." + option.id(), Map.of()),
+                        "cost", fmt(player, option.cost()))));
+                if (chosen.isEmpty()) {
+                    buttons.add(dialogs.button(player, name,
+                            messages.get(lang, "cookie.style.effect." + option.id(), Map.of()), DialogSupport.BUTTON_WIDTH,
+                            p -> buyStyle(p, session, option)));
+                }
+            }
+            if (chosen.isPresent()) {
+                body.add(messages.get(lang, "cookie.style.locked", Map.of()));
+            }
+            buttons.add(dialogs.button(player, messages.get(lang, "common.back", Map.of()), this::openOverview));
+            dialogs.show(player, dialogs.menu(messages.get(lang, "cookie.style.title", Map.of()), body, buttons,
+                    dialogs.close(messages.get(lang, "common.close", Map.of())), 1, true));
+        });
+    }
+
+    private void buyStyle(Player player, CookieSession session, UpgradeDefinition style) {
+        PurchaseResult result = engine().buyUpgrade(session.profile(), style.id());
+        if (!result.success()) {
+            messages.send(player, "cookie.shop.cannot_afford");
+            sounds.error(player);
+            openStyles(player);
+            return;
+        }
+        session.touchDirty();
+        progress.onUpgradeBought(player.getUniqueId(), style.id());
+        messages.send(player, "cookie.style.chosen", Map.of("style", messages.get(player, style.nameKey())));
+        sounds.play(player, "minecraft:ui.toast.challenge_complete", 0.8f, 1.2f);
+        openStyles(player);
+    }
+
+    /** Share of the way to the next prestige, used for the overview bar. */
+    private double prestigeFraction(CookieProfile profile, PrestigeCheck check) {
+        if (check.requiredLifetime() == null || check.requiredLifetime().toBigDecimal().signum() <= 0) {
+            return 1;
+        }
+        return Math.min(1, profile.lifetimeCookies().toBigDecimal()
+                .divide(check.requiredLifetime().toBigDecimal(), 6, java.math.RoundingMode.DOWN).doubleValue());
     }
 
     // ------------------------------------------------------------------ shop
@@ -347,7 +499,14 @@ public final class CookieDialogService {
                     PrestigePlan plan = engine().planPrestige(profile);
                     body.add(messages.get(lang, "cookie.prestige.reward", Map.of("multiplier", trim(plan.newMultiplier()), "crumbs", plan.crumbsGained(),
                             "unlocks", String.join(", ", unlockNames(player, plan)))));
-                    buttons.add(dialogs.button(player, messages.get(lang, "cookie.prestige.confirm", Map.of()), null, DialogSupport.BUTTON_WIDTH, p -> confirmPrestige(p, session)));
+                    buttons.add(dialogs.button(player, messages.get(lang, "cookie.prestige.confirm", Map.of()), null, DialogSupport.BUTTON_WIDTH,
+                            p -> {
+                                if (setting(p, LobbySettings.COOKIE_CONFIRM_PRESTIGE)) {
+                                    confirmPrestige(p, session);
+                                } else {
+                                    runPrestige(p, session); // the player asked for prestige without the extra question
+                                }
+                            }));
                 } else {
                     body.add(messages.get(lang, "cookie.prestige.not_ready", Map.of("missing", fmt(player, check.missing()))));
                 }
@@ -381,29 +540,33 @@ public final class CookieDialogService {
                 messages.get(lang, "cookie.prestige.reset", Map.of()),
                 messages.get(lang, "cookie.prestige.keep", Map.of()),
                 messages.get(lang, "cookie.prestige.reward", Map.of("multiplier", trim(plan.newMultiplier()), "crumbs", plan.crumbsGained(), "unlocks", String.join(", ", unlockNames(player, plan)))));
-        ActionButton yes = dialogs.button(player, messages.get(lang, "cookie.prestige.confirm", Map.of()), null, DialogSupport.BUTTON_WIDTH, p -> {
-            if (!prestiging.add(p.getUniqueId())) {
-                return; // double click guard
-            }
-            runtime.prestige(session).whenComplete((result, throwable) -> mainThread.run(() -> {
-                prestiging.remove(p.getUniqueId());
-                if (!p.isOnline()) return;
-                if (throwable != null || !result.applied()) {
-                    logger.warning("Prestige failed for " + p.getName() + ": " + (throwable != null ? LobbyThrowables.rootMessage(throwable) : result.outcome()));
-                    messages.send(p, "cookie.prestige.failed");
-                    sounds.error(p);
-                    return;
-                }
-                messages.send(p, "cookie.prestige.done", Map.of("level", result.plan().toLevel(), "multiplier", trim(result.plan().newMultiplier()), "crumbs", result.plan().crumbsGained()));
-                for (SpecialCookieRarity rarity : SpecialCookieRarity.unlockedBetween(result.plan().fromLevel(), result.plan().toLevel())) {
-                    messages.send(p, "cookie.special.unlocked", Map.of("rarity", messages.get(p, rarity.nameKey())));
-                }
-                sounds.play(p, "minecraft:ui.toast.challenge_complete", 1f, 1f);
-                openPrestige(p);
-            }));
-        });
+        ActionButton yes = dialogs.button(player, messages.get(lang, "cookie.prestige.confirm", Map.of()), null, DialogSupport.BUTTON_WIDTH,
+                p -> runPrestige(p, session));
         ActionButton no = dialogs.button(player, messages.get(lang, "common.cancel", Map.of()), this::openPrestige);
         dialogs.show(player, dialogs.confirm(messages.get(lang, "cookie.prestige.title", Map.of()), body, yes, no));
+    }
+
+    /** Executes the prestige – used by the confirmation dialog and, with the question turned off, directly. */
+    private void runPrestige(Player player, CookieSession session) {
+        if (!prestiging.add(player.getUniqueId())) {
+            return; // double click guard
+        }
+        runtime.prestige(session).whenComplete((result, throwable) -> mainThread.run(() -> {
+            prestiging.remove(player.getUniqueId());
+            if (!player.isOnline()) return;
+            if (throwable != null || !result.applied()) {
+                logger.warning("Prestige failed for " + player.getName() + ": " + (throwable != null ? LobbyThrowables.rootMessage(throwable) : result.outcome()));
+                messages.send(player, "cookie.prestige.failed");
+                sounds.error(player);
+                return;
+            }
+            messages.send(player, "cookie.prestige.done", Map.of("level", result.plan().toLevel(), "multiplier", trim(result.plan().newMultiplier()), "crumbs", result.plan().crumbsGained()));
+            for (SpecialCookieRarity rarity : SpecialCookieRarity.unlockedBetween(result.plan().fromLevel(), result.plan().toLevel())) {
+                messages.send(player, "cookie.special.unlocked", Map.of("rarity", messages.get(player, rarity.nameKey())));
+            }
+            sounds.play(player, "minecraft:ui.toast.challenge_complete", 1f, 1f);
+            openPrestige(player);
+        }));
     }
 
     public void openTree(Player player) {

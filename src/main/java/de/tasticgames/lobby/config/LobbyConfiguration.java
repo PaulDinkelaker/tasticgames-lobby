@@ -147,7 +147,13 @@ public record LobbyConfiguration(
         }
     }
 
-    public record Music(boolean enabled, List<Track> lobbyPlaylist, List<Track> cookiePlaylist, int gapSeconds, boolean shuffle) {
+    /**
+     * @param ostEnabled        install and play the soundtrack from {@code plugins/TasticLobby/ost/}
+     * @param ostSilenceVanilla replace Minecraft's own music events with silence, so the two never overlap
+     * @param ostAutoPlaylist   build the playlist from the installed tracks instead of the lists below
+     */
+    public record Music(boolean enabled, List<Track> lobbyPlaylist, List<Track> cookiePlaylist, int gapSeconds, boolean shuffle,
+                        boolean ostEnabled, boolean ostSilenceVanilla, boolean ostAutoPlaylist) {
         public Music {
             lobbyPlaylist = lobbyPlaylist == null ? List.of() : List.copyOf(lobbyPlaylist);
             cookiePlaylist = cookiePlaylist == null ? List.of() : List.copyOf(cookiePlaylist);

@@ -37,15 +37,18 @@ public final class MusicService implements Service {
     private final TasticCoreApi coreApi;
     private final LobbyConfigurationService configurationService;
     private final LobbyPlayerService players;
+    private final MusicAssetInstaller soundtrack;
     private final Logger logger;
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
     private BukkitTask task;
 
-    public MusicService(Plugin plugin, TasticCoreApi coreApi, LobbyConfigurationService configurationService, LobbyPlayerService players, Logger logger) {
+    public MusicService(Plugin plugin, TasticCoreApi coreApi, LobbyConfigurationService configurationService, LobbyPlayerService players,
+                        MusicAssetInstaller soundtrack, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin);
         this.coreApi = Objects.requireNonNull(coreApi);
         this.configurationService = Objects.requireNonNull(configurationService);
         this.players = Objects.requireNonNull(players);
+        this.soundtrack = Objects.requireNonNull(soundtrack);
         this.logger = Objects.requireNonNull(logger);
     }
 
@@ -83,8 +86,7 @@ public final class MusicService implements Service {
             return;
         }
         LobbyPlayer lobbyPlayer = players.getOrCreate(player);
-        List<LobbyConfiguration.Track> playlist = lobbyPlayer.inCookieWorld() && !config.cookiePlaylist().isEmpty()
-                ? config.cookiePlaylist() : config.lobbyPlaylist();
+        List<LobbyConfiguration.Track> playlist = playlist(config, lobbyPlayer.inCookieWorld());
         if (playlist.isEmpty()) {
             stop(player);
             return;
@@ -103,7 +105,10 @@ public final class MusicService implements Service {
             logger.warning("Invalid music sound key '" + track.soundKey() + "' for track " + track.id());
             return;
         }
-        player.playSound(Sound.sound(key, Sound.Source.RECORD, volume, 1f), Sound.Emitter.self());
+        // the soundtrack replaces Minecraft's music: silence whatever the client started before ours begins,
+        // and play in the MUSIC category so the player's music slider controls it
+        player.stopSound(SoundStop.source(Sound.Source.MUSIC));
+        player.playSound(Sound.sound(key, Sound.Source.MUSIC, volume, 1f), Sound.Emitter.self());
         sessions.put(player.getUniqueId(), new Session(track, Instant.now().plusSeconds(track.durationSeconds() + config.gapSeconds()), lobbyPlayer.inCookieWorld()));
     }
 
@@ -113,7 +118,7 @@ public final class MusicService implements Service {
             try {
                 player.stopSound(SoundStop.named(Key.key(session.track().soundKey())));
             } catch (Exception ignored) {
-                player.stopSound(SoundStop.source(Sound.Source.RECORD));
+                player.stopSound(SoundStop.source(Sound.Source.MUSIC));
             }
         }
     }
@@ -132,6 +137,19 @@ public final class MusicService implements Service {
                 play(player);
             }
         }
+    }
+
+    /** The installed soundtrack wins over the configured playlists as long as tracks are present. */
+    private List<LobbyConfiguration.Track> playlist(LobbyConfiguration.Music config, boolean cookieWorld) {
+        List<MusicTrack> installed = soundtrack.tracks();
+        if (config.ostAutoPlaylist() && !installed.isEmpty()) {
+            List<LobbyConfiguration.Track> tracks = new java.util.ArrayList<>(installed.size());
+            for (MusicTrack track : installed) {
+                tracks.add(new LobbyConfiguration.Track(track.id(), track.soundKey(), track.roundedSeconds(), 1));
+            }
+            return tracks;
+        }
+        return cookieWorld && !config.cookiePlaylist().isEmpty() ? config.cookiePlaylist() : config.lobbyPlaylist();
     }
 
     private static LobbyConfiguration.Track pick(List<LobbyConfiguration.Track> playlist, LobbyConfiguration.Track previous, boolean shuffle) {
