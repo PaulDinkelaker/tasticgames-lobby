@@ -323,6 +323,11 @@ public final class PassDialogService {
     }
 
     private boolean available(Player player) {
+        if (!state.enabled()) {
+            // the pass is switched off (pass.yml enabled: false) - announce it instead of pretending it broke
+            comingSoon(player);
+            return false;
+        }
         if (configuration.get().dialogsEnabled() && state.available()) {
             return true;
         }
@@ -334,6 +339,15 @@ public final class PassDialogService {
         SupportedLanguage lang = messages.languageOf(player);
         dialogs.show(player, dialogs.notice(messages.get(lang, "pass.overview.title", Map.of()),
                 List.of(messages.get(lang, "pass.unavailable", Map.of())), dialogs.close(messages.get(lang, "common.close", Map.of()))));
+    }
+
+    /** Placeholder dialog while the season pass is not live yet. */
+    public void comingSoon(Player player) {
+        SupportedLanguage lang = messages.languageOf(player);
+        dialogs.show(player, dialogs.notice(messages.get(lang, "pass.coming_soon.title", Map.of()),
+                List.of(messages.get(lang, "pass.coming_soon.body", Map.of()),
+                        messages.get(lang, "pass.coming_soon.hint", Map.of())),
+                dialogs.close(messages.get(lang, "common.close", Map.of()))));
     }
 
     private static boolean atMaxLevel(PassSnapshot snapshot) {

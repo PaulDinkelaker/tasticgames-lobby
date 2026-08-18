@@ -2,7 +2,9 @@
 # rewards, premium entitlements) is owned by the TasticGames API; this file only configures how the
 # lobby reports progress and how the pass is presented. Everything degrades gracefully: with the pass
 # API unavailable the dialogs show "temporarily unavailable" and the rest of the lobby is unaffected.
-enabled: true
+# Master switch. While this is false the lobby shows a "coming soon" notice instead of the pass menu and
+# reports no progress at all (TasticCore has the same switch in core.yml: pass.enabled).
+enabled: false
 
 # Service NPC that opens the pass overview (spawned by the lobby NPC service) and the pass dialogs.
 # Turning dialogs off leaves the XP reporting intact – useful while a season is being prepared.
