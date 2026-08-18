@@ -39,6 +39,10 @@ public record CosmeticPackTarget(String plugin, String relativePath, boolean pro
     private static final Pattern ITEMS_ADDER = Pattern.compile("(?:^|(?<=/))itemsadder[^/]*/", Pattern.CASE_INSENSITIVE);
     private static final Pattern HMC_COSMETICS = Pattern.compile("(?:^|(?<=/))hmccosmetics[^/]*/", Pattern.CASE_INSENSITIVE);
     private static final Pattern MODEL_ENGINE = Pattern.compile("(?:^|(?<=/))modelengine[^/]*/", Pattern.CASE_INSENSITIVE);
+    private static final Pattern MYTHIC_MOBS = Pattern.compile("(?:^|(?<=/))mythicmobs[^/]*/", Pattern.CASE_INSENSITIVE);
+    /** {@code <pack>/configs/...} or {@code <pack>/resourcepack/...} directly in the archive. */
+    private static final Pattern BARE_CONTENT_PACK =
+            Pattern.compile("(?:^|/)([a-z0-9_]{2,})/(?:configs|resourcepack|resource_pack)/[^/]", Pattern.CASE_INSENSITIVE);
 
     /**
      * Maps an archive entry to its installation target.
@@ -85,7 +89,26 @@ public record CosmeticPackTarget(String plugin, String relativePath, boolean pro
                 return Optional.of(new CosmeticPackTarget("ModelEngine", rest, false));
             }
         }
-        return Optional.empty();
+        for (String rest : remainders(MYTHIC_MOBS, path)) {
+            if (rest.toLowerCase(Locale.ROOT).startsWith("packs/") && (lower.endsWith(".yml") || lower.endsWith(".yaml"))) {
+                return Optional.of(new CosmeticPackTarget("MythicMobs", rest, false));
+            }
+        }
+        return bareContentPack(path);
+    }
+
+    /**
+     * Content packs that sit in the archive root without an {@code ItemsAdder/} folder around them, e.g.
+     * {@code sunmoon_wizard/configs/1.yml} – common for packs whose ItemsAdder flavour is the archive itself.
+     */
+    private static Optional<CosmeticPackTarget> bareContentPack(String path) {
+        Matcher matcher = BARE_CONTENT_PACK.matcher(path);
+        if (!matcher.find()) {
+            return Optional.empty();
+        }
+        String pack = matcher.group(1);
+        String rest = path.substring(matcher.start(1)).replace("/resource_pack/", "/resourcepack/");
+        return Optional.of(new CosmeticPackTarget("ItemsAdder", "contents/" + rest, false));
     }
 
     /** Everything after each occurrence of the plugin folder, innermost (last) match first. */
@@ -107,6 +130,23 @@ public record CosmeticPackTarget(String plugin, String relativePath, boolean pro
             return lower.substring("contents/".length()).contains("/")
                     ? Optional.of(new CosmeticPackTarget("ItemsAdder", normalised, false))
                     : Optional.empty();
+        }
+        // pre-3.x layout: data/items_packs/<pack>/<file>.yml and data/resource_pack/assets/<pack>/...
+        if (lower.startsWith("data/items_packs/")) {
+            String config = normalised.substring("data/items_packs/".length());
+            int slash = config.indexOf('/');
+            return slash <= 0 || !lower.endsWith(".yml")
+                    ? Optional.empty()
+                    : Optional.of(new CosmeticPackTarget("ItemsAdder",
+                    "contents/" + config.substring(0, slash) + "/configs/" + config.substring(slash + 1), false));
+        }
+        if (lower.startsWith("data/resourcepack/assets/")) {
+            String asset = normalised.substring("data/resourcepack/assets/".length());
+            int slash = asset.indexOf('/');
+            return slash <= 0
+                    ? Optional.empty()
+                    : Optional.of(new CosmeticPackTarget("ItemsAdder",
+                    "contents/" + asset.substring(0, slash) + "/resourcepack/assets/" + asset, false));
         }
         // older layout without the "contents" folder: <pack>/configs|resourcepack/...
         if (lower.contains("/configs/") || lower.contains("/resourcepack/")) {

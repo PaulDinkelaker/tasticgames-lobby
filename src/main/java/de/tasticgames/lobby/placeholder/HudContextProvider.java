@@ -130,17 +130,22 @@ public final class HudContextProvider {
         };
     }
 
-    /** Semantic icon key of value slot 1..4 in the given context. */
+    /**
+     * Semantic icon key of value slot 1..4 in the given context.
+     * <p>
+     * Rank, playtime and the online count live in the status row, so no value slot repeats them – every cell
+     * of the HUD shows a different number.
+     */
     public String valueIcon(Context context, int index) {
         return switch (context) {
-            case COOKIE -> switch (index) { case 1 -> "cookies"; case 2 -> "cps"; case 3 -> "prestige"; default -> "generators"; };
+            case COOKIE -> switch (index) { case 1 -> "cookies"; case 2 -> "cps"; case 3 -> "prestige"; default -> "orders"; };
             case SOCIAL -> switch (index) { case 1 -> "friends"; case 2 -> "party"; case 3 -> "clan"; default -> "requests"; };
-            case GATEWAY -> switch (index) { case 1 -> "survival"; case 2 -> "modes"; case 3 -> "lobby"; default -> "party"; };
-            case PROFILE -> switch (index) { case 1 -> "rank"; case 2 -> "playtime"; case 3 -> "kills"; default -> "deaths"; };
+            case GATEWAY -> switch (index) { case 1 -> "survival"; case 2 -> "creative"; case 3 -> "duels"; default -> "modes"; };
+            case PROFILE -> switch (index) { case 1 -> "lifetime"; case 2 -> "prestige"; case 3 -> "cosmetics"; default -> "achievements"; };
             case COSMETICS -> switch (index) { case 1 -> "hat"; case 2 -> "aura"; case 3 -> "trail"; default -> "title"; };
             case SETTINGS -> switch (index) { case 1 -> "language"; case 2 -> "visibility"; case 3 -> "music"; default -> "sounds"; };
-            case VISIBILITY -> switch (index) { case 1 -> "visibility"; case 2 -> "friends"; case 3 -> "party"; default -> "online"; };
-            default -> switch (index) { case 1 -> "cookies"; case 2 -> "prestige"; case 3 -> "friends"; default -> "party"; };
+            case VISIBILITY -> switch (index) { case 1 -> "visibility"; case 2 -> "visible"; case 3 -> "friends"; default -> "party"; };
+            default -> switch (index) { case 1 -> "cookies"; case 2 -> "cps"; case 3 -> "friends"; default -> "cosmetics"; };
         };
     }
 
@@ -166,7 +171,7 @@ public final class HudContextProvider {
                     case 1 -> formatter.format(profile.cookies(), locale);
                     case 2 -> formatter.formatRate(cookie.engine().compute(profile).effectiveCps(), locale);
                     case 3 -> String.valueOf(profile.prestigeLevel());
-                    case 4 -> String.valueOf(profile.totalGenerators());
+                    case 4 -> ordersReady(player);
                     default -> dash;
                 };
             }
@@ -181,21 +186,22 @@ public final class HudContextProvider {
                 };
             }
             case GATEWAY -> {
-                GatewayService.ModeStatus survival = gateway.status(ServerTypeResponse.SURVIVAL);
                 return switch (index) {
-                    case 1 -> survival == null ? dash : survival.available() ? String.valueOf(survival.players()) : messages.raw(lang, "hud.ctx.gateway.offline");
-                    case 2 -> String.valueOf(gateway.modes().stream().filter(GatewayService.ModeStatus::available).count());
-                    case 3 -> String.valueOf(Bukkit.getOnlinePlayers().size());
-                    case 4 -> snapshot == null || snapshot.party() == null ? "0" : String.valueOf(snapshot.party().members().size());
+                    case 1 -> modePlayers(lang, ServerTypeResponse.SURVIVAL);
+                    case 2 -> modePlayers(lang, ServerTypeResponse.CREATIVE);
+                    case 3 -> modePlayers(lang, ServerTypeResponse.DUELS);
+                    case 4 -> gateway.modes().stream().filter(GatewayService.ModeStatus::available).count()
+                            + "/" + gateway.modes().size();
                     default -> dash;
                 };
             }
             case PROFILE -> {
+                CookieSession session = cookie.runtime().session(player.getUniqueId()).orElse(null);
                 return switch (index) {
-                    case 1 -> ranks.rank(player).displayName();
-                    case 2 -> playtime.apply(player);
-                    case 3 -> String.valueOf(player.getStatistic(Statistic.PLAYER_KILLS));
-                    case 4 -> String.valueOf(player.getStatistic(Statistic.DEATHS));
+                    case 1 -> session == null ? dash : formatter.format(session.profile().lifetimeCookies(), locale);
+                    case 2 -> session == null ? dash : String.valueOf(session.profile().prestigeLevel());
+                    case 3 -> unlockedCosmetics(player);
+                    case 4 -> session == null ? dash : String.valueOf(session.profile().achievements().size());
                     default -> dash;
                 };
             }
@@ -223,9 +229,11 @@ public final class HudContextProvider {
             case VISIBILITY -> {
                 return switch (index) {
                     case 1 -> plain(messages.raw(lang, "lobby.visibility." + visibility.modeOf(player).name().toLowerCase(Locale.ROOT)));
-                    case 2 -> snapshot == null ? dash : String.valueOf(snapshot.friendUuids().stream().filter(snapshot::online).count());
-                    case 3 -> snapshot == null || snapshot.party() == null ? "0" : String.valueOf(snapshot.party().members().size());
-                    case 4 -> String.valueOf(Bukkit.getOnlinePlayers().size());
+                    // how many players this one actually sees - the number the visibility setting is about
+                    case 2 -> Bukkit.getOnlinePlayers().stream().filter(other -> !other.equals(player) && player.canSee(other)).count()
+                            + "/" + Math.max(0, Bukkit.getOnlinePlayers().size() - 1);
+                    case 3 -> snapshot == null ? dash : String.valueOf(snapshot.friendUuids().stream().filter(snapshot::online).count());
+                    case 4 -> snapshot == null || snapshot.party() == null ? "0" : String.valueOf(snapshot.party().members().size());
                     default -> dash;
                 };
             }
@@ -233,9 +241,9 @@ public final class HudContextProvider {
                 CookieSession session = cookie.runtime().session(player.getUniqueId()).orElse(null);
                 return switch (index) {
                     case 1 -> session == null ? dash : formatter.format(session.profile().cookies(), locale);
-                    case 2 -> session == null ? dash : String.valueOf(session.profile().prestigeLevel());
+                    case 2 -> session == null ? dash : formatter.formatRate(cookie.engine().compute(session.profile()).effectiveCps(), locale);
                     case 3 -> snapshot == null ? dash : snapshot.friendUuids().stream().filter(snapshot::online).count() + "/" + snapshot.friendUuids().size();
-                    case 4 -> snapshot == null || snapshot.party() == null ? "0" : String.valueOf(snapshot.party().members().size());
+                    case 4 -> unlockedCosmetics(player);
                     default -> dash;
                 };
             }
@@ -310,6 +318,33 @@ public final class HudContextProvider {
                         .replace("<player>", player.getName()).replace("<session>", sessionPlaytime.apply(player));
             }
         }
+    }
+
+    /** Finished shift orders over the three slots of the board (e.g. {@code 1/3}). */
+    private String ordersReady(Player player) {
+        var orders = cookie.orders();
+        if (orders == null) {
+            return "-";
+        }
+        return orders.board(player.getUniqueId()).claimable()
+                + "/" + de.tasticgames.lobby.cookie.domain.order.OrderBoard.SLOTS;
+    }
+
+    /** Players on one game mode, or the offline text when the mode is down. */
+    private String modePlayers(SupportedLanguage lang, ServerTypeResponse type) {
+        GatewayService.ModeStatus status = gateway.status(type);
+        if (status == null || !status.available()) {
+            return messages.raw(lang, "hud.ctx.gateway.offline");
+        }
+        return String.valueOf(status.players());
+    }
+
+    /** Cosmetics this player owns out of the whole catalogue. */
+    private String unlockedCosmetics(Player player) {
+        var owned = cosmetics.cached(player.getUniqueId()).orElse(null);
+        int total = cosmetics.catalog().all().size();
+        long unlocked = owned == null ? 0 : cosmetics.catalog().all().stream().filter(owned::owns).count();
+        return unlocked + "/" + total;
     }
 
     private String onOff(SupportedLanguage lang, boolean value) {

@@ -245,3 +245,19 @@ The five lobby NPCs carry a Citizens `HologramTrait` instead of a plain nameplat
 for (`lobby.npc.<id>.tagline`) and the interaction hint (`lobby.npc.hologram.hint`), line height 0.3, view range
 32 blocks. Citizens renders one text for every viewer, so the lines use English like the nameplate they replace.
 Without Citizens the native fallback keeps its single custom name.
+
+## Pack layouts the installer understands
+| Layout in the archive | Installed to |
+| --- | --- |
+| `.../ItemsAdder[ Setup]/contents/<pack>/**` | `ItemsAdder/contents/<pack>/**` |
+| `.../ItemsAdder/data/items_packs/<pack>/<file>.yml` (pre-3.x) | `ItemsAdder/contents/<pack>/configs/<file>.yml` |
+| `.../ItemsAdder/data/resource_pack/assets/<pack>/**` (pre-3.x) | `ItemsAdder/contents/<pack>/resourcepack/assets/<pack>/**` |
+| `<pack>/configs/**`, `<pack>/resourcepack/**` in the archive root | `ItemsAdder/contents/<pack>/**` |
+| `.../HMCCosmetics/cosmetics/*.yml`, `.../menus/*.yml` | `HMCCosmetics/**` (menus never overwritten) |
+| `.../ModelEngine/blueprints/*.bbmodel` | `ModelEngine/blueprints/` |
+| `.../MythicMobs/Packs/**` | `MythicMobs/Packs/**` |
+
+Skipped on purpose: Oraxen/Nexo/MagicCosmetics/CosmeticsCore/MCPets flavours of the same content, setups for
+older Minecraft generations, and `.bbmodel` files outside `ModelEngine/blueprints/` (those are the artist's
+Blockbench sources, not rigs). Archives that only contain another archive, or a plain resource pack without any
+plugin config, cannot be installed automatically - they need a config that declares the items.

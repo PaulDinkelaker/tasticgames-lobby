@@ -57,6 +57,38 @@ class CosmeticPackTargetTest {
     }
 
     @Test
+    void thePreThreeItemsAdderLayoutBecomesAContentPack() {
+        // Jeqo icon packs ship plugins/ItemsAdder/data/... - the layout ItemsAdder used before 3.x
+        CosmeticPackTarget config = CosmeticPackTarget.of(
+                "Jeqo - Icon Pack 2/Plugins/ItemsAdder/data/items_packs/jeqo/icon_pack_2.yml").orElseThrow();
+        assertEquals("ItemsAdder", config.plugin());
+        assertEquals("contents/jeqo/configs/icon_pack_2.yml", config.relativePath());
+        assertEquals("jeqo", config.contentPack());
+
+        CosmeticPackTarget model = CosmeticPackTarget.of(
+                "Plugins/ItemsAdder/data/resource_pack/assets/jeqo/models/icons/coin.json").orElseThrow();
+        assertEquals("contents/jeqo/resourcepack/assets/jeqo/models/icons/coin.json", model.relativePath());
+    }
+
+    @Test
+    void aContentPackInTheArchiveRootIsInstalledAsWell() {
+        CosmeticPackTarget target = CosmeticPackTarget.of("sunmoon_wizard/configs/1.yml").orElseThrow();
+        assertEquals("ItemsAdder", target.plugin());
+        assertEquals("contents/sunmoon_wizard/configs/1.yml", target.relativePath());
+        assertEquals("sunmoon_wizard", target.contentPack());
+    }
+
+    @Test
+    void mythicMobsPacksAreInstalled() {
+        CosmeticPackTarget pack = CosmeticPackTarget.of("MythicMobs/Packs/pets_robot/Mobs/Mobs.yml").orElseThrow();
+        assertEquals("MythicMobs", pack.plugin());
+        assertEquals("Packs/pets_robot/Mobs/Mobs.yml", pack.relativePath());
+
+        // a .bbmodel outside ModelEngine/blueprints stays untouched: those are the artist's source files
+        assertTrue(CosmeticPackTarget.of("32x Armor/deadpool_armor.bbmodel").isEmpty());
+    }
+
+    @Test
     void foreignAndLegacyVariantsAreIgnored() {
         for (String entry : new String[]{
                 "Oraxen Configs/HMCCosmetics/cosmetics/cosmetics_expansion_v1.yml",

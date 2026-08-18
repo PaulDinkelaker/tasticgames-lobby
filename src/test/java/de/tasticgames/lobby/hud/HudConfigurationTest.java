@@ -24,7 +24,7 @@ class HudConfigurationTest {
         assertEquals(10, configuration.refreshTicks());
         assertEquals(BossBar.Color.PINK, configuration.bossbarColor());
         assertEquals("tasticgames:hud_box_mid", configuration.boxMiddle());
-        assertEquals("cuboide:iconic_crown", configuration.iconId("rank"));
+        assertEquals("moon_ranks:moon_rank_blue_moon_1", configuration.iconId("rank"));
         assertEquals(0, configuration.glyphSpacing(), "ItemsAdder font images advance by their reported width");
         assertEquals(6, configuration.boxPadding());
         assertEquals(6, configuration.boxGap());

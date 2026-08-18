@@ -299,6 +299,9 @@ public final class CookieModule implements Service {
     public CookieAdminCommand adminCommand() { return adminCommand; }
     public CookieEngine engine() { return engine; }
 
+    /** Shift orders (HUD, dialogs); null before {@link #start()} ran. */
+    public CookieOrderService orders() { return orders; }
+
     /** Lobby item handler: the cookie item opens the cookie menu. */
     public void handleItem(Player player, LobbyItemType type) {
         if (type == LobbyItemType.COOKIE) {
