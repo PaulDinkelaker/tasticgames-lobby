@@ -2,23 +2,32 @@ package de.tasticgames.lobby.integration.mob;
 
 import de.tasticgames.lobby.integration.Integration;
 import io.lumine.mythic.bukkit.MythicBukkit;
+import io.lumine.mythic.bukkit.events.MythicPostReloadedEvent;
 import io.lumine.mythic.core.mobs.ActiveMob;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
 import org.bukkit.plugin.Plugin;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Logger;
 
 /**
  * MythicMobs backend: spawns configured mob types (e.g. the main cookie carrying its ModelEngine
- * model) and identifies/removes them.
+ * model) and identifies/removes them. Reload callbacks ({@link MythicPostReloadedEvent}) let the
+ * lobby re-check spawned mobs – MythicMobs reloads itself after ItemsAdder loaded its content.
  */
-public final class MythicMobsMobProvider implements MobProvider {
+public final class MythicMobsMobProvider implements MobProvider, Listener {
 
     private final Plugin plugin;
     private final Logger logger;
+    private final List<Runnable> reloadCallbacks = new CopyOnWriteArrayList<>();
     private volatile boolean available;
     private volatile boolean warned;
 
@@ -33,6 +42,9 @@ public final class MythicMobsMobProvider implements MobProvider {
         }
         try {
             available = MythicBukkit.inst() != null && MythicBukkit.inst().getMobManager() != null;
+            if (available) {
+                Bukkit.getPluginManager().registerEvents(this, plugin);
+            }
         } catch (Throwable t) {
             available = false;
             logger.warning("MythicMobs hook failed (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ") – MythicMobs visuals disabled.");
@@ -40,7 +52,28 @@ public final class MythicMobsMobProvider implements MobProvider {
     }
 
     public void unhook() {
+        HandlerList.unregisterAll(this);
+        reloadCallbacks.clear();
         available = false;
+    }
+
+    @Override
+    public void onReload(Runnable callback) {
+        reloadCallbacks.add(Objects.requireNonNull(callback));
+    }
+
+    @EventHandler
+    public void onMythicReloaded(MythicPostReloadedEvent event) {
+        // next tick: MythicMobs (and ModelEngine's MythicMobs compatibility) finish their own bookkeeping first
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            for (Runnable callback : reloadCallbacks) {
+                try {
+                    callback.run();
+                } catch (RuntimeException e) {
+                    logger.warning("MythicMobs reload callback failed: " + e.getMessage());
+                }
+            }
+        });
     }
 
     @Override
@@ -127,7 +160,7 @@ public final class MythicMobsMobProvider implements MobProvider {
     private void warnOnce(String operation, Throwable t) {
         if (!warned) {
             warned = true;
-            logger.warning("MythicMobs " + operation + " failed (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ") – further failures are silent.");
+            logger.warning("MythicMobs " + operation + " failed (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ").");
         }
     }
 }

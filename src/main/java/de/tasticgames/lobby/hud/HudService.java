@@ -68,6 +68,7 @@ public final class HudService implements Service {
     private volatile boolean boxesAvailable;
     private volatile boolean boxesPendingPack;
     private volatile boolean zipRequested;
+    private volatile boolean zipDispatched;
     private volatile boolean assetsExported;
     private volatile HudAssetExporter exporter;
     private volatile long lastBoxNotice;
@@ -102,10 +103,15 @@ public final class HudService implements Service {
         exportAssets();
         customItems.onReady(() -> {
             if (boxesPendingPack) {
-                if (configuration.iaAutoZip() && !zipRequested) {
-                    // ItemsAdder finished loading its content – regenerate the pack once so the exported files ship
-                    scheduleZip();
-                    return;
+                if (configuration.iaAutoZip()) {
+                    if (!zipRequested) {
+                        // ItemsAdder finished loading its content – regenerate the pack once so the exported files ship
+                        scheduleZip();
+                        return;
+                    }
+                    if (!zipDispatched) {
+                        return; // this load event predates our /iazip (e.g. FIRST_LOAD) – the regeneration follows
+                    }
                 }
                 // pack regenerated (our /iazip or a manual one): the exported files are shipped now
                 boxesPendingPack = false;
@@ -162,6 +168,7 @@ public final class HudService implements Service {
             if (result.packPending()) {
                 boxesPendingPack = true;
                 zipRequested = false;
+                zipDispatched = false;
                 logger.warning("HUD background boxes and the player-head profile item stay disabled until the resource pack ships the exported files"
                         + (configuration.iaAutoZip() ? " – /iazip runs automatically" + (customItems.ready() ? " now." : " once ItemsAdder is loaded.")
                         : " – run /iazip once."));
@@ -181,8 +188,12 @@ public final class HudService implements Service {
             return;
         }
         zipRequested = true;
+        zipDispatched = false;
         logger.info("Regenerating the ItemsAdder pack (/iazip) for the exported TasticLobby content...");
-        Bukkit.getScheduler().runTaskLater(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "iazip"), 40L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            zipDispatched = true;
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "iazip");
+        }, 40L);
     }
 
     /**

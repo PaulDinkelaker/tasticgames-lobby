@@ -103,9 +103,13 @@ public final class CookieClickService implements Service, Listener {
     private long lastLoadWarningAt;
     private volatile boolean waitingForModels;
     private volatile int bindingReportGeneration;
+    private volatile int bindingAttempts;
 
     /** Upper bound for waiting on ModelEngine's model registration before spawning without it (ticks). */
     static final long MODEL_WAIT_TICKS = 20L * 90;
+    /** Respawns of the visual when the mob's model did not bind (MythicMobs/ModelEngine still initialising). */
+    static final int MAX_BINDING_ATTEMPTS = 3;
+    static final long BINDING_RETRY_TICKS = 60L;
 
     public CookieClickService(Plugin plugin, TasticCoreApi coreApi, Supplier<CookieConfiguration> configuration, CookieRuntimeService runtime,
                               MobProvider mobs, ModelProvider models, LobbyMessages messages, LobbySounds sounds, LobbyTelemetryService telemetry,
@@ -139,6 +143,7 @@ public final class CookieClickService implements Service, Listener {
             return false;
         });
         models.onModelsReady(this::onModelsReady);
+        mobs.onReload(this::onMobsReloaded);
         if (requiresModels() && !models.modelsReady()) {
             waitingForModels = true;
             CookieConfiguration.MainCookie main = configuration.get().mainCookie();
@@ -152,7 +157,12 @@ public final class CookieClickService implements Service, Listener {
                 }
             });
         } else {
-            spawnMainCookie();
+            // first server tick (never inside onEnable): MythicMobs/ModelEngine finish their delayed initialisation first
+            mainThread.later(1L, () -> {
+                if (!spawned()) {
+                    spawnMainCookie();
+                }
+            });
         }
         clickReportTask = Bukkit.getScheduler().runTaskTimer(plugin, this::reportClicks, 20L * 60, 20L * 60);
         healTask = Bukkit.getScheduler().runTaskTimer(plugin, this::heal, 20L * 5, 20L * 5);
@@ -397,7 +407,24 @@ public final class CookieClickService implements Service, Listener {
         }
     }
 
-    /** One explicit line per spawn: is the ModelEngine model bound to the visual or not (and why). */
+    /** MythicMobs finished a reload: a spawned mob whose model got lost (or never applied) is respawned once. */
+    private void onMobsReloaded() {
+        if (!"mythicmobs".equals(backend) || !models.available() || !spawned()) {
+            return;
+        }
+        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
+        if (visual != null && !models.isModeled(visual)) {
+            logger.info("Main cookie: MythicMobs reloaded and the visual carries no ModelEngine model – respawning it to re-apply the mob's model.");
+            bindingAttempts = 0;
+            spawnMainCookie();
+        }
+    }
+
+    /**
+     * One explicit line per spawn: is the ModelEngine model bound to the visual or not (and why). A
+     * missing binding is retried a few times by respawning the visual (the mob's spawn skills run
+     * again) before the failure is reported.
+     */
     private void reportBinding(int generation) {
         if (generation != bindingReportGeneration || !models.available() || "native".equals(backend)) {
             return;
@@ -410,7 +437,21 @@ public final class CookieClickService implements Service, Listener {
         boolean modeled = models.isModeled(visual);
         String subject = "mythicmobs".equals(backend) ? "MythicMobs mob '" + main.mythicMobsType() + "'" : "model '" + main.model() + "'";
         if (modeled) {
-            logger.info("Main cookie ModelEngine binding: OK (" + subject + ").");
+            logger.info("Main cookie ModelEngine binding: OK (" + subject + (bindingAttempts > 0 ? ", after " + bindingAttempts + " retr" + (bindingAttempts == 1 ? "y" : "ies") : "") + ").");
+            bindingAttempts = 0;
+            return;
+        }
+        if (models.modelsReady() && bindingAttempts < MAX_BINDING_ATTEMPTS) {
+            bindingAttempts++;
+            logger.info("Main cookie ModelEngine binding not applied yet (" + subject + ", attempt " + bindingAttempts + "/" + MAX_BINDING_ATTEMPTS
+                    + ") – respawning the visual in " + (BINDING_RETRY_TICKS / 20) + " s.");
+            int expected = generation;
+            mainThread.later(BINDING_RETRY_TICKS, () -> {
+                Entity current = visualId == null ? null : Bukkit.getEntity(visualId);
+                if (bindingReportGeneration == expected && (current == null || !models.isModeled(current))) {
+                    spawnMainCookie();
+                }
+            });
             return;
         }
         String reason;

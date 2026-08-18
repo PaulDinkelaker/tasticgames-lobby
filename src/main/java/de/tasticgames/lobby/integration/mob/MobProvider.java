@@ -28,4 +28,11 @@ public interface MobProvider extends Integration {
 
     /** Casts a MythicMobs skill with the entity as caster (e.g. a hit animation); false when unavailable. */
     boolean castSkill(Entity entity, String skill);
+
+    /**
+     * Registers a callback that runs on the main thread after the mob plugin finished a reload
+     * (MythicMobs reloads e.g. after ItemsAdder loaded its content) – spawned mobs may have to re-apply
+     * their skills/models afterwards.
+     */
+    void onReload(Runnable callback);
 }
