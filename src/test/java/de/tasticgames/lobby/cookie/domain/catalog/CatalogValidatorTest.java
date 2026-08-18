@@ -145,7 +145,7 @@ class CatalogValidatorTest {
         CookieCatalog c = CookieCatalog.defaults();
         assertTrue(c.generator("nope").isEmpty());
         assertThrows(IllegalArgumentException.class, () -> c.requireGenerator("nope"));
-        assertEquals(2, c.upgradesForGenerator("oven").size());
+        assertEquals(4, c.upgradesForGenerator("oven").size(), "four tiers per generator");
         assertTrue(c.treeNode("iron_fingers").isPresent());
         assertTrue(c.treeNode("connoisseur").isPresent());
         assertTrue(c.upgrade("master_recipe_book").isPresent());

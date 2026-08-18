@@ -65,13 +65,19 @@ public final class DefaultCatalog {
         list.add(UpgradeDefinition.of("thousand_fingers", 100_000L, UpgradeEffect.clickAddCpsPercent(1)));
         list.add(UpgradeDefinition.of("million_fingers", 10_000_000L, UpgradeEffect.clickAddCpsPercent(1)).unlockedAtPrestige(1));
 
-        // Two tiers per generator: owned >= 1 (10x base cost) and owned >= 10 (100x base cost), each x2
+        // Four tiers per generator, each one a bigger commitment than the last: owned >= 1 / 10 / 25 / 50 at
+        // 10x / 100x / 1000x / 10000x the base cost. Tiers 3 and 4 are the late-game sink - they only pay off
+        // once a generator is really built out, so a prestige run has something left to buy after the recipes.
         for (GeneratorDefinition g : generators()) {
-            long base = g.baseCost().toBigInteger().longValueExact();
-            list.add(UpgradeDefinition.of(g.id() + "_tier_1", base * 10L, UpgradeEffect.generatorMultiplier(g.id(), 2))
+            BigDecimal base = g.baseCost().toBigDecimal();
+            list.add(UpgradeDefinition.of(g.id() + "_tier_1", cost(base, 10), UpgradeEffect.generatorMultiplier(g.id(), 2))
                     .requiring(g.id(), 1).unlockedAtPrestige(g.unlockPrestige()));
-            list.add(UpgradeDefinition.of(g.id() + "_tier_2", base * 100L, UpgradeEffect.generatorMultiplier(g.id(), 2))
+            list.add(UpgradeDefinition.of(g.id() + "_tier_2", cost(base, 100), UpgradeEffect.generatorMultiplier(g.id(), 2))
                     .requiring(g.id(), 10).unlockedAtPrestige(g.unlockPrestige()));
+            list.add(UpgradeDefinition.of(g.id() + "_tier_3", cost(base, 25_000), UpgradeEffect.generatorMultiplier(g.id(), 1.25))
+                    .requiring(g.id(), 25).unlockedAtPrestige(Math.max(2, g.unlockPrestige())));
+            list.add(UpgradeDefinition.of(g.id() + "_tier_4", cost(base, 500_000), UpgradeEffect.generatorMultiplier(g.id(), 1.25))
+                    .requiring(g.id(), 50).unlockedAtPrestige(Math.max(4, g.unlockPrestige())));
         }
 
         // Baking styles: exactly one per run, bought once, and they steer how the run plays. The choice is
@@ -110,6 +116,17 @@ public final class DefaultCatalog {
         list.add(UpgradeDefinition.of("quantum_kneading", "1e17", UpgradeEffect.clickAddCpsPercent(2)).unlockedAtPrestige(6));
         list.add(UpgradeDefinition.of("eternal_dough", "1e28", UpgradeEffect.globalCps(1.5)).unlockedAtPrestige(8));
 
+        // Late game specials: one per prestige level from 5 upwards, so every new level opens something that is
+        // not just "the same recipe again" - and they are expensive enough to stay a goal for more than a minute.
+        list.add(UpgradeDefinition.of("sugar_singularity", "5e19", UpgradeEffect.rarityWeight(SpecialCookieRarity.PLATINUM, 2.0)).unlockedAtPrestige(5));
+        list.add(UpgradeDefinition.of("void_yeast", "5e22", UpgradeEffect.clickAddCpsPercent(1)).unlockedAtPrestige(6));
+        list.add(UpgradeDefinition.of("chrono_leavening", "5e25", UpgradeEffect.comboDuration(1.4)).unlockedAtPrestige(7));
+        list.add(UpgradeDefinition.of("stellar_glaze", "1e29", UpgradeEffect.goldenValue(2)).unlockedAtPrestige(8));
+        list.add(UpgradeDefinition.of("entropy_oven", "5e33", UpgradeEffect.goldenFrequency(1.5)).unlockedAtPrestige(9));
+        list.add(UpgradeDefinition.of("master_mixer", "1e36", UpgradeEffect.clickMultiplier(5)).unlockedAtPrestige(10));
+        list.add(UpgradeDefinition.of("ascendant_recipe", "5e37", UpgradeEffect.rarityWeight(SpecialCookieRarity.MASTER, 2.5)).unlockedAtPrestige(10));
+        list.add(UpgradeDefinition.of("infinite_pantry", "1e39", UpgradeEffect.offlineEfficiency(0.25)).unlockedAtPrestige(10));
+
         // Prestige-gated global recipes (see class comment)
         List<PrestigeDefinition> prestiges = prestiges();
         for (int level = 1; level < RECIPE_IDS.length; level++) {
@@ -119,6 +136,11 @@ public final class DefaultCatalog {
                     UpgradeEffect.globalCps(RECIPE_MULTIPLIERS[level]), null, 0, level, null));
         }
         return List.copyOf(list);
+    }
+
+    /** Generator tier cost: the base price times a factor, exact even for the trillion-cookie generators. */
+    private static CookieAmount cost(BigDecimal base, long factor) {
+        return CookieAmount.of(base.multiply(BigDecimal.valueOf(factor)));
     }
 
     // ------------------------------------------------------------------ prestige

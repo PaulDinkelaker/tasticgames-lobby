@@ -153,3 +153,16 @@ Removed with config-version 5: the Cookie Clicker is played at the main cookie a
 migration deletes `mama_bakewell` and `gustave` from an existing `cookie-clicker.yml` and sets `npcs.enabled:
 false`; NPCs an operator added by hand stay in the file. The NPC quests (`npc_quest_*`) can no longer be started,
 their crumb rewards are gone with them - shift orders took over that role.
+
+## Upgrade ladder
+Every generator carries four tiers instead of two: owned >= 1 / 10 / 25 / 50 at 10x / 100x / 25,000x /
+500,000x the base cost (x2, x2, x1.25, x1.25). Tiers 3 and 4 are the late-game sink - they need a generator
+that is really built out and stay buyable long after the recipes are done. On top of that eight one-off
+upgrades unlock from prestige 5 upwards (sugar_singularity, void_yeast, chrono_leavening, stellar_glaze,
+entropy_oven, master_mixer, ascendant_recipe, infinite_pantry); most of them are utility (special cookie
+odds, combo, offline, click power) so they widen the choice without inflating the production curve.
+
+The simulator (`CookieSimulator.defaults()`) reaches prestige 10 in ~88 game hours with these upgrades, down
+from ~133 h before them: 30 additional purchases, of which the 22 generator tiers add roughly x1.5 output per
+generator over a full run. Raising `prestiges()` thresholds for P8-P10 would restore the old pace if that is
+ever wanted - it would also set live players back, so it is not done here.

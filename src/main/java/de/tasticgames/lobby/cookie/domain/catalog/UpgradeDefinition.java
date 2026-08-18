@@ -49,6 +49,10 @@ public record UpgradeDefinition(
         return new UpgradeDefinition(id, "cookie.upgrade." + id, CookieAmount.of(cost), effect, null, 0, 0, null);
     }
 
+    public static UpgradeDefinition of(String id, CookieAmount cost, UpgradeEffect effect) {
+        return new UpgradeDefinition(id, "cookie.upgrade." + id, cost, effect, null, 0, 0, null);
+    }
+
     public UpgradeDefinition requiring(String generatorId, int count) {
         return new UpgradeDefinition(id, nameKey, cost, effect, generatorId, count, unlockPrestige, exclusiveGroup);
     }
