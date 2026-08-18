@@ -147,3 +147,9 @@ From prestige 1 a run can be steered with exactly one style (250,000 cookies, ex
 `style_artisan` (x4 click power), `style_industrial` (x1.4 production), `style_lucky` (x2 special cookie chance).
 The engine hides the other options once one is bought (`UpgradeDefinition#exclusiveGroup`), and a prestige clears the
 choice with the other upgrades - the next run can be played differently.
+
+## Quest NPCs
+Removed with config-version 5: the Cookie Clicker is played at the main cookie and through its dialogs. The
+migration deletes `mama_bakewell` and `gustave` from an existing `cookie-clicker.yml` and sets `npcs.enabled:
+false`; NPCs an operator added by hand stay in the file. The NPC quests (`npc_quest_*`) can no longer be started,
+their crumb rewards are gone with them - shift orders took over that role.

@@ -10,6 +10,7 @@ import net.citizensnpcs.trait.LookClose;
 import net.citizensnpcs.trait.MirrorTrait;
 import net.citizensnpcs.trait.SkinTrait;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -36,6 +37,9 @@ import java.util.logging.Logger;
 public final class CitizensNpcProvider implements NpcProvider, Listener {
 
     private static final String REGISTRY = "tasticlobby";
+    /** Distance between two hologram lines and how far the hologram is sent (blocks). */
+    private static final double HOLOGRAM_LINE_HEIGHT = 0.3;
+    private static final int HOLOGRAM_VIEW_RANGE = 32;
 
     private final Plugin plugin;
     private final Logger logger;
@@ -182,16 +186,47 @@ public final class CitizensNpcProvider implements NpcProvider, Listener {
     public void nameplate(NpcHandle handle, boolean visible) {
         if (handle == null || !available) return;
         try {
-            NPC npc = registry == null ? null : registry.getById(handle.externalId());
-            if (npc == null && handle.linked()) {
-                npc = CitizensAPI.getNPCRegistry().getById(handle.externalId());
-            }
+            NPC npc = npcOf(handle);
             if (npc != null) {
                 npc.data().set(NPC.Metadata.NAMEPLATE_VISIBLE, visible);
             }
         } catch (Throwable t) {
             warnOnce("nameplate", t);
         }
+    }
+
+    @Override
+    public void hologram(NpcHandle handle, java.util.List<Component> lines) {
+        if (handle == null || !available) return;
+        try {
+            NPC npc = npcOf(handle);
+            if (npc == null) {
+                return;
+            }
+            net.citizensnpcs.trait.HologramTrait hologram = npc.getOrAddTrait(net.citizensnpcs.trait.HologramTrait.class);
+            hologram.clear();
+            if (lines.isEmpty()) {
+                return;
+            }
+            hologram.setLineHeight(HOLOGRAM_LINE_HEIGHT);
+            hologram.setViewRange(HOLOGRAM_VIEW_RANGE);
+            for (Component line : lines) {
+                // Citizens holograms are plain strings and global for every viewer, so the components are
+                // rendered once with legacy colour codes instead of per player
+                hologram.addLine(LegacyComponentSerializer.legacySection().serialize(line));
+            }
+        } catch (Throwable t) {
+            warnOnce("hologram", t);
+        }
+    }
+
+    /** The Citizens NPC behind a handle (ours or, for linked NPCs, the operator's). */
+    private NPC npcOf(NpcHandle handle) {
+        NPC npc = registry == null ? null : registry.getById(handle.externalId());
+        if (npc == null && handle.linked()) {
+            npc = CitizensAPI.getNPCRegistry().getById(handle.externalId());
+        }
+        return npc;
     }
 
     @Override

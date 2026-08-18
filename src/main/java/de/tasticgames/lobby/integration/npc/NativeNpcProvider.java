@@ -1,6 +1,7 @@
 package de.tasticgames.lobby.integration.npc;
 
 import io.papermc.paper.event.player.PrePlayerAttackEntityEvent;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
@@ -138,6 +139,12 @@ public final class NativeNpcProvider implements NpcProvider, Listener {
     @Override
     public Optional<Entity> entity(NpcHandle handle) {
         return handle == null ? Optional.empty() : Optional.ofNullable(Bukkit.getEntity(handle.entityId()));
+    }
+
+    @Override
+    public void hologram(NpcHandle handle, java.util.List<Component> lines) {
+        // native entities carry a single custom name; without Citizens the display name above the NPC stays
+        // the whole information, so multi-line holograms are simply not available here
     }
 
     @Override

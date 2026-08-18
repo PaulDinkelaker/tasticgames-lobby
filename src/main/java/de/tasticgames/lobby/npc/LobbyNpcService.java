@@ -12,6 +12,7 @@ import de.tasticgames.lobby.util.MainThread;
 import de.tasticgames.localization.SupportedLanguage;
 import de.tasticgames.service.Service;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.EntityType;
@@ -21,7 +22,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -184,8 +187,28 @@ public final class LobbyNpcService implements Service, Listener {
         Component name = messages.get(SupportedLanguage.ENGLISH, "lobby.npc." + npc.id() + ".name", Map.of());
         NpcProvider.NpcSpec spec = new NpcProvider.NpcSpec(npc.id(), name, npc.toLocation(world), EntityType.PLAYER, npc.skinName(),
                 npc.skinValue(), npc.skinSignature(), "", OptionalInt.empty(), npc.mirrorSkin(), lookClose);
-        npcs.spawn(spec).ifPresentOrElse(handle -> handles.put(npc.id(), handle),
-                () -> logger.warning("Service NPC '" + npc.id() + "' could not be spawned via " + npcs.pluginName() + "."));
+        npcs.spawn(spec).ifPresentOrElse(handle -> {
+            handles.put(npc.id(), handle);
+            decorate(npc, handle);
+        }, () -> logger.warning("Service NPC '" + npc.id() + "' could not be spawned via " + npcs.pluginName() + "."));
+    }
+
+    /**
+     * Floating label above the NPC: name, what it is for and how to use it. Citizens holograms are one text
+     * for every viewer, so the lines are rendered in English like the nameplate they replace.
+     */
+    private void decorate(LobbyNpcConfiguration.Npc npc, NpcProvider.NpcHandle handle) {
+        SupportedLanguage lang = SupportedLanguage.ENGLISH;
+        List<Component> lines = new ArrayList<>();
+        lines.add(messages.get(lang, "lobby.npc." + npc.id() + ".name", Map.of()));
+        Component tagline = messages.get(lang, "lobby.npc." + npc.id() + ".tagline", Map.of());
+        if (!PlainTextComponentSerializer.plainText().serialize(tagline).isBlank()) {
+            lines.add(tagline);
+        }
+        lines.add(messages.get(lang, "lobby.npc.hologram.hint", Map.of()));
+        npcs.hologram(handle, lines);
+        // the hologram carries the name now – a second floating name on top of it looks broken
+        npcs.nameplate(handle, false);
     }
 
     @EventHandler

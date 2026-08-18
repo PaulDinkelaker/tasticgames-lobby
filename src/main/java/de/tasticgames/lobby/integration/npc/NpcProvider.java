@@ -69,6 +69,12 @@ public interface NpcProvider extends Integration {
     /** Shows/hides the name above the NPC (hidden while a ModelEngine model carries its own nameplate). */
     void nameplate(NpcHandle handle, boolean visible);
 
+    /**
+     * Replaces the floating text above the NPC with these lines (first line on top, empty list clears it).
+     * Backends without holograms fall back to the plain nameplate.
+     */
+    void hologram(NpcHandle handle, java.util.List<Component> lines);
+
     /** Logical id when the entity belongs to one of our NPCs. */
     Optional<String> npcIdOf(Entity entity);
 

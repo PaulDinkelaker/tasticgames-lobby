@@ -40,10 +40,8 @@ class CookieConfigurationAndMapperTest {
         for (var zone : CookieCatalog.defaults().zones()) {
             assertTrue(configuration.zones().containsKey(zone.id()), "layout missing zone " + zone.id());
         }
-        assertEquals(2, configuration.npcs().list().size(), "only the baker and the merchant remain (config-version 3)");
-        assertTrue(configuration.npcs().list().containsKey("mama_bakewell"));
-        assertTrue(configuration.npcs().list().containsKey("gustave"));
-        assertTrue(configuration.npcs().list().values().stream().allMatch(n -> n.location().world().equals("spawn")));
+        assertEquals(0, configuration.npcs().list().size(), "the quest NPCs are gone (config-version 5)");
+        assertTrue(!configuration.npcs().enabled(), "and the section is switched off");
         assertTrue(configuration.mainCookie().specialAuto(), "special cookies activate directly by default");
         assertTrue(configuration.openWorld().specialAuto());
         assertEquals(CookieConfiguration.CURRENT_VERSION, yaml.getInt("config-version"));
@@ -103,11 +101,12 @@ class CookieConfigurationAndMapperTest {
         v2.set("npcs.list.custom_guide.location.x", 4.0);
         v2.setDefaults(bundled);
         List<String> changes = CookieConfiguration.migrate(v2);
-        assertEquals(3, changes.size(), changes.toString());
-        assertEquals(4, CookieConfiguration.CURRENT_VERSION);
+        assertEquals(4, changes.size(), changes.toString());
+        assertEquals(5, CookieConfiguration.CURRENT_VERSION);
         assertEquals(CookieConfiguration.CURRENT_VERSION, v2.getInt("config-version"));
         assertTrue(!v2.isConfigurationSection("npcs.list.babette"));
         assertTrue(!v2.isConfigurationSection("npcs.list.king_frosting"));
+        assertTrue(!v2.isConfigurationSection("npcs.list.mama_bakewell"), "the quest NPCs are gone as well");
         assertTrue(v2.isConfigurationSection("npcs.list.custom_guide"), "foreign NPCs are kept");
         assertEquals(-1.5, v2.getDouble("main-cookie.location.x"), 1e-9, "own layout values are kept");
         assertTrue(CookieConfiguration.migrate(v2).isEmpty(), "migration is idempotent");
@@ -138,6 +137,7 @@ class CookieConfigurationAndMapperTest {
 
         List<String> changes = CookieConfiguration.migrate(v3);
         assertEquals(4, changes.size(), changes.toString());
+        assertTrue(!v3.getBoolean("npcs.enabled"), "the cookie NPCs are switched off");
         assertEquals(CookieConfiguration.CURRENT_VERSION, v3.getInt("config-version"));
         assertTrue(!v3.isConfigurationSection("main-cookie.golden-cookies"));
         assertEquals("spawn", v3.getString("main-cookie.special-cookies.mode"), "own settings survive the rename");

@@ -50,6 +50,8 @@ public final class CosmeticPackInstaller implements Service {
     private static final long MAX_ENTRY_BYTES = 64L * 1024 * 1024;
     private static final String MARKER_FILE = ".installed.properties";
     private static final long HMC_RELOAD_DELAY_TICKS = 60L;
+    /** Reload the cosmetics even when ItemsAdder never signals readiness (60 s after the install). */
+    private static final long HMC_RELOAD_FALLBACK_TICKS = 20L * 60;
 
     private final Plugin plugin;
     private final CustomItemProvider customItems;
@@ -114,10 +116,14 @@ public final class CosmeticPackInstaller implements Service {
         writeMarker(directory, marker);
         logger.info("Cosmetic packs: " + installed + " installed, " + current + " already current ("
                 + archives.size() + " archives).");
+        repairTextures(plugin.getDataFolder().getParentFile().toPath(), contentPacks(marker));
         if (installedContent && reloadHmcCosmetics) {
             hmcReloadPending = true;
-            // HMCCosmetics resolves ItemsAdder items, so it is reloaded only after the pack was rebuilt
+            // HMCCosmetics resolves ItemsAdder items, so the reload waits for the rebuilt pack...
             customItems.onReady(this::reloadHmcCosmeticsNow);
+            // ...but never forever: without ItemsAdder (or when its load event never arrives) the cosmetics
+            // would stay unknown to HMCCosmetics until someone reloads it by hand
+            Bukkit.getScheduler().runTaskLater(plugin, this::reloadHmcCosmeticsNow, HMC_RELOAD_FALLBACK_TICKS);
         }
     }
 
@@ -214,6 +220,55 @@ public final class CosmeticPackInstaller implements Service {
         return true;
     }
 
+    /**
+     * Puts textures where the models of the packs look for them. Packs are sold with the PNGs one folder too
+     * deep ({@code textures/<namespace>/x.png} for a model that asks for {@code <namespace>:x}), which makes
+     * ItemsAdder log "Texture not found for model" and renders the cosmetic untextured.
+     * <p>
+     * This runs on every start, not only after an install: a pack that was installed by an older version of
+     * TasticLobby has the same broken paths, and copying a file that is already there is a no-op.
+     */
+    private void repairTextures(Path pluginsRoot, Set<String> contentPacks) {
+        int repaired = 0;
+        String example = "";
+        for (String contentPack : contentPacks) {
+            Path assets = pluginsRoot.resolve("ItemsAdder").resolve("contents").resolve(contentPack)
+                    .resolve("resourcepack").resolve("assets");
+            try {
+                List<PackTextureRepair.Repair> repairs = PackTextureRepair.repair(assets);
+                if (!repairs.isEmpty()) {
+                    repaired += repairs.size();
+                    example = repairs.getFirst().reference();
+                }
+            } catch (IOException | RuntimeException e) {
+                logger.warning("Cosmetic packs: textures of '" + contentPack + "' could not be repaired: " + e.getMessage());
+            }
+        }
+        if (repaired > 0) {
+            installedContent = true; // the pack has to be rebuilt so the clients receive the textures
+            logger.info("Cosmetic packs: copied " + repaired + " textures to the path their models reference (e.g. "
+                    + example + ") – the resource pack is regenerated.");
+        }
+    }
+
+    /** ItemsAdder content packs installed by us, taken from the marker file. */
+    private static Set<String> contentPacks(Properties marker) {
+        Set<String> packs = new LinkedHashSet<>();
+        for (String name : marker.stringPropertyNames()) {
+            if (!name.endsWith(".files")) {
+                continue;
+            }
+            for (String relative : marker.getProperty(name, "").split("\\|")) {
+                String[] parts = relative.split("/");
+                if (parts.length > 2 && parts[0].equals("ItemsAdder") && parts[1].equals("contents")) {
+                    packs.add(parts[2]);
+                }
+            }
+        }
+        return packs;
+    }
+
+    /** Runs at most once per start – whichever trigger (ItemsAdder ready or the fallback) comes first. */
     private void reloadHmcCosmeticsNow() {
         if (!hmcReloadPending) {
             return;

@@ -21,6 +21,7 @@ import java.util.OptionalInt;
  * cookie-clicker.yml (config-version 4): main cookie in the lobby world, quest NPCs, the
  * prestige-10 open world with zones/POIs, runtime and balancing. Layout is data – builders
  * replace coordinates without code changes. Files are migrated in place ({@link #migrate}):
+ * version 5 removed the quest NPCs altogether,
  * version 3 removed the NPCs {@code babette} and {@code king_frosting}, version 4 renamed the
  * {@code golden-cookies} sections to {@code special-cookies} and replaced
  * {@code balancing.golden} with {@code balancing.special} (rarities instead of one golden cookie).
@@ -36,11 +37,13 @@ public record CookieConfiguration(
         boolean legacyFile
 ) {
 
-    public static final int CURRENT_VERSION = 4;
+    public static final int CURRENT_VERSION = 5;
     /** First version with the current layout (main cookie in the lobby); older files are replaced by the bundled defaults. */
     public static final int LAYOUT_VERSION = 2;
     /** NPC ids removed with config-version 3 (only the baker and the merchant remain). */
     public static final List<String> REMOVED_NPCS_V3 = List.of("babette", "king_frosting");
+    /** Quest NPCs dropped with config-version 5; NPCs the operator added stay untouched. */
+    public static final List<String> REMOVED_NPCS_V5 = List.of("mama_bakewell", "gustave");
     /** Section renamed to {@link #SPECIAL_SECTION} with config-version 4; still read as a fallback. */
     public static final String GOLDEN_SECTION = "golden-cookies";
     public static final String SPECIAL_SECTION = "special-cookies";
@@ -220,6 +223,17 @@ public record CookieConfiguration(
                 changes.add("replaced balancing.golden with balancing.special (base-interval-seconds dropped, "
                         + "the wait is now drawn from min/max/floor-interval-seconds)");
             }
+        }
+        if (version < 5) {
+            // the quest NPCs were dropped: the Cookie Clicker is played at the main cookie and in its menus
+            for (String id : REMOVED_NPCS_V5) {
+                if (yaml.isConfigurationSection("npcs.list." + id)) {
+                    yaml.set("npcs.list." + id, null);
+                    changes.add("removed NPC '" + id + "'");
+                }
+            }
+            // the section itself is switched off; an operator who wants NPCs back turns it on again
+            yaml.set("npcs.enabled", false);
         }
         yaml.set("config-version", CURRENT_VERSION);
         changes.add("config-version " + version + " -> " + CURRENT_VERSION);

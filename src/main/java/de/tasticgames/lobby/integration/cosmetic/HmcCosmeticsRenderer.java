@@ -123,7 +123,8 @@ public final class HmcCosmeticsRenderer implements CosmeticRenderer, Integration
             Cosmetic cosmetic = HMCCosmeticsAPI.getCosmetic(id);
             if (cosmetic == null) {
                 if (unknownWarned.add(id)) {
-                    logger.warning("HMCCosmetics cosmetic '" + id + "' referenced by cosmetics.yml does not exist.");
+                    logger.warning("HMCCosmetics cosmetic '" + id + "' referenced by cosmetics.yml does not exist"
+                            + " – is the pack that defines it installed (plugins/HMCCosmetics/cosmetics/) and HMCCosmetics reloaded?");
                 }
                 return false;
             }

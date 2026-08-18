@@ -226,3 +226,22 @@ The file name is the id and the title: `ES_Bohemian-Bed-Franz-Gordon.ogg` become
 "Bohemian Bed Franz Gordon". Players switch the music off with the existing `music.enabled` setting; with the
 soundtrack off no music plays at all, because the vanilla tracks are replaced. The `.ogg` files are never bundled with
 the plugin - they are the operator's licensed content.
+
+## Broken texture paths in bought packs
+Several packs ship their PNGs one folder too deep: a model asks for `<namespace>:phantom_king_crown`, which the
+client resolves to `assets/<namespace>/textures/phantom_king_crown.png`, while the archive puts the file in
+`assets/<namespace>/textures/<namespace>/`. ItemsAdder then logs `Texture '...' not found for model` and the
+cosmetic renders untextured. On every start `PackTextureRepair` reads the models of the installed packs and copies
+the one matching PNG (plus its `.mcmeta`) to the path the model references - nothing is moved or overwritten, and a
+pack that uses the deeper path on purpose keeps working. New copies mark the ItemsAdder pack for regeneration.
+
+Not repairable from here: packs in the pre-3.x ItemsAdder layout (`contents/<pack>/models` and `/textures` without
+the `resourcepack/assets/<namespace>` wrapper, e.g. the clone armors). ItemsAdder reports those as
+`Unknown custom_armor` / `Texture 'item/empty' not found`; they need a pack version built for the installed
+ItemsAdder. Nothing in `cosmetics.yml` references them, so those errors do not affect the lobby cosmetics.
+
+## Holograms above the service NPCs
+The five lobby NPCs carry a Citizens `HologramTrait` instead of a plain nameplate: name, one line of what it is
+for (`lobby.npc.<id>.tagline`) and the interaction hint (`lobby.npc.hologram.hint`), line height 0.3, view range
+32 blocks. Citizens renders one text for every viewer, so the lines use English like the nameplate they replace.
+Without Citizens the native fallback keeps its single custom name.

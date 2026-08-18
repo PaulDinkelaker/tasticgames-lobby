@@ -96,7 +96,18 @@ public final class ItemsAdderItemProvider implements CustomItemProvider, Listene
 
     @Override
     public void onReady(Runnable callback) {
-        readyCallbacks.add(Objects.requireNonNull(callback));
+        Objects.requireNonNull(callback);
+        if (ready()) {
+            // ItemsAdder already fired its load event (early load order, /iareload before we hooked in):
+            // running the callback now instead of waiting for an event that will not come again
+            try {
+                callback.run();
+            } catch (RuntimeException e) {
+                logger.warning("ItemsAdder ready callback failed: " + e.getMessage());
+            }
+            return;
+        }
+        readyCallbacks.add(callback);
     }
 
     @Override

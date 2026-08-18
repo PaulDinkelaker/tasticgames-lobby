@@ -3,10 +3,11 @@
 # config-version 4: main cookie in the lobby world, cookie world = prestige-10 open world; the quest NPCs are the
 # baker (mama_bakewell) and the merchant (gustave). Existing files are migrated automatically:
 #   2 -> 3 removes the NPCs babette and king_frosting
+#   4 -> 5 removes the quest NPCs (npcs.enabled: false, empty list)
 #   3 -> 4 renames "golden-cookies" to "special-cookies" and replaces balancing.golden with balancing.special
 #          (lifetime-seconds and buff-seconds are carried over, base-interval-seconds is dropped – the wait between
 #           two special cookies is now drawn from min/max/floor-interval-seconds instead of rolled every second)
-config-version: 4
+config-version: 5
 
 # ---------------------------------------------------------------------------------------------
 # The MAIN COOKIE stands in the lobby. Clicking it earns cookies; the actionbar shows the balance.
@@ -42,30 +43,12 @@ main-cookie:
         min: { x: -82, y: 30, z: -8 }
         max: { x: -42, y: 46, z: 32 }
 
-# Quest NPCs (Citizens when installed, otherwise native villagers). "world" defaults to the main-cookie world.
-# entity-type PLAYER + skin-value/skin-signature = custom skin (Citizens); "skin: <name>" fetches a player's skin instead.
-# citizens-id links an NPC created by an admin with /npc create instead of spawning one.
+# Quest NPCs are switched off: the Cookie Clicker is played at the main cookie and through its menus.
+# The section stays so builders can bring NPCs back (see docs/cookie-clicker.md) - an entry under "list"
+# needs role, quest and location; with enabled: false nothing is spawned regardless.
 npcs:
-  enabled: true
-  list:
-    mama_bakewell:
-      role: QUEST
-      quest: starter
-      location: { x: -66.5, y: 35.0, z: 8.5, yaw: -45.0 }
-      entity-type: PLAYER
-      skin: ""
-      skin-value: "eyJ0aW1lc3RhbXAiOjE1NTk5NzQ2Njc2MzQsInByb2ZpbGVJZCI6IjkxZjA0ZmU5MGYzNjQzYjU4ZjIwZTMzNzVmODZkMzllIiwicHJvZmlsZU5hbWUiOiJTdG9ybVN0b3JteSIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMWQ5ZmIyMzFmYmVlMDRjNjVjODUxZmQ1N2Q1MTZiOGU1YzBhNjNkNWQyYzFhYTA1ZTYzNDc2YTJlYWI4YzE2NCJ9fX0="
-      skin-signature: "hvk9fKkuPu/Xo8jbVIKgYffWtQghwQNF/xqfA7YszfZkYKyyZO1lyMH5b2K2Y8Iimc+hcjTuYwoCT5XaM7BtUDABRtXup7qaCq9CFgRz0Al8LLAannIWIbQpcKzXiYL8HZ7HgI9Gn9mPZerkHzRtX942UrzVv+H1RXMb/Z8Buk9fdFXTYts6K+qYhieFDCW/XQxpcCTaRdD/sXrxvDfV17vUoHi6XSYEPiccEhStkz4ut3WFbTpYbHBf6FoMoBkE7JkssM6GG2xxp+BbXYeHvwOC7TkeWHIhQnUMuNO6DxhZwxNmhjY143y/VGsvGL4tk2iRjRPKkUoqAo+t8loe1U/F6ZvdQHP3tDdBBYHSEzx6M9pvhienk9LWgQuubyLcXrtRSrakMWlwfWo30tlt65YpmCOj4dbPm8dpr0H8xMoVur0ZoBVV+HG0a02Y8u4qT41jZTwebX0OYTU3rOWPy1MiA3PYitc+Yh57VxLkgzXvoUpKBm0dy33YnKJmaJRlujP2EUzdjeaiJBzRjpmUd9v7H2xqxmjEijFjEysY7XK4XmWfBTVXnn/5y5oj52UgHg+tPWcsrw7ZJNf75Bkn5MzxbPv8AF+PHA1XecGnf7MrCX18VEbUJoIMBHMCuexBTI/GCUSaTfLjK6N2GHystjbgBRU9ryvtWMkeLMzpQMo="
-      model: "mama_bakewell"
-    gustave:
-      role: QUEST
-      quest: explore
-      location: { x: -58.5, y: 35.0, z: 8.5, yaw: 45.0 }
-      entity-type: PLAYER
-      skin: ""
-      skin-value: "ewogICJ0aW1lc3RhbXAiIDogMTYyMjQ0MDQ5ODkyNCwKICAicHJvZmlsZUlkIiA6ICJmYzUwMjkzYTVkMGI0NzViYWYwNDJhNzIwMWJhMzBkMiIsCiAgInByb2ZpbGVOYW1lIiA6ICJDVUNGTDE3IiwKICAic2lnbmF0dXJlUmVxdWlyZWQiIDogdHJ1ZSwKICAidGV4dHVyZXMiIDogewogICAgIlNLSU4iIDogewogICAgICAidXJsIiA6ICJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlLzJiMmQ5MTJlNDI4NjkzYmY3N2IxMWFiZDFkNWY5NDBjNDQ5ZGFiMmRjMDkxNzIxYzkxNGM4YmY1Yzk2ODFjNmUiLAogICAgICAibWV0YWRhdGEiIDogewogICAgICAgICJtb2RlbCIgOiAic2xpbSIKICAgICAgfQogICAgfQogIH0KfQ=="
-      skin-signature: "qt4PvQP1g1diIgwi63UA6ZwqLIH8y3b4jQG/wF2qcCIh3Gl69JoQ00uzPd2X6vXTW59CnIgDG7SUhROvNBmewYVsVJCyGsOegarLAixBiXUn1TfcJqhsznvu/E2W7UgYZocemSdFfHNbx1wXKom1EoOwqFIpP+nEZkUt4ieaeu8dLO3el8ZIsfi1HStruSsX0Q9TKv4JaE0TaHFZVHZVH6cYi+Md8HsS11lUAvF3eujgbiGEJ7XkMBWy8RDTQGCDwnXwggq3HzECVio5QpHy7GWo+0n5Z/e+peB54pNhWGWE9LJtN4V+65WlW2eMhVyldEYiI4zVswJJ0rECIBIidn91CyZgmd+6ZJONoQc9WF7E6OKmqhXyMcaWm2VuKq9khK5TY3vRPIZ+oPTxiLH5x/M/nNdT+PA8qpZmend1Gs6WoLHx84Hm4ePWwXtSQ0zYxlW3cO2+ecqkg3heo3y/8V3XdaPBd4N6kCEXuRcB8pQ/SyFL1k4glG2mH9wKOjel0Q5/JQrT7zG+HB2Vk0DUTGiMmil3a8gZ6tp+bZ5PCY/76RBWWc+Cx1zfNQgQ2SmpHNNNTY9tjMEorVPYz+NIJRlgISGeYZyRF3RoRsG03pD1rPEIkA80EH8ha0lNF5Ewin99lslnGhKdc+FLtmq0U+MrrB5j0kxIUWrmvbIB5Gg="
-      model: "gustave_the_barrel"
+  enabled: false
+  list: {}
 
 # ---------------------------------------------------------------------------------------------
 # The OPEN WORLD is the endgame area for players who reached prestige 10 (/cookie world, cookie menu).
