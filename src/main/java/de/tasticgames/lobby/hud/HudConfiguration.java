@@ -90,7 +90,7 @@ public record HudConfiguration(
                 yaml.getBoolean("enabled", true),
                 yaml.getInt("refresh-ticks", 10),
                 yaml.getBoolean("rows.values", true),
-                yaml.getBoolean("rows.hint", true),
+                yaml.getBoolean("rows.hint", false), // the objective row carries the hint; a fourth bar costs too much screen
                 yaml.getBoolean("rows.objective", true),
                 yaml.getBoolean("rows.status", true),
                 yaml.getBoolean("itemsadder.icons", true),
