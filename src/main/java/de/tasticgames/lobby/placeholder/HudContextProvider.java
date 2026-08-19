@@ -51,6 +51,7 @@ public final class HudContextProvider {
     private final CosmeticService cosmetics;
     private final PlayerVisibilityService visibility;
     private final CookieModule cookie;
+    private final de.tasticgames.lobby.network.NetworkOnlineService networkOnline;
     private final de.tasticgames.lobby.pass.PassModule pass;
     private final Function<Player, String> playtime;
     private final Function<Player, String> sessionPlaytime;
@@ -58,9 +59,11 @@ public final class HudContextProvider {
 
     public HudContextProvider(TasticCoreApi coreApi, LobbyMessages messages, LobbyItemService items, LobbyPlayerService players, RankProvider ranks,
                               SocialSnapshotService social, GatewayService gateway, CosmeticService cosmetics, PlayerVisibilityService visibility,
-                              CookieModule cookie, de.tasticgames.lobby.pass.PassModule pass, Function<Player, String> playtime,
+                              CookieModule cookie, de.tasticgames.lobby.pass.PassModule pass,
+                              de.tasticgames.lobby.network.NetworkOnlineService networkOnline, Function<Player, String> playtime,
                               Function<Player, String> sessionPlaytime) {
         this.coreApi = Objects.requireNonNull(coreApi);
+        this.networkOnline = Objects.requireNonNull(networkOnline);
         this.messages = Objects.requireNonNull(messages);
         this.items = Objects.requireNonNull(items);
         this.players = Objects.requireNonNull(players);

@@ -95,6 +95,7 @@ public final class LobbyBootstrap {
     private GatewayService gateway;
     private SocialActionService socialActions;
     private CookieModule cookie;
+    private de.tasticgames.lobby.network.NetworkOnlineService networkOnline;
     private de.tasticgames.lobby.daily.DailyRewardService daily;
     private PassModule pass;
     private LobbyNpcService serviceNpcs;
@@ -184,12 +185,15 @@ public final class LobbyBootstrap {
                         cosmeticsYaml.getBoolean("packs.reload-hmccosmetics", true), logger));
 
         // native top-screen HUD (boss bars) fed by the context provider
+        // the HUD shows the players on every proxy, not just the ones on this server
+        networkOnline = start(new de.tasticgames.lobby.network.NetworkOnlineService(plugin, api, logger));
         hudContext = new de.tasticgames.lobby.placeholder.HudContextProvider(coreApi, messages, items, players, ranks, social, gateway, cosmetics, visibility, cookie, pass,
+                networkOnline,
                 player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
                 player -> players.find(player.getUniqueId()).map(lp -> formatDuration(java.time.Duration.between(lp.joinedAt(), java.time.Instant.now()))).orElse(""));
         hud = start(new de.tasticgames.lobby.hud.HudService(plugin, coreApi, configurationService, hudContext, integrations.customItems(), players,
                 p -> ranks.rank(p).displayName(), player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
-                () -> Bukkit.getOnlinePlayers().size(),
+                networkOnline::onlinePlayers,
                 () -> cosmeticPacks.installedContent() || soundtrack.installedContent(), logger));
         items.setProfileHeadModel(hud::profileHeadModel);
         socialActions.setAfterAction(p -> {
@@ -354,7 +358,8 @@ public final class LobbyBootstrap {
                 : s.clan().name().substring(0, 4).toUpperCase(java.util.Locale.ROOT)).orElse(""));
         p.add("friends_online", player -> social.cached(player.getUniqueId()).map(s -> String.valueOf(s.friendUuids().stream().filter(s::online).count())).orElse(""));
         p.add("friends", player -> social.cached(player.getUniqueId()).map(s -> String.valueOf(s.friendUuids().size())).orElse(""));
-        p.add("online", player -> String.valueOf(Bukkit.getOnlinePlayers().size()));
+        p.add("online", player -> String.valueOf(networkOnline.onlinePlayers()));
+        p.add("online_local", player -> String.valueOf(Bukkit.getOnlinePlayers().size()));
         p.add("kills", player -> String.valueOf(player.getStatistic(org.bukkit.Statistic.PLAYER_KILLS)));
         p.add("deaths", player -> String.valueOf(player.getStatistic(org.bukkit.Statistic.DEATHS)));
         p.add("playtime", player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)));
