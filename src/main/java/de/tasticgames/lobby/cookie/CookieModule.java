@@ -298,6 +298,10 @@ public final class CookieModule implements Service {
     public CookieDialogService dialogs() { return dialogService; }
     public CookieAdminCommand adminCommand() { return adminCommand; }
     public CookieEngine engine() { return engine; }
+    public SpecialCookieService specialCookies() { return special; }
+
+    /** Shared cookie number formatter (short scale, localised). */
+    public CookieNumberFormatter formatter() { return formatter; }
 
     /** Shift orders (HUD, dialogs); null before {@link #start()} ran. */
     public CookieOrderService orders() { return orders; }

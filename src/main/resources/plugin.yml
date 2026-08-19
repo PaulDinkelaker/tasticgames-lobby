@@ -47,6 +47,9 @@ commands:
   social:
     description: Open the social hub (friends, party, clan)
     aliases: [socialhub]
+  daily:
+    description: Daily reward and streak
+    aliases: [dailyreward, streak]
   cookie:
     description: Cookie Clicker menu
     usage: /cookie [menu|stats|leaderboard|world|shop|upgrades|prestige]

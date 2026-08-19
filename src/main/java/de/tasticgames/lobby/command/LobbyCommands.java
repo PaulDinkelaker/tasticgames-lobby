@@ -40,12 +40,14 @@ public final class LobbyCommands implements CommandExecutor, TabCompleter {
     private final de.tasticgames.lobby.dialog.LanguageDialogService language;
     private final LobbyApiService api;
     private final MainThread mainThread;
+    private final de.tasticgames.lobby.daily.DailyDialogService daily;
     private final BiConsumer<Player, String[]> cookieCommand;
     private final Consumer<Player> leaveCookieWorld;
 
     public LobbyCommands(LobbyMessages messages, LobbyPlayerService players, LobbySpawnService spawn, SettingsDialogService settings,
                          GatewayDialogService gateway, ProfileDialogService profile, SocialDialogService social, CosmeticsDialogService cosmetics,
                          de.tasticgames.lobby.dialog.LanguageDialogService language, LobbyApiService api, MainThread mainThread,
+                         de.tasticgames.lobby.daily.DailyDialogService daily,
                          BiConsumer<Player, String[]> cookieCommand, Consumer<Player> leaveCookieWorld) {
         this.messages = Objects.requireNonNull(messages);
         this.players = Objects.requireNonNull(players);
@@ -58,6 +60,7 @@ public final class LobbyCommands implements CommandExecutor, TabCompleter {
         this.language = Objects.requireNonNull(language);
         this.api = Objects.requireNonNull(api);
         this.mainThread = Objects.requireNonNull(mainThread);
+        this.daily = Objects.requireNonNull(daily);
         this.cookieCommand = Objects.requireNonNull(cookieCommand);
         this.leaveCookieWorld = Objects.requireNonNull(leaveCookieWorld);
     }
@@ -83,6 +86,7 @@ public final class LobbyCommands implements CommandExecutor, TabCompleter {
             case "cosmetics" -> cosmetics.openMain(player);
             case "social" -> social.openHub(player);
             case "cookie" -> cookieCommand.accept(player, args);
+            case "daily" -> daily.open(player);
             case "lang" -> {
                 if (args.length == 0) {
                     language.open(player, true);

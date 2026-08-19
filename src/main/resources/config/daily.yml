@@ -1,0 +1,71 @@
+# Daily rewards with a streak. One claim per day (/daily or the lobby menu); claiming on the next day
+# continues the streak, a missed day starts the cycle over at day 1.
+#
+# Reward types:
+#   COOKIES        amount = seconds of the player's own production (so day 7 is worth the same relative
+#                  amount at prestige 0 and at prestige 10); the streak multiplier applies to these
+#   CRUMBS         amount = prestige crumbs, flat
+#   SPECIAL_COOKIE id = SILVER|GOLDEN|PLATINUM|DIAMOND|MASTER, activated right away; skipped silently when
+#                  the player has not unlocked that rarity yet
+#   COSMETIC       id = cosmetic id from cosmetics.yml, unlocked permanently
+enabled: true
+
+# The day rolls over at midnight in this zone for everybody, not in the player's local time.
+reset-zone: "Europe/Berlin"
+
+# Every streak day adds this much to the cookie rewards, capped at max-streak-bonus (1.0 = +100%).
+streak-bonus-per-day: 0.03
+max-streak-bonus: 1.0
+
+# Seven day cycle; day 8 starts at day 1 again while the streak (and its bonus) keeps growing.
+cycle:
+  day-1:
+    rewards:
+      - { type: COOKIES, amount: 60 }
+  day-2:
+    rewards:
+      - { type: COOKIES, amount: 90 }
+  day-3:
+    rewards:
+      - { type: COOKIES, amount: 120 }
+      - { type: CRUMBS, amount: 1 }
+  day-4:
+    rewards:
+      - { type: COOKIES, amount: 180 }
+  day-5:
+    rewards:
+      - { type: COOKIES, amount: 240 }
+      - { type: SPECIAL_COOKIE, id: "GOLDEN" }
+  day-6:
+    rewards:
+      - { type: COOKIES, amount: 300 }
+  day-7:
+    rewards:
+      - { type: COOKIES, amount: 600 }
+      - { type: CRUMBS, amount: 3 }
+
+# Extra rewards handed out exactly once, when the streak reaches that length.
+milestones:
+  3:
+    rewards:
+      - { type: CRUMBS, amount: 2 }
+  7:
+    rewards:
+      - { type: COOKIES, amount: 900 }
+      - { type: CRUMBS, amount: 5 }
+  14:
+    rewards:
+      - { type: CRUMBS, amount: 10 }
+      - { type: SPECIAL_COOKIE, id: "PLATINUM" }
+  30:
+    rewards:
+      - { type: CRUMBS, amount: 25 }
+      - { type: COSMETIC, id: "cosmetic_glacial_crown" }
+  60:
+    rewards:
+      - { type: CRUMBS, amount: 50 }
+      - { type: COSMETIC, id: "cosmetic_phoenix_helm" }
+  100:
+    rewards:
+      - { type: CRUMBS, amount: 100 }
+      - { type: COSMETIC, id: "shadow_dragon_wings" }

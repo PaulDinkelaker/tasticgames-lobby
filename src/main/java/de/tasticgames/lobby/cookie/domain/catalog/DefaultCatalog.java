@@ -80,6 +80,26 @@ public final class DefaultCatalog {
                     .requiring(g.id(), 50).unlockedAtPrestige(Math.max(4, g.unlockPrestige())));
         }
 
+        // Early game: a run through prestige 0-4 should have more than the generator tiers to spend on, so
+        // every level down here opens two or three cheap upgrades with a clear purpose.
+        list.add(UpgradeDefinition.of("warm_dough", 5_000L, UpgradeEffect.clickMultiplier(1.3)));
+        list.add(UpgradeDefinition.of("steady_grip", 7_500L, UpgradeEffect.comboDuration(1.2)));
+        list.add(UpgradeDefinition.of("family_recipe", 50_000L, UpgradeEffect.globalCps(1.06)));
+        list.add(UpgradeDefinition.of("sweet_tooth", 60_000L, UpgradeEffect.goldenFrequency(1.2)));
+        list.add(UpgradeDefinition.of("apprentice_shift", 5_000_000L, UpgradeEffect.globalCps(1.07)).unlockedAtPrestige(1));
+        list.add(UpgradeDefinition.of("sugar_dusting", 25_000_000L, UpgradeEffect.clickAddCpsPercent(0.25)).unlockedAtPrestige(1));
+        list.add(UpgradeDefinition.of("morning_batch", 15_000_000L, UpgradeEffect.offlineEfficiency(0.1)).unlockedAtPrestige(1));
+        list.add(UpgradeDefinition.of("cocoa_blend", 100_000_000L, UpgradeEffect.generatorMultiplier("cocoa_mine", 1.25))
+                .requiring("cocoa_mine", 5).unlockedAtPrestige(2));
+        list.add(UpgradeDefinition.of("second_wind", 75_000_000L, UpgradeEffect.comboDuration(1.3)).unlockedAtPrestige(2));
+        list.add(UpgradeDefinition.of("conveyor_belts", 2_500_000_000L, UpgradeEffect.generatorMultiplier("cookie_factory", 1.25))
+                .requiring("cookie_factory", 5).unlockedAtPrestige(3));
+        list.add(UpgradeDefinition.of("taste_test", 5_000_000_000L, UpgradeEffect.clickMultiplier(1.5)).unlockedAtPrestige(3));
+        list.add(UpgradeDefinition.of("lucky_batch", 5_000_000_000L,
+                UpgradeEffect.rarityWeight(SpecialCookieRarity.SILVER, 1.5)).unlockedAtPrestige(3));
+        list.add(UpgradeDefinition.of("arcane_infusion", 250_000_000_000L, UpgradeEffect.globalCps(1.08)).unlockedAtPrestige(4));
+        list.add(UpgradeDefinition.of("mana_kneading", 750_000_000_000L, UpgradeEffect.clickAddCpsPercent(0.5)).unlockedAtPrestige(4));
+
         // Baking styles: exactly one per run, bought once, and they steer how the run plays. The choice is
         // cleared by a prestige together with the other upgrades, so every run can be played differently.
         list.add(UpgradeDefinition.of("style_artisan", 250_000L, UpgradeEffect.clickMultiplier(4))

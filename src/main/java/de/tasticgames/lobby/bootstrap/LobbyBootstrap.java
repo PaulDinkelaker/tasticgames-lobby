@@ -95,6 +95,7 @@ public final class LobbyBootstrap {
     private GatewayService gateway;
     private SocialActionService socialActions;
     private CookieModule cookie;
+    private de.tasticgames.lobby.daily.DailyRewardService daily;
     private PassModule pass;
     private LobbyNpcService serviceNpcs;
     private de.tasticgames.lobby.hud.HudService hud;
@@ -245,9 +246,18 @@ public final class LobbyBootstrap {
         register(new LobbySettingChangeListener(players, music, visibility, items, cosmetics, hud));
 
         // commands
+        // daily rewards: state lives in the account settings, rewards come from the cookie economy
+        de.tasticgames.lobby.daily.DailyRewardTable dailyTable =
+                de.tasticgames.lobby.daily.DailyRewardTable.load(configurationService.raw("daily"));
+        daily = start(new de.tasticgames.lobby.daily.DailyRewardService(coreApi, cookie, cookie.specialCookies(), cosmetics,
+                messages, sounds, telemetry, () -> dailyTable, logger));
+        de.tasticgames.lobby.daily.DailyDialogService dailyDialog =
+                new de.tasticgames.lobby.daily.DailyDialogService(daily, () -> dailyTable, messages, dialogs, sounds);
+        initialization.addPostInitHook(daily::notifyOnJoin);
+
         LobbyCommands commands = new LobbyCommands(messages, players, spawn, settingsDialog, gatewayDialog, profileDialog, socialDialog, cosmeticsDialog,
-                languageDialog, api, mainThread, cookie::command, cookie::leaveWorld);
-        for (String name : List.of("lobby", "spawn", "profile", "settings", "gateway", "cosmetics", "social", "cookie", "lang")) {
+                languageDialog, api, mainThread, dailyDialog, cookie::command, cookie::leaveWorld);
+        for (String name : List.of("lobby", "spawn", "profile", "settings", "gateway", "cosmetics", "social", "cookie", "lang", "daily")) {
             var command = plugin.getCommand(name);
             if (command == null) {
                 logger.warning("Command '" + name + "' is missing from plugin.yml – not registered.");

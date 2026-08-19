@@ -67,3 +67,19 @@ Bounded queue → `POST /api/v1/telemetry/events` (source = backend server id). 
 `cookie.upgrade_bought`, `cookie.tree_node_bought`, `cookie.prestige_completed`, `cookie.zone_discovered`,
 `cookie.poi_visited`, `cookie.golden_spawned/clicked`, `cookie.achievement_unlocked`, `cookie.offline_reward_claimed`,
 `cookie.quest_completed`, `cookie.admin_mutation`.
+
+## Daily rewards
+`daily/` holds the streak feature: one claim per day (`/daily`, alias `/streak`), a seven day cycle and
+milestones at 3/7/14/30/60/100 days. `DailyStreak` is pure date arithmetic (next day continues, a gap starts
+over at day 1, the record is kept), `DailyRewardTable` reads `config/daily.yml`, `DailyRewardService` books
+the rewards and `DailyDialogService` draws the cycle.
+
+Cookie rewards are measured in seconds of the player's own production, so day 7 is worth the same relative
+amount at prestige 0 and at prestige 10; every streak day adds 3 % on top, capped at +100 %. Crumbs,
+cosmetics and special cookies are flat. The day rolls over at midnight in `reset-zone` for everybody, not in
+local time, so "be there at reset" means the same moment for the whole network.
+
+State is stored in the player's TasticCore settings (`lobby.daily.last-claim|streak|best-streak|total`), so
+it travels with the account, needs no schema of its own and survives a server restart. The claim refuses to
+run while the cookie profile is not loaded - that way a claim never hands out a shrunken reward and burns the
+day.

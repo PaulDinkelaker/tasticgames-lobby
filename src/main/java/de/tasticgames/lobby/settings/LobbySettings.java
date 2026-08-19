@@ -43,6 +43,13 @@ public final class LobbySettings {
     public static final SettingKey<Boolean> COOKIE_OFFLINE_PROMPT = SettingKey.booleanKey("lobby.cookie-clicker.offline-prompt", true);
     public static final SettingKey<Boolean> COOKIE_CONFIRM_PRESTIGE = SettingKey.booleanKey("lobby.cookie-clicker.confirm-prestige", true);
 
+    // ---- daily rewards (state, not a preference: written by the daily service, never shown in /settings)
+    public static final SettingKey<String> DAILY_LAST_CLAIM = SettingKey.stringKey("lobby.daily.last-claim", "",
+            value -> value == null || value.isBlank() || value.matches("\\d{4}-\\d{2}-\\d{2}"));
+    public static final SettingKey<Integer> DAILY_STREAK = SettingKey.integerKey("lobby.daily.streak", 0, 0, 100_000);
+    public static final SettingKey<Integer> DAILY_BEST_STREAK = SettingKey.integerKey("lobby.daily.best-streak", 0, 0, 100_000);
+    public static final SettingKey<Integer> DAILY_TOTAL = SettingKey.integerKey("lobby.daily.total", 0, 0, 1_000_000);
+
     // ---- social & notifications
     public static final SettingKey<Boolean> JOIN_MESSAGES = SettingKey.booleanKey("lobby.join-messages", true);
 
@@ -51,7 +58,8 @@ public final class LobbySettings {
             HUD_ENABLED, HUD_MODE, HUD_STATUS_ROW, HUD_HINTS,
             COOKIE_HUD, COOKIE_EFFECTS, COOKIE_NOTIFICATIONS, COOKIE_CLICK_SOUNDS, COOKIE_ACTIONBAR,
             COOKIE_SPECIAL_ALERTS, COOKIE_COMBO_POPUPS, COOKIE_OFFLINE_PROMPT, COOKIE_CONFIRM_PRESTIGE,
-            JOIN_MESSAGES);
+            JOIN_MESSAGES,
+            DAILY_LAST_CLAIM, DAILY_STREAK, DAILY_BEST_STREAK, DAILY_TOTAL);
 
     private LobbySettings() {
     }

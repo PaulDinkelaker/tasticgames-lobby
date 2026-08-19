@@ -341,6 +341,20 @@ public final class SpecialCookieService implements Service, Listener {
     }
 
     /** Removes a spawned cookie (world exit, expiry, quit) without touching the player's timer. */
+    /**
+     * Activates a special cookie for the player right away (daily rewards, admin tools).
+     *
+     * @return false when the rarity is not unlocked at the player's prestige level or no session is loaded
+     */
+    public boolean grant(Player player, SpecialCookieRarity rarity) {
+        CookieSession session = runtime.session(player.getUniqueId()).orElse(null);
+        if (session == null || rarity == null || session.profile().prestigeLevel() < rarity.unlockPrestige()) {
+            return false;
+        }
+        activate(player, session, rarity, "granted");
+        return true;
+    }
+
     public void remove(UUID owner) {
         Special special = active.remove(owner);
         if (special == null) return;
