@@ -5,7 +5,6 @@ import de.tasticgames.lobby.config.LobbyConfigurationService;
 import de.tasticgames.lobby.player.LobbyPlayer;
 import de.tasticgames.lobby.player.LobbyPlayerService;
 import de.tasticgames.service.Service;
-import io.papermc.paper.entity.TeleportFlag;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -87,10 +86,15 @@ public final class LobbySpawnService implements Service {
         if (lobbyPlayer.teleporting()) {
             return CompletableFuture.completedFuture(false);
         }
+
         lobbyPlayer.teleporting(true);
         player.setFallDistance(0);
         player.setVelocity(new Vector(0, 0, 0));
-        return player.teleportAsync(target, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS)
+
+        return player.teleportAsync(
+                        target,
+                        org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.PLUGIN
+                )
                 .whenComplete((ok, throwable) -> lobbyPlayer.teleporting(false))
                 .exceptionally(throwable -> {
                     logger.warning("Teleport of " + player.getName() + " failed: " + throwable.getMessage());
@@ -101,17 +105,28 @@ public final class LobbySpawnService implements Service {
     /** Persists a new spawn into config/lobby.yml. */
     public void setSpawn(Location location) throws IOException {
         Objects.requireNonNull(location.getWorld(), "world");
+
         File file = new File(configurationService.configDirectory(), "lobby.yml");
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+
         yaml.set("world.spawn.world", location.getWorld().getName());
         yaml.set("world.spawn.x", location.getX());
         yaml.set("world.spawn.y", location.getY());
         yaml.set("world.spawn.z", location.getZ());
         yaml.set("world.spawn.yaw", (double) location.getYaw());
         yaml.set("world.spawn.pitch", (double) location.getPitch());
+
         yaml.save(file);
-        spawn = new LobbyConfiguration.SpawnPoint(location.getWorld().getName(), location.getX(), location.getY(), location.getZ(),
-                location.getYaw(), location.getPitch());
+
+        spawn = new LobbyConfiguration.SpawnPoint(
+                location.getWorld().getName(),
+                location.getX(),
+                location.getY(),
+                location.getZ(),
+                location.getYaw(),
+                location.getPitch()
+        );
+
         logger.info("Lobby spawn set to " + spawn);
     }
 }
