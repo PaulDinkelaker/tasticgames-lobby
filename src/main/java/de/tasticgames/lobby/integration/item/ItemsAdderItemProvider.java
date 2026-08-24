@@ -21,31 +21,68 @@ import java.util.logging.Logger;
  * ItemsAdder backend for custom lobby items. ItemsAdder loads its content after the server started
  * (and on {@code /iazip}/reload), so consumers register {@link #onReady(Runnable)} and re-give items.
  */
-public final class ItemsAdderItemProvider implements CustomItemProvider, Listener {
+public final class ItemsAdderItemProvider
+        implements CustomItemProvider, Listener {
 
     private final Plugin plugin;
     private final Logger logger;
-    private final List<Runnable> readyCallbacks = new CopyOnWriteArrayList<>();
+    private final List<Runnable> readyCallbacks =
+            new CopyOnWriteArrayList<>();
+
     private volatile boolean available;
     private volatile boolean ready;
     private volatile boolean warned;
 
-    public ItemsAdderItemProvider(Plugin plugin, Logger logger) {
-        this.plugin = Objects.requireNonNull(plugin);
-        this.logger = Objects.requireNonNull(logger);
+    public ItemsAdderItemProvider(
+            Plugin plugin,
+            Logger logger
+    ) {
+        this.plugin =
+                Objects.requireNonNull(
+                        plugin
+                );
+
+        this.logger =
+                Objects.requireNonNull(
+                        logger
+                );
     }
 
     public void hook() {
-        if (!Integration.pluginEnabled(pluginName())) {
+        if (!Integration.pluginEnabled(
+                pluginName()
+        )) {
             return;
         }
+
         try {
-            Bukkit.getPluginManager().registerEvents(this, plugin);
-            ready = ItemsAdder.areItemsLoaded();
+            Bukkit.getPluginManager()
+                    .registerEvents(
+                            this,
+                            plugin
+                    );
+
+            /*
+             * ItemsAdder's load event remains the primary readiness mechanism.
+             * The synchronous check is intentionally retained only as a compatibility
+             * fallback for the case where ItemsAdder completed loading before this
+             * listener was registered.
+             */
+            ready =
+                    itemsAlreadyLoaded();
+
             available = true;
         } catch (Throwable t) {
             available = false;
-            logger.warning("ItemsAdder hook failed (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ") – vanilla items are used.");
+
+            logger.warning(
+                    "ItemsAdder hook failed ("
+                            + t.getClass()
+                            .getSimpleName()
+                            + ": "
+                            + t.getMessage()
+                            + ") – vanilla items are used."
+            );
         }
     }
 
@@ -68,46 +105,85 @@ public final class ItemsAdderItemProvider implements CustomItemProvider, Listene
 
     @Override
     public boolean ready() {
-        return available && ready;
+        return available
+                && ready;
     }
 
     @Override
-    public Optional<ItemStack> item(String namespacedId) {
-        if (!ready() || namespacedId == null || namespacedId.isBlank()) return Optional.empty();
+    public Optional<ItemStack> item(
+            String namespacedId
+    ) {
+        if (!ready()
+                || namespacedId == null
+                || namespacedId.isBlank()) {
+            return Optional.empty();
+        }
+
         try {
-            CustomStack stack = CustomStack.getInstance(namespacedId);
-            return stack == null ? Optional.empty() : Optional.of(stack.getItemStack().clone());
+            CustomStack stack =
+                    CustomStack.getInstance(
+                            namespacedId
+                    );
+
+            return stack == null
+                    ? Optional.empty()
+                    : Optional.of(
+                    stack.getItemStack()
+                            .clone()
+            );
         } catch (Throwable t) {
-            warnOnce("item " + namespacedId, t);
+            warnOnce(
+                    "item "
+                            + namespacedId,
+                    t
+            );
+
             return Optional.empty();
         }
     }
 
     @Override
-    public boolean exists(String namespacedId) {
-        if (!ready() || namespacedId == null || namespacedId.isBlank()) return false;
+    public boolean exists(
+            String namespacedId
+    ) {
+        if (!ready()
+                || namespacedId == null
+                || namespacedId.isBlank()) {
+            return false;
+        }
+
         try {
-            return CustomStack.isInRegistry(namespacedId);
+            return CustomStack.isInRegistry(
+                    namespacedId
+            );
         } catch (Throwable t) {
-            warnOnce("registry lookup", t);
+            warnOnce(
+                    "registry lookup",
+                    t
+            );
+
             return false;
         }
     }
 
     @Override
-    public void onReady(Runnable callback) {
-        Objects.requireNonNull(callback);
+    public void onReady(
+            Runnable callback
+    ) {
+        Objects.requireNonNull(
+                callback
+        );
+
         if (ready()) {
             // ItemsAdder already fired its load event (early load order, /iareload before we hooked in):
             // running the callback now instead of waiting for an event that will not come again
-            try {
-                callback.run();
-            } catch (RuntimeException e) {
-                logger.warning("ItemsAdder ready callback failed: " + e.getMessage());
-            }
+            runReadyCallback(callback);
             return;
         }
-        readyCallbacks.add(callback);
+
+        readyCallbacks.add(
+                callback
+        );
     }
 
     @Override
@@ -116,46 +192,129 @@ public final class ItemsAdderItemProvider implements CustomItemProvider, Listene
     }
 
     @Override
-    public Optional<FontGlyph> fontImage(String namespacedId) {
-        if (!ready() || namespacedId == null || namespacedId.isBlank()) return Optional.empty();
+    public Optional<FontGlyph> fontImage(
+            String namespacedId
+    ) {
+        if (!ready()
+                || namespacedId == null
+                || namespacedId.isBlank()) {
+            return Optional.empty();
+        }
+
         try {
-            dev.lone.itemsadder.api.FontImages.FontImageWrapper wrapper = new dev.lone.itemsadder.api.FontImages.FontImageWrapper(namespacedId);
-            if (!wrapper.exists()) return Optional.empty();
-            return Optional.of(new FontGlyph(wrapper.getString(), wrapper.getWidth()));
+            dev.lone.itemsadder.api.FontImages.FontImageWrapper wrapper =
+                    new dev.lone.itemsadder.api.FontImages.FontImageWrapper(
+                            namespacedId
+                    );
+
+            if (!wrapper.exists()) {
+                return Optional.empty();
+            }
+
+            return Optional.of(
+                    new FontGlyph(
+                            wrapper.getString(),
+                            wrapper.getWidth()
+                    )
+            );
         } catch (Throwable t) {
-            warnOnce("font image " + namespacedId, t);
+            warnOnce(
+                    "font image "
+                            + namespacedId,
+                    t
+            );
+
             return Optional.empty();
         }
     }
 
     @Override
-    public String pixelOffset(int pixels) {
-        if (!ready() || pixels == 0) return "";
+    public String pixelOffset(
+            int pixels
+    ) {
+        if (!ready()
+                || pixels == 0) {
+            return "";
+        }
+
         try {
-            return dev.lone.itemsadder.api.FontImages.FontImageWrapper.applyPixelsOffsetToString("", pixels);
+            return dev.lone.itemsadder.api.FontImages.FontImageWrapper
+                    .applyPixelsOffsetToString(
+                            "",
+                            pixels
+                    );
         } catch (Throwable t) {
-            warnOnce("pixel offset", t);
+            warnOnce(
+                    "pixel offset",
+                    t
+            );
+
             return "";
         }
     }
 
     @EventHandler
-    public void onLoadData(ItemsAdderLoadDataEvent event) {
+    public void onLoadData(
+            ItemsAdderLoadDataEvent event
+    ) {
         ready = true;
-        logger.info("ItemsAdder data loaded (" + event.getCause() + ") – refreshing custom lobby items.");
-        for (Runnable callback : readyCallbacks) {
-            try {
-                callback.run();
-            } catch (RuntimeException e) {
-                logger.warning("ItemsAdder ready callback failed: " + e.getMessage());
-            }
+
+        logger.info(
+                "ItemsAdder data loaded ("
+                        + event.getCause()
+                        + ") – refreshing custom lobby items."
+        );
+
+        for (Runnable callback :
+                readyCallbacks) {
+            runReadyCallback(
+                    callback
+            );
         }
     }
 
-    private void warnOnce(String operation, Throwable t) {
-        if (!warned) {
-            warned = true;
-            logger.warning("ItemsAdder " + operation + " failed (" + t.getClass().getSimpleName() + ": " + t.getMessage() + ") – further failures are silent.");
+    /**
+     * ItemsAdder still exposes this old readiness probe for situations where
+     * programmatic state detection is necessary. The load event remains the
+     * normal path; this method only protects against a missed initial event.
+     */
+    @SuppressWarnings("deprecation")
+    private boolean itemsAlreadyLoaded() {
+        return ItemsAdder.areItemsLoaded();
+    }
+
+    private void runReadyCallback(
+            Runnable callback
+    ) {
+        try {
+            callback.run();
+        } catch (RuntimeException exception) {
+            logger.warning(
+                    "ItemsAdder ready callback failed: "
+                            + exception.getMessage()
+            );
         }
+    }
+
+    private void warnOnce(
+            String operation,
+            Throwable t
+    ) {
+        if (warned) {
+            return;
+        }
+
+        warned = true;
+
+        logger.warning(
+                "ItemsAdder "
+                        + operation
+                        + " failed ("
+                        + t.getClass()
+                        .getSimpleName()
+                        + ": "
+                        + t.getMessage()
+                        + ") – further failures are silent."
+        );
     }
 }

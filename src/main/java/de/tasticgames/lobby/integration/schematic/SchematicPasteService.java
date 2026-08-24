@@ -43,10 +43,12 @@ import java.util.logging.Logger;
  */
 public final class SchematicPasteService implements Service {
 
-    private static final String MARKER_FILE = ".pasted.properties";
+    private static final String MARKER_FILE =
+            ".pasted.properties";
 
     /** Ab dieser Blockzahl gilt eine Vorlage als groß; ohne FAWE wird sie nicht angefasst. */
-    private static final long LARGE_VOLUME = 5_000_000L;
+    private static final long LARGE_VOLUME =
+            5_000_000L;
 
     public enum Outcome {
         PASTED,
@@ -67,21 +69,49 @@ public final class SchematicPasteService implements Service {
      * @param origin    Position, an die die Vorlage gesetzt wird
      * @param pasteAir  ob Luftblöcke der Vorlage bestehende Blöcke löschen
      */
-    public record Request(String worldName, String file, int x, int y, int z, boolean pasteAir) {
+    public record Request(
+            String worldName,
+            String file,
+            int x,
+            int y,
+            int z,
+            boolean pasteAir
+    ) {
 
         public String markerKey() {
-            return worldName + "|" + file + "|" + x + "," + y + "," + z;
+            return worldName
+                    + "|"
+                    + file
+                    + "|"
+                    + x
+                    + ","
+                    + y
+                    + ","
+                    + z;
         }
     }
 
     private final Plugin plugin;
     private final Logger logger;
+
     private volatile boolean worldEditAvailable;
     private volatile boolean fawe;
 
-    public SchematicPasteService(Plugin plugin, Logger logger) {
-        this.plugin = Objects.requireNonNull(plugin, "plugin");
-        this.logger = Objects.requireNonNull(logger, "logger");
+    public SchematicPasteService(
+            Plugin plugin,
+            Logger logger
+    ) {
+        this.plugin =
+                Objects.requireNonNull(
+                        plugin,
+                        "plugin"
+                );
+
+        this.logger =
+                Objects.requireNonNull(
+                        logger,
+                        "logger"
+                );
     }
 
     @Override
@@ -91,24 +121,59 @@ public final class SchematicPasteService implements Service {
 
     @Override
     public void start() throws IOException {
-        Path directory = directory();
-        Files.createDirectories(directory);
-        Path readme = directory.resolve("README.txt");
+        Path directory =
+                directory();
+
+        Files.createDirectories(
+                directory
+        );
+
+        Path readme =
+                directory.resolve(
+                        "README.txt"
+                );
+
         if (!Files.exists(readme)) {
-            Files.writeString(readme, readme(), StandardCharsets.UTF_8);
+            Files.writeString(
+                    readme,
+                    readme(),
+                    StandardCharsets.UTF_8
+            );
         }
-        fawe = Integration.pluginEnabled("FastAsyncWorldEdit");
-        boolean worldEdit = fawe || Integration.pluginEnabled("WorldEdit");
+
+        fawe =
+                Integration.pluginEnabled(
+                        "FastAsyncWorldEdit"
+                );
+
+        boolean worldEdit =
+                fawe
+                        || Integration.pluginEnabled(
+                        "WorldEdit"
+                );
+
         if (!worldEdit) {
-            logger.info("Schematics: neither FastAsyncWorldEdit nor WorldEdit is installed – prepared builds stay unused.");
+            logger.info(
+                    "Schematics: neither FastAsyncWorldEdit nor WorldEdit is installed – prepared builds stay unused."
+            );
+
             return;
         }
+
         try {
-            worldEditAvailable = WorldEdit.getInstance() != null;
+            worldEditAvailable =
+                    WorldEdit.getInstance() != null;
         } catch (Throwable throwable) {
             worldEditAvailable = false;
-            logger.warning("Schematics: the WorldEdit hook failed (" + throwable.getClass().getSimpleName()
-                    + ": " + throwable.getMessage() + ").");
+
+            logger.warning(
+                    "Schematics: the WorldEdit hook failed ("
+                            + throwable.getClass()
+                            .getSimpleName()
+                            + ": "
+                            + throwable.getMessage()
+                            + ")."
+            );
         }
     }
 
@@ -126,8 +191,13 @@ public final class SchematicPasteService implements Service {
     }
 
     /** Ob diese Einfügung schon einmal gelaufen ist. */
-    public boolean alreadyPasted(Request request) {
-        return marker().containsKey(request.markerKey());
+    public boolean alreadyPasted(
+            Request request
+    ) {
+        return marker()
+                .containsKey(
+                        request.markerKey()
+                );
     }
 
     /**
@@ -135,100 +205,291 @@ public final class SchematicPasteService implements Service {
      *
      * @param force auch dann einfügen, wenn es laut Vermerk schon geschehen ist
      */
-    public CompletableFuture<Outcome> paste(Request request, boolean force) {
-        Objects.requireNonNull(request, "request");
+    public CompletableFuture<Outcome> paste(
+            Request request,
+            boolean force
+    ) {
+        Objects.requireNonNull(
+                request,
+                "request"
+        );
+
         if (!worldEditAvailable) {
-            return CompletableFuture.completedFuture(Outcome.NO_WORLDEDIT);
-        }
-        if (!force && alreadyPasted(request)) {
-            return CompletableFuture.completedFuture(Outcome.ALREADY_DONE);
-        }
-        Path file = directory().resolve(request.file());
-        if (!Files.isRegularFile(file)) {
-            logger.warning("Schematic " + request.file() + " was not found in " + directory() + ".");
-            return CompletableFuture.completedFuture(Outcome.MISSING_FILE);
-        }
-        World world = Bukkit.getWorld(request.worldName());
-        if (world == null) {
-            return CompletableFuture.completedFuture(Outcome.MISSING_WORLD);
+            return CompletableFuture.completedFuture(
+                    Outcome.NO_WORLDEDIT
+            );
         }
 
-        CompletableFuture<Outcome> result = new CompletableFuture<>();
-        Runnable work = () -> result.complete(pasteNow(request, file, world));
+        if (!force
+                && alreadyPasted(request)) {
+            return CompletableFuture.completedFuture(
+                    Outcome.ALREADY_DONE
+            );
+        }
+
+        Path file =
+                directory().resolve(
+                        request.file()
+                );
+
+        if (!Files.isRegularFile(file)) {
+            logger.warning(
+                    "Schematic "
+                            + request.file()
+                            + " was not found in "
+                            + directory()
+                            + "."
+            );
+
+            return CompletableFuture.completedFuture(
+                    Outcome.MISSING_FILE
+            );
+        }
+
+        World world =
+                Bukkit.getWorld(
+                        request.worldName()
+                );
+
+        if (world == null) {
+            return CompletableFuture.completedFuture(
+                    Outcome.MISSING_WORLD
+            );
+        }
+
+        CompletableFuture<Outcome> result =
+                new CompletableFuture<>();
+
+        Runnable work =
+                () -> result.complete(
+                        pasteNow(
+                                request,
+                                file,
+                                world
+                        )
+                );
+
         if (fawe) {
             // FAWE arbeitet nebenläufig; ein Einfügen dieser Größe gehört nicht auf den Hauptthread
-            Bukkit.getScheduler().runTaskAsynchronously(plugin, work);
+            Bukkit.getScheduler()
+                    .runTaskAsynchronously(
+                            plugin,
+                            work
+                    );
         } else {
-            Bukkit.getScheduler().runTask(plugin, work);
+            Bukkit.getScheduler()
+                    .runTask(
+                            plugin,
+                            work
+                    );
         }
+
         return result;
     }
 
-    private Outcome pasteNow(Request request, Path file, World world) {
-        long start = System.nanoTime();
+    private Outcome pasteNow(
+            Request request,
+            Path file,
+            World world
+    ) {
+        long start =
+                System.nanoTime();
+
         try {
-            ClipboardFormat format = ClipboardFormats.findByFile(file.toFile());
+            ClipboardFormat format =
+                    ClipboardFormats.findByPath(
+                            file
+                    );
+
             if (format == null) {
-                logger.warning("Schematic " + request.file() + ": unknown format (.schem and .schematic are supported).");
+                logger.warning(
+                        "Schematic "
+                                + request.file()
+                                + ": unknown format (.schem and .schematic are supported)."
+                );
+
                 return Outcome.FAILED;
             }
+
             Clipboard clipboard;
-            try (InputStream in = Files.newInputStream(file);
-                 ClipboardReader reader = format.getReader(in)) {
-                clipboard = reader.read();
+
+            try (
+                    InputStream in =
+                            Files.newInputStream(file);
+
+                    ClipboardReader reader =
+                            format.getReader(in)
+            ) {
+                clipboard =
+                        reader.read();
             }
-            long volume = clipboard.getRegion().getVolume();
-            if (!fawe && volume > LARGE_VOLUME) {
-                logger.severe("Schematic " + request.file() + " covers " + volume + " blocks. Plain WorldEdit would"
-                        + " load all of it into memory and freeze the server – install FastAsyncWorldEdit to paste it.");
+
+            long volume =
+                    clipboard.getRegion()
+                            .getVolume();
+
+            if (!fawe
+                    && volume > LARGE_VOLUME) {
+                logger.severe(
+                        "Schematic "
+                                + request.file()
+                                + " covers "
+                                + volume
+                                + " blocks. Plain WorldEdit would"
+                                + " load all of it into memory and freeze the server – install FastAsyncWorldEdit to paste it."
+                );
+
                 return Outcome.NEEDS_FAWE;
             }
-            BlockVector3 target = BlockVector3.at(request.x(), request.y(), request.z());
-            try (EditSession session = WorldEdit.getInstance().newEditSession(BukkitAdapter.adapt(world))) {
-                Operation operation = new ClipboardHolder(clipboard)
-                        .createPaste(session)
-                        .to(target)
-                        .ignoreAirBlocks(!request.pasteAir())
-                        .build();
-                Operations.complete(operation);
+
+            BlockVector3 target =
+                    BlockVector3.at(
+                            request.x(),
+                            request.y(),
+                            request.z()
+                    );
+
+            try (
+                    EditSession session =
+                            WorldEdit.getInstance()
+                                    .newEditSession(
+                                            BukkitAdapter.adapt(
+                                                    world
+                                            )
+                                    )
+            ) {
+                Operation operation =
+                        new ClipboardHolder(
+                                clipboard
+                        )
+                                .createPaste(
+                                        session
+                                )
+                                .to(
+                                        target
+                                )
+                                .ignoreAirBlocks(
+                                        !request.pasteAir()
+                                )
+                                .build();
+
+                Operations.complete(
+                        operation
+                );
             }
-            remember(request, volume);
-            logger.info("Schematic " + request.file() + " pasted into '" + world.getName() + "' at "
-                    + request.x() + "/" + request.y() + "/" + request.z() + " (" + volume + " blocks, "
-                    + (System.nanoTime() - start) / 1_000_000_000L + " s).");
+
+            remember(
+                    request,
+                    volume
+            );
+
+            logger.info(
+                    "Schematic "
+                            + request.file()
+                            + " pasted into '"
+                            + world.getName()
+                            + "' at "
+                            + request.x()
+                            + "/"
+                            + request.y()
+                            + "/"
+                            + request.z()
+                            + " ("
+                            + volume
+                            + " blocks, "
+                            + (System.nanoTime() - start)
+                            / 1_000_000_000L
+                            + " s)."
+            );
+
             return Outcome.PASTED;
         } catch (Throwable throwable) {
-            logger.warning("Schematic " + request.file() + " could not be pasted: "
-                    + throwable.getClass().getSimpleName() + ": " + throwable.getMessage());
+            logger.warning(
+                    "Schematic "
+                            + request.file()
+                            + " could not be pasted: "
+                            + throwable.getClass()
+                            .getSimpleName()
+                            + ": "
+                            + throwable.getMessage()
+            );
+
             return Outcome.FAILED;
         }
     }
 
     private Path directory() {
-        return plugin.getDataFolder().toPath().resolve("schematics");
+        return plugin.getDataFolder()
+                .toPath()
+                .resolve(
+                        "schematics"
+                );
     }
 
     private Properties marker() {
-        Properties marker = new Properties();
-        Path file = directory().resolve(MARKER_FILE);
+        Properties marker =
+                new Properties();
+
+        Path file =
+                directory().resolve(
+                        MARKER_FILE
+                );
+
         if (Files.isRegularFile(file)) {
-            try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            try (
+                    var reader =
+                            Files.newBufferedReader(
+                                    file,
+                                    StandardCharsets.UTF_8
+                            )
+            ) {
                 marker.load(reader);
             } catch (IOException exception) {
-                logger.warning("Schematics: paste marker could not be read (" + exception.getMessage() + ").");
+                logger.warning(
+                        "Schematics: paste marker could not be read ("
+                                + exception.getMessage()
+                                + ")."
+                );
             }
         }
+
         return marker;
     }
 
-    private void remember(Request request, long volume) {
-        Properties marker = marker();
-        marker.setProperty(request.markerKey(), java.time.Instant.now() + " blocks=" + volume);
-        try (var writer = Files.newBufferedWriter(directory().resolve(MARKER_FILE), StandardCharsets.UTF_8)) {
-            marker.store(writer, "TasticLobby schematic pastes - delete an entry to allow pasting it again");
+    private void remember(
+            Request request,
+            long volume
+    ) {
+        Properties marker =
+                marker();
+
+        marker.setProperty(
+                request.markerKey(),
+                java.time.Instant.now()
+                        + " blocks="
+                        + volume
+        );
+
+        try (
+                var writer =
+                        Files.newBufferedWriter(
+                                directory().resolve(
+                                        MARKER_FILE
+                                ),
+                                StandardCharsets.UTF_8
+                        )
+        ) {
+            marker.store(
+                    writer,
+                    "TasticLobby schematic pastes - delete an entry to allow pasting it again"
+            );
         } catch (IOException exception) {
-            logger.warning("Schematics: paste marker could not be written (" + exception.getMessage() + ") -"
-                    + " the schematic may be pasted again on the next start.");
+            logger.warning(
+                    "Schematics: paste marker could not be written ("
+                            + exception.getMessage()
+                            + ") -"
+                            + " the schematic may be pasted again on the next start."
+            );
         }
     }
 

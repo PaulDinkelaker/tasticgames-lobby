@@ -6,6 +6,8 @@ plugins {
 group = "de.tasticgames"
 version = "1.0.0"
 
+val pluginVersion = version.toString()
+
 repositories {
     mavenLocal()
     mavenCentral()
@@ -94,10 +96,10 @@ tasks.test {
 }
 
 tasks.processResources {
-    inputs.property("version", project.version)
+    inputs.property("version", pluginVersion)
 
     filesMatching("plugin.yml") {
-        expand("version" to project.version)
+        expand("version" to pluginVersion)
     }
 }
 
@@ -120,6 +122,10 @@ tasks.shadowJar {
     relocate("com.fasterxml.jackson", "de.tasticgames.lobby.libs.jackson")
 
     mergeServiceFiles()
+
+    filesMatching("META-INF/services/**") {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
 }
 
 tasks.jar {
