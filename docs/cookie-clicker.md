@@ -5,7 +5,7 @@ Persistent lobby minigame, Prestige 0–10. Domain engine: `de.tasticgames.lobby
 (`/api/v1/lobby/cookie/**`, MariaDB `cookie_*` tables, optimistic locking, idempotent operations).
 
 ## Layout (config-version 4)
-* **Main cookie in the lobby** (`spawn` at -62.5/35/12.5): MythicMobs mob `fv_cookie_clicker` → ModelEngine model
+* **Main cookie in the lobby** (`spawn` at -62.5/35/12.5, plus a second one at -62.5/35/-19.5 so players spread out; each carries its own 8-block zone): MythicMobs mob `fv_cookie_clicker` → ModelEngine model
   `fv_cookie_clicker` → native item display. **Left click = bake, right click = cookie menu** (also the cookie hotbar
   item and `/cookie`). Actionbar shows cookies/CPS on every click and every second inside the cookie zone (8 blocks).
   The visual is spawned only after ModelEngine registered its models (`ModelRegistrationEvent FINISHED`); the binding

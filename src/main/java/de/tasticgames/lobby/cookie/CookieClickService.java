@@ -94,17 +94,44 @@ public final class CookieClickService implements Service, Listener {
     private final Map<UUID, Integer> lastClickTick = new ConcurrentHashMap<>();
     private volatile Consumer<Player> menuOpener = p -> { };
     private volatile CookieProgressListener progress = CookieProgressListener.NONE;
-    private volatile String backend = "none";
-    private volatile UUID interactionId;
-    private volatile UUID visualId;
-    private volatile UUID labelId;
-    private volatile Chunk ticketChunk;
+    /** Every cookie of the lobby; the first one is the main cookie of the configuration. */
+    private final List<Spot> spots = new java.util.concurrent.CopyOnWriteArrayList<>();
     private org.bukkit.scheduler.BukkitTask clickReportTask;
     private org.bukkit.scheduler.BukkitTask healTask;
     private long lastLoadWarningAt;
     private volatile boolean waitingForModels;
-    private volatile int bindingReportGeneration;
-    private volatile int bindingAttempts;
+
+    /**
+     * One cookie: its entities, its chunk ticket and its own ModelEngine binding state. Several of
+     * them stand in the lobby so a busy plaza spreads out instead of crowding a single model.
+     */
+    private static final class Spot {
+
+        private final CookieConfiguration.Point point;
+        private volatile UUID interactionId;
+        private volatile UUID visualId;
+        private volatile UUID labelId;
+        private volatile Chunk ticketChunk;
+        private volatile String backend = "none";
+        private volatile int bindingGeneration;
+        private volatile int bindingAttempts;
+
+        private Spot(CookieConfiguration.Point point) {
+            this.point = point;
+        }
+
+        private boolean alive() {
+            return interactionId != null && Bukkit.getEntity(interactionId) != null;
+        }
+
+        private Entity visual() {
+            return visualId == null ? null : Bukkit.getEntity(visualId);
+        }
+
+        private boolean owns(UUID id) {
+            return id.equals(interactionId) || id.equals(visualId) || id.equals(labelId);
+        }
+    }
 
     /** Upper bound for waiting on ModelEngine's model registration before spawning without it (ticks). */
     static final long MODEL_WAIT_TICKS = 20L * 90;
@@ -137,9 +164,11 @@ public final class CookieClickService implements Service, Listener {
     @Override
     public void start() {
         models.onInteract((player, base, left) -> {
-            if (base.equals(visualId)) {
-                handleClick(player, left);
-                return true;
+            for (Spot spot : spots) {
+                if (base.equals(spot.visualId)) {
+                    handleClick(player, left);
+                    return true;
+                }
             }
             return false;
         });
@@ -196,11 +225,26 @@ public final class CookieClickService implements Service, Listener {
 
     /** Active visual backend: mythicmobs, modelengine, native or none. */
     public String backend() {
-        return backend;
+        Spot first = spots.isEmpty() ? null : spots.getFirst();
+        return first == null ? "none" : first.backend;
     }
 
+    /** Whether every configured cookie stands. */
     public boolean spawned() {
-        return interactionId != null && Bukkit.getEntity(interactionId) != null;
+        if (spots.isEmpty() || spots.size() != configuration.get().mainCookie().locations().size()) {
+            return false;
+        }
+        for (Spot spot : spots) {
+            if (!spot.alive()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** How many cookies stand in the lobby right now. */
+    public int cookieCount() {
+        return spots.size();
     }
 
     public Location mainCookieLocation() {
@@ -209,7 +253,31 @@ public final class CookieClickService implements Service, Listener {
         return world == null ? null : point.toLocation(world);
     }
 
-    /** (Re)spawns the main cookie entities at the configured location; removes stale markers first. */
+    /** The cookie closest to the player - the one a click, an animation or a particle belongs to. */
+    private Spot nearestSpot(Player player) {
+        Spot nearest = null;
+        double best = Double.MAX_VALUE;
+        for (Spot spot : spots) {
+            Entity visual = spot.visual();
+            Location at = visual != null ? visual.getLocation() : locationOf(spot);
+            if (at == null || at.getWorld() == null || !at.getWorld().equals(player.getWorld())) {
+                continue;
+            }
+            double distance = at.distanceSquared(player.getLocation());
+            if (distance < best) {
+                best = distance;
+                nearest = spot;
+            }
+        }
+        return nearest;
+    }
+
+    private Location locationOf(Spot spot) {
+        World world = Bukkit.getWorld(spot.point.world());
+        return world == null ? null : spot.point.toLocation(world);
+    }
+
+    /** (Re)spawns every configured cookie; removes stale markers first. */
     public synchronized void spawnMainCookie() {
         CookieConfiguration.MainCookie main = configuration.get().mainCookie();
         World w = Bukkit.getWorld(main.world());
@@ -217,24 +285,36 @@ public final class CookieClickService implements Service, Listener {
             long now = System.currentTimeMillis();
             if (now - lastLoadWarningAt > 60_000) {
                 lastLoadWarningAt = now;
-                logger.warning("Main cookie world '" + main.world() + "' is not loaded – the main cookie spawns as soon as the world is available.");
+                logger.warning("Main cookie world '" + main.world() + "' is not loaded – the cookies spawn as soon as the world is available.");
             }
             return;
         }
         removeMainCookie();
         waitingForModels = false;
-        Location location = main.location().toLocation(w);
+        List<CookieConfiguration.Point> points = main.locations();
+        for (CookieConfiguration.Point point : points) {
+            Spot spot = new Spot(point);
+            spots.add(spot);
+            spawnSpot(main, w, spot);
+        }
+        logger.info(points.size() + " cookie" + (points.size() == 1 ? "" : "s") + " spawned in " + w.getName()
+                + " (backend " + backend() + ", zone radius " + (int) main.zoneRadius() + ").");
+    }
+
+    /** Spawns the visual, the click hitbox and the label of a single cookie. */
+    private void spawnSpot(CookieConfiguration.MainCookie main, World w, Spot spot) {
+        Location location = spot.point.toLocation(w);
         Chunk chunk = w.getChunkAt(location);
         chunk.load();
         chunk.addPluginChunkTicket(plugin);
-        ticketChunk = chunk;
+        spot.ticketChunk = chunk;
         for (Entity entity : w.getNearbyEntities(location, 6, 6, 6)) {
             if (entity.getPersistentDataContainer().has(markerKey, PersistentDataType.STRING)) {
                 entity.remove();
             } else if (!main.mythicMobsType().isBlank() && mobs.available()
                     && mobs.mobType(entity).map(t -> t.equalsIgnoreCase(main.mythicMobsType())).orElse(false)) {
-                // a manually spawned (persistent) copy of the cookie mob – the plugin owns the main cookie
-                logger.info("Removing manually spawned MythicMobs '" + main.mythicMobsType() + "' next to the main cookie.");
+                // a manually spawned (persistent) copy of the cookie mob – the plugin owns the cookies
+                logger.info("Removing manually spawned MythicMobs '" + main.mythicMobsType() + "' next to a cookie.");
                 mobs.remove(entity);
             }
         }
@@ -249,7 +329,7 @@ public final class CookieClickService implements Service, Listener {
                     usedBackend = "mythicmobs";
                 }
             } else {
-                logger.warning("MythicMobs type '" + main.mythicMobsType() + "' for the main cookie does not exist – falling back.");
+                logger.warning("MythicMobs type '" + main.mythicMobsType() + "' for the cookie does not exist – falling back.");
             }
         }
         // 2. ModelEngine model on an invisible base entity
@@ -273,7 +353,7 @@ public final class CookieClickService implements Service, Listener {
                     base.remove();
                 }
             } else {
-                logger.warning("ModelEngine model '" + main.model() + "' for the main cookie does not exist – falling back to the native display.");
+                logger.warning("ModelEngine model '" + main.model() + "' for the cookie does not exist – falling back to the native display.");
             }
         }
         // 3. native item display
@@ -300,16 +380,16 @@ public final class CookieClickService implements Service, Listener {
             }
         }
         visual.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-visual");
-        visualId = visual.getUniqueId();
-        backend = usedBackend;
+        spot.visualId = visual.getUniqueId();
+        spot.backend = usedBackend;
         if (!"native".equals(usedBackend)) {
             // MythicMobs applies its model a tick after spawning: hide the base entity (e.g. the pig) now and again shortly after
-            hideBase(visual);
-            mainThread.later(2L, () -> hideBase(visualId == null ? null : Bukkit.getEntity(visualId)));
-            int generation = ++bindingReportGeneration;
+            hideBase(spot, visual);
+            mainThread.later(2L, () -> hideBase(spot, spot.visual()));
+            int generation = ++spot.bindingGeneration;
             mainThread.later(20L, () -> {
-                hideBase(visualId == null ? null : Bukkit.getEntity(visualId));
-                reportBinding(generation);
+                hideBase(spot, spot.visual());
+                reportBinding(spot, generation);
             });
         }
 
@@ -320,7 +400,7 @@ public final class CookieClickService implements Service, Listener {
             e.setPersistent(false);
             e.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-interaction");
         });
-        interactionId = interaction.getUniqueId();
+        spot.interactionId = interaction.getUniqueId();
 
         if (main.label()) {
             TextDisplay label = w.spawn(location.clone().add(0, main.hitboxHeight() + 0.3, 0), TextDisplay.class, e -> {
@@ -331,41 +411,48 @@ public final class CookieClickService implements Service, Listener {
                 e.setPersistent(false);
                 e.getPersistentDataContainer().set(markerKey, PersistentDataType.STRING, "main-label");
             });
-            labelId = label.getUniqueId();
+            spot.labelId = label.getUniqueId();
         }
-        logger.info("Main cookie spawned in " + w.getName() + " at " + location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ()
-                + " (backend " + usedBackend + ").");
+        logger.info("Cookie spawned in " + w.getName() + " at " + location.getBlockX() + "," + location.getBlockY() + ","
+                + location.getBlockZ() + " (backend " + usedBackend + ").");
     }
 
     private synchronized void removeMainCookie() {
-        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
+        for (Spot spot : spots) {
+            removeSpot(spot);
+        }
+        spots.clear();
+    }
+
+    private void removeSpot(Spot spot) {
+        Entity visual = spot.visual();
         if (visual != null) {
             try {
-                if ("modelengine".equals(backend)) {
+                if ("modelengine".equals(spot.backend)) {
                     models.detach(visual);
-                } else if ("mythicmobs".equals(backend)) {
+                } else if ("mythicmobs".equals(spot.backend)) {
                     mobs.remove(visual);
                 }
             } catch (RuntimeException e) {
-                logger.warning("Main cookie visual could not be removed cleanly: " + e.getMessage());
+                logger.warning("Cookie visual could not be removed cleanly: " + e.getMessage());
             }
             if (visual.isValid()) {
                 visual.remove();
             }
         }
-        for (UUID id : new UUID[]{interactionId, labelId}) {
+        for (UUID id : new UUID[]{spot.interactionId, spot.labelId}) {
             if (id == null) continue;
             Entity entity = Bukkit.getEntity(id);
             if (entity != null) entity.remove();
         }
-        if (ticketChunk != null) {
-            ticketChunk.removePluginChunkTicket(plugin);
-            ticketChunk = null;
+        if (spot.ticketChunk != null) {
+            spot.ticketChunk.removePluginChunkTicket(plugin);
+            spot.ticketChunk = null;
         }
-        interactionId = null;
-        visualId = null;
-        labelId = null;
-        backend = "none";
+        spot.interactionId = null;
+        spot.visualId = null;
+        spot.labelId = null;
+        spot.backend = "none";
     }
 
     /**
@@ -373,8 +460,8 @@ public final class CookieClickService implements Service, Listener {
      * plugin hides it when it knows the entity, and the entity itself is made invisible as a
      * belt-and-braces measure (the ModelEngine model is rendered separately).
      */
-    private void hideBase(Entity visual) {
-        if (visual == null || !visual.isValid() || "native".equals(backend)) {
+    private void hideBase(Spot spot, Entity visual) {
+        if (visual == null || !visual.isValid() || "native".equals(spot.backend)) {
             return;
         }
         // ModelEngine hides the base entity itself (setBaseEntityVisible). Bukkit invisibility must NOT be used
@@ -405,24 +492,30 @@ public final class CookieClickService implements Service, Listener {
             }
             return;
         }
-        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
-        if (visual != null && !"native".equals(backend) && !models.isModeled(visual)) {
-            // models were reloaded (/meg reload) and the mob lost its model – a fresh spawn re-applies the mob's model skill
-            logger.info("Main cookie: ModelEngine models re-registered, respawning the visual to re-bind the model.");
-            spawnMainCookie();
+        for (Spot spot : spots) {
+            Entity visual = spot.visual();
+            if (visual != null && !"native".equals(spot.backend) && !models.isModeled(visual)) {
+                // models were reloaded (/meg reload) and the mob lost its model – a fresh spawn re-applies the mob's model skill
+                logger.info("Cookies: ModelEngine models re-registered, respawning the visuals to re-bind the models.");
+                spawnMainCookie();
+                return;
+            }
         }
     }
 
     /** MythicMobs finished a reload: a spawned mob whose model got lost (or never applied) is respawned once. */
     private void onMobsReloaded() {
-        if (!"mythicmobs".equals(backend) || !models.available() || !spawned()) {
+        if (!"mythicmobs".equals(backend()) || !models.available() || !spawned()) {
             return;
         }
-        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
-        if (visual != null && !models.isModeled(visual)) {
-            logger.info("Main cookie: MythicMobs reloaded and the visual carries no ModelEngine model – respawning it to re-apply the mob's model.");
-            bindingAttempts = 0;
-            spawnMainCookie();
+        for (Spot spot : spots) {
+            Entity visual = spot.visual();
+            if (visual != null && !models.isModeled(visual)) {
+                logger.info("Cookies: MythicMobs reloaded and a visual carries no ModelEngine model – respawning to re-apply the mob's model.");
+                spot.bindingAttempts = 0;
+                spawnMainCookie();
+                return;
+            }
         }
     }
 
@@ -431,30 +524,30 @@ public final class CookieClickService implements Service, Listener {
      * missing binding is retried a few times by respawning the visual (the mob's spawn skills run
      * again) before the failure is reported.
      */
-    private void reportBinding(int generation) {
-        if (generation != bindingReportGeneration || !models.available() || "native".equals(backend)) {
+    private void reportBinding(Spot spot, int generation) {
+        if (generation != spot.bindingGeneration || !models.available() || "native".equals(spot.backend)) {
             return;
         }
-        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
+        Entity visual = spot.visual();
         if (visual == null) {
             return;
         }
         CookieConfiguration.MainCookie main = configuration.get().mainCookie();
         boolean modeled = models.isModeled(visual);
-        String subject = "mythicmobs".equals(backend) ? "MythicMobs mob '" + main.mythicMobsType() + "'" : "model '" + main.model() + "'";
+        String subject = "mythicmobs".equals(spot.backend) ? "MythicMobs mob '" + main.mythicMobsType() + "'" : "model '" + main.model() + "'";
         if (modeled) {
-            logger.info("Main cookie ModelEngine binding: OK (" + subject + (bindingAttempts > 0 ? ", after " + bindingAttempts + " retr" + (bindingAttempts == 1 ? "y" : "ies") : "") + ").");
-            bindingAttempts = 0;
+            logger.info("Cookie ModelEngine binding: OK (" + subject + (spot.bindingAttempts > 0 ? ", after " + spot.bindingAttempts + " retr" + (spot.bindingAttempts == 1 ? "y" : "ies") : "") + ").");
+            spot.bindingAttempts = 0;
             return;
         }
-        if (models.modelsReady() && bindingAttempts < MAX_BINDING_ATTEMPTS) {
-            bindingAttempts++;
-            logger.info("Main cookie ModelEngine binding not applied yet (" + subject + ", attempt " + bindingAttempts + "/" + MAX_BINDING_ATTEMPTS
+        if (models.modelsReady() && spot.bindingAttempts < MAX_BINDING_ATTEMPTS) {
+            spot.bindingAttempts++;
+            logger.info("Cookie ModelEngine binding not applied yet (" + subject + ", attempt " + spot.bindingAttempts + "/" + MAX_BINDING_ATTEMPTS
                     + ") – respawning the visual in " + (BINDING_RETRY_TICKS / 20) + " s.");
             int expected = generation;
             mainThread.later(BINDING_RETRY_TICKS, () -> {
-                Entity current = visualId == null ? null : Bukkit.getEntity(visualId);
-                if (bindingReportGeneration == expected && (current == null || !models.isModeled(current))) {
+                Entity current = spot.visual();
+                if (spot.bindingGeneration == expected && (current == null || !models.isModeled(current))) {
                     spawnMainCookie();
                 }
             });
@@ -463,7 +556,7 @@ public final class CookieClickService implements Service, Listener {
         String reason;
         if (!models.modelsReady()) {
             reason = "ModelEngine has not registered its models yet";
-        } else if ("mythicmobs".equals(backend)) {
+        } else if ("mythicmobs".equals(spot.backend)) {
             reason = main.model().isBlank()
                     ? "the mob carries no ModelEngine model – check its model{mid=...} skill and that the blueprint exists"
                     : (models.hasModel(main.model()) ? "blueprint '" + main.model() + "' exists but the mob's model{...} skill did not apply it"
@@ -471,23 +564,33 @@ public final class CookieClickService implements Service, Listener {
         } else {
             reason = "blueprint '" + main.model() + "' " + (models.hasModel(main.model()) ? "exists but could not be attached" : "missing");
         }
-        logger.warning("Main cookie ModelEngine binding: FAILED (" + subject + ") – " + reason + ". The base entity stays invisible; clicks keep working.");
+        logger.warning("Cookie ModelEngine binding: FAILED (" + subject + ") – " + reason + ". The base entity stays invisible; clicks keep working.");
     }
 
     /** Self-heal: respawn when an entity vanished (chunk unload, /kill @e, world reload). */
     private void heal() {
-        World w = Bukkit.getWorld(configuration.get().mainCookie().world());
+        CookieConfiguration.MainCookie main = configuration.get().mainCookie();
+        World w = Bukkit.getWorld(main.world());
         if (w == null || waitingForModels) {
             return;
         }
-        boolean interactionAlive = interactionId != null && Bukkit.getEntity(interactionId) != null;
-        Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
-        if (!interactionAlive || visual == null) {
-            logger.info("Main cookie entities missing – respawning.");
+        if (spots.size() != main.locations().size()) {
+            // the configuration changed (a cookie was added or removed) - rebuild the whole set
+            logger.info("Cookie layout changed – respawning all cookies.");
             spawnMainCookie();
             return;
         }
-        hideBase(visual);
+        for (Spot spot : spots) {
+            Entity visual = spot.visual();
+            if (!spot.alive() || visual == null) {
+                logger.info("Cookie entities missing at " + (int) spot.point.x() + "," + (int) spot.point.y() + ","
+                        + (int) spot.point.z() + " – respawning that cookie.");
+                removeSpot(spot);
+                spawnSpot(main, w, spot);
+                continue;
+            }
+            hideBase(spot, visual);
+        }
     }
 
     /** Whether the player stands inside the cookie zone around the main cookie. */
@@ -505,7 +608,12 @@ public final class CookieClickService implements Service, Listener {
     private boolean isMainCookie(Entity entity) {
         if (entity == null) return false;
         UUID id = entity.getUniqueId();
-        return id.equals(interactionId) || id.equals(visualId) || id.equals(labelId);
+        for (Spot spot : spots) {
+            if (spot.owns(id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
@@ -553,20 +661,23 @@ public final class CookieClickService implements Service, Listener {
         if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
         if (event.getHand() != null && event.getHand() != EquipmentSlot.HAND) return;
         Player player = event.getPlayer();
-        Location cookie = mainCookieLocation();
-        if (cookie == null || !player.getWorld().equals(cookie.getWorld())) return;
         CookieConfiguration.MainCookie main = configuration.get().mainCookie();
         double reach = 5.0;
-        if (player.getEyeLocation().distanceSquared(cookie) > (reach + main.hitboxHeight()) * (reach + main.hitboxHeight())) return;
         double half = main.hitboxWidth() / 2.0;
-        BoundingBox box = new BoundingBox(cookie.getX() - half, cookie.getY(), cookie.getZ() - half,
-                cookie.getX() + half, cookie.getY() + main.hitboxHeight(), cookie.getZ() + half);
-        RayTraceResult hit = box.rayTrace(player.getEyeLocation().toVector(), player.getEyeLocation().getDirection(), reach);
-        if (hit == null) return;
-        if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
-            event.setCancelled(true);
+        for (Spot spot : spots) {
+            Location cookie = locationOf(spot);
+            if (cookie == null || !player.getWorld().equals(cookie.getWorld())) continue;
+            if (player.getEyeLocation().distanceSquared(cookie) > (reach + main.hitboxHeight()) * (reach + main.hitboxHeight())) continue;
+            BoundingBox box = new BoundingBox(cookie.getX() - half, cookie.getY(), cookie.getZ() - half,
+                    cookie.getX() + half, cookie.getY() + main.hitboxHeight(), cookie.getZ() + half);
+            RayTraceResult hit = box.rayTrace(player.getEyeLocation().toVector(), player.getEyeLocation().getDirection(), reach);
+            if (hit == null) continue;
+            if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
+                event.setCancelled(true);
+            }
+            handleClick(player, true);
+            return;
         }
-        handleClick(player, true);
     }
 
     private void handleClick(Player player, boolean leftClick) {
@@ -667,15 +778,17 @@ public final class CookieClickService implements Service, Listener {
         if (clickSounds) {
             sounds.play(player, "minecraft:entity.item.pickup", 0.4f, result.comboAdvanced() ? 1.6f : 1.2f);
         }
+        // animation and particles belong to the cookie the player stands at, not to the first one
+        Spot spot = nearestSpot(player);
         String clickSkill = configuration.get().mainCookie().clickSkill();
-        if ("mythicmobs".equals(backend) && !clickSkill.isBlank() && visualId != null) {
-            Entity visual = Bukkit.getEntity(visualId);
+        if (spot != null && "mythicmobs".equals(spot.backend) && !clickSkill.isBlank()) {
+            Entity visual = spot.visual();
             if (visual != null) {
                 mobs.castSkill(visual, clickSkill); // hit animation – damage itself is blocked by the lobby
             }
         }
         if (effects && !reduced) {
-            Entity visual = visualId == null ? null : Bukkit.getEntity(visualId);
+            Entity visual = spot == null ? null : spot.visual();
             Location at = visual == null ? player.getLocation().add(0, 1.5, 0) : visual.getLocation().add(0, 1.0, 0);
             player.spawnParticle(Particle.ITEM, at, 6, 0.4, 0.4, 0.4, 0.05, new ItemStack(Material.COOKIE));
         }

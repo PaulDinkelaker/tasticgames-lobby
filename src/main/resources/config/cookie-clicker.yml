@@ -7,13 +7,18 @@
 #   3 -> 4 renames "golden-cookies" to "special-cookies" and replaces balancing.golden with balancing.special
 #          (lifetime-seconds and buff-seconds are carried over, base-interval-seconds is dropped – the wait between
 #           two special cookies is now drawn from min/max/floor-interval-seconds instead of rolled every second)
-config-version: 5
+config-version: 6
 
 # ---------------------------------------------------------------------------------------------
 # The MAIN COOKIE stands in the lobby. Clicking it earns cookies; the actionbar shows the balance.
 main-cookie:
   world: "spawn"
   location: { x: -62.5, y: 35.0, z: 12.5, yaw: 0.0, pitch: 0.0 }
+  # Further cookies of the same kind (same model, same click skill, same hitbox). Each one carries its
+  # own zone of zone-radius blocks, so a busy lobby spreads over several cookies instead of one pile.
+  # yaw 0 = facing south.
+  extra-locations:
+    plaza_south: { x: -62.5, y: 35.0, z: -19.5, yaw: 0.0, pitch: 0.0 }
   # Visual backend, first available wins:
   #   1. MythicMobs mob type (carries the ModelEngine model configured by the builders)
   #   2. ModelEngine model attached to an invisible base entity
@@ -36,12 +41,10 @@ main-cookie:
     # auto  = the special cookie activates for the player directly (title + reward, nothing to find)
     # spawn = it appears near the player in the world and has to be clicked within its lifetime
     mode: auto
-    # special cookies only trigger inside these areas (lobby: around the main cookie)
-    areas:
-      bakery_plaza:
-        world: "spawn"
-        min: { x: -82, y: 30, z: -8 }
-        max: { x: -42, y: 46, z: 32 }
+    # In the lobby special cookies only trigger inside a cookie zone (zone-radius around any of the
+    # cookies) - the same circles in which the generators run. These areas are an OPTIONAL extra
+    # restriction on top of that; empty = the zone radius alone decides.
+    areas: {}
 
 # Quest NPCs are switched off: the Cookie Clicker is played at the main cookie and through its menus.
 # The section stays so builders can bring NPCs back (see docs/cookie-clicker.md) - an entry under "list"
@@ -59,6 +62,19 @@ open-world:
   create-if-missing: true
   required-prestige: 10
   entry: { x: 0.5, y: -60.0, z: 0.5, yaw: 0.0, pitch: 0.0 }
+  # The real open world is a bought build, pasted once from plugins/TasticLobby/schematics/.
+  # Requires FastAsyncWorldEdit: the Candyland map covers 879 x 338 x 862 blocks, and plain WorldEdit
+  # would load all of it into memory and freeze the server. The paste is recorded in
+  # schematics/.pasted.properties and never repeated - otherwise a restart would overwrite whatever
+  # players built there. Delete that entry to paste again.
+  # After the first paste, check where the build actually starts and move "entry" onto its spawn point.
+  schematic:
+    enabled: false
+    file: "Candyland.schem"
+    # where the schematic origin lands; y -64 puts a 338 block tall build inside the world height
+    origin: { x: -440, y: -64, z: -430 }
+    # true lets air of the schematic delete existing blocks
+    paste-air: false
   special-cookies:
     enabled: true
     mode: auto
@@ -115,6 +131,7 @@ zones:
 # the main cookie POI lives in the lobby.
 pois:
   main_cookie: { world: "spawn", x: -62.5, y: 35.0, z: 12.5, radius: 6.0, type: MAIN_COOKIE }
+  main_cookie_south: { world: "spawn", x: -62.5, y: 35.0, z: -19.5, radius: 6.0, type: MAIN_COOKIE }
   zone_sugar_fields: { x: 120.5, y: -60.0, z: 0.5, radius: 6.0, type: ZONE_ENTRY }
   zone_cocoa_caverns: { x: 240.5, y: -60.0, z: 0.5, radius: 6.0, type: ZONE_ENTRY }
 

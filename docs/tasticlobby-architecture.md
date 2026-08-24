@@ -31,6 +31,20 @@ first-join `WelcomeDialogService` (completes backend onboarding, `welcome.seen` 
 * **API (lobby domain)**: cookie profiles (optimistic locking, idempotent prestige/offline/admin operations),
   cosmetics ownership/equipped state, lobby preferences, leaderboards.
 
+## Network titles
+
+The title cosmetics (`CosmeticCategory.TITLE` in `cosmetics.yml`, texts in the lobby message files) are the network
+titles, and the lobby is the only place that has that catalog. `LobbyTitleService` therefore publishes it on every
+start (`PUT /api/v1/network/titles/catalog`, one text per language); repeating an unchanged catalog changes nothing.
+A player's title is not stored a second time - the API derives it from the equipped `TITLE` cosmetic and answers
+`GET /api/v1/network/titles/{uuid}` with the catalog texts.
+
+Every change (equip, unequip, revoke) is announced twice: `PlayerTitleService` in TasticCore shows it right away as a
+line under the name (a `TextDisplay` riding on the player, `titles.*` in `core.yml`), and a broadcast `title.changed`
+command updates the chat title on every proxy without waiting for a reconnect. Because that line is an own entity,
+`PlayerVisibilityService` hides and shows it together with its player, and `%tastic_title%` exposes the same text to
+TAB.
+
 ## UI
 
 Paper Dialog API everywhere (`DialogSupport`: menus, notices, confirmations, forms; callbacks validate the clicking

@@ -64,6 +64,11 @@ public final class DialogSupport {
         for (Component component : body) {
             bodies.add(DialogBody.plainMessage(component));
         }
+        if (buttons.isEmpty()) {
+            // a multi-action dialog without a single action is rejected ("actions cannot be empty"); a menu
+            // whose buttons all fell away (nothing claimable, nothing owned) is simply a notice
+            return notice(title, body, exit);
+        }
         return Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(title).body(bodies).canCloseWithEscape(escapable).pause(false).afterAction(DialogBase.DialogAfterAction.NONE).build())
                 .type(DialogType.multiAction(buttons).exitAction(exit).columns(Math.max(1, columns)).build()));

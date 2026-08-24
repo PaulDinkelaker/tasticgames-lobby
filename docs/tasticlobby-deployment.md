@@ -16,7 +16,7 @@
 3. Backup `plugins/TasticLobby/` and the current lobby JAR to `backups/tasticlobby/<timestamp>/`.
 4. Replace the JAR (exactly one `tasticgames-lobby-*.jar` in `plugins/`), start the server.
 5. Configure `config/lobby.yml` (world `spawn`, spawn, launchpad/teleport regions – or `/tasticlobby region …`),
-   `config/cookie-clicker.yml` (main cookie `-62.5 35 12.5`, MythicMobs type, NPCs, open world), `config/items.yml`
+   `config/cookie-clicker.yml` (main cookie `-62.5 35 12.5` + second cookie `-62.5 35 -19.5`, MythicMobs type, NPCs, open world), `config/items.yml`
    (asset ids / ItemsAdder ids), `config/music.yml`, `config/cosmetics.yml` (`render: hmc:<id>` for HMCCosmetics).
    **Upgrading from 1.0.0:** delete `plugins/TasticLobby/config/cookie-clicker.yml` (old layout) so the new file is generated.
 6. Restart or `/tasticlobby reload` (config + messages only).

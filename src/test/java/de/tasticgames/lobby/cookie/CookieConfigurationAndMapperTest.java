@@ -32,10 +32,15 @@ class CookieConfigurationAndMapperTest {
         assertEquals("spawn", configuration.mainCookie().world());
         assertEquals(-62.5, configuration.mainCookie().location().x(), 1e-9);
         assertEquals(35.0, configuration.mainCookie().location().y(), 1e-9);
-        assertEquals(12.5, configuration.mainCookie().location().z(), 1e-9);
+        assertEquals(12.5, configuration.mainCookie().location().z(), 1e-9, "the first cookie never moved");
+        assertEquals(1, configuration.mainCookie().extraLocations().size(), "a second cookie stands on the plaza");
+        assertEquals(-19.5, configuration.mainCookie().extraLocations().getFirst().z(), 1e-9);
+        assertEquals(2, configuration.mainCookie().locations().size(), "both cookies are clickable and carry a zone");
+        assertEquals("spawn", configuration.mainCookie().extraLocations().getFirst().world());
         assertEquals("fv_cookie_clicker", configuration.mainCookie().mythicMobsType());
         assertEquals("fv_cookie_clicker_hit", configuration.mainCookie().clickSkill());
-        assertEquals(1, configuration.mainCookie().specialAreas().size());
+        assertEquals(0, configuration.mainCookie().specialAreas().size(),
+                "no hand-drawn lobby area anymore - the zone radius gates special cookies");
         assertTrue(!configuration.legacyFile());
         for (var zone : CookieCatalog.defaults().zones()) {
             assertTrue(configuration.zones().containsKey(zone.id()), "layout missing zone " + zone.id());
@@ -102,7 +107,7 @@ class CookieConfigurationAndMapperTest {
         v2.setDefaults(bundled);
         List<String> changes = CookieConfiguration.migrate(v2);
         assertEquals(4, changes.size(), changes.toString());
-        assertEquals(5, CookieConfiguration.CURRENT_VERSION);
+        assertEquals(6, CookieConfiguration.CURRENT_VERSION);
         assertEquals(CookieConfiguration.CURRENT_VERSION, v2.getInt("config-version"));
         assertTrue(!v2.isConfigurationSection("npcs.list.babette"));
         assertTrue(!v2.isConfigurationSection("npcs.list.king_frosting"));
@@ -116,6 +121,48 @@ class CookieConfigurationAndMapperTest {
         legacy.setDefaults(bundled);
         assertTrue(CookieConfiguration.migrate(legacy).isEmpty());
         assertTrue(CookieConfiguration.load(legacy, "spawn").legacyFile());
+    }
+
+    @Test
+    void migrationAddsTheSecondCookieWithoutMovingTheFirst() throws Exception {
+        // the operator file as the old defaults left it: one cookie, one hand-drawn special area
+        YamlConfiguration v5 = new YamlConfiguration();
+        v5.set("config-version", 5);
+        v5.set("main-cookie.location.x", -62.5);
+        v5.set("main-cookie.location.y", 35.0);
+        v5.set("main-cookie.location.z", 12.5);
+        v5.set("pois.main_cookie.world", "spawn");
+        v5.set("pois.main_cookie.radius", 6.0);
+        v5.set("main-cookie.special-cookies.areas.bakery_plaza.world", "spawn");
+        v5.set("main-cookie.special-cookies.areas.bakery_plaza.min.x", -82);
+        v5.set("main-cookie.special-cookies.areas.bakery_plaza.min.y", 30);
+        v5.set("main-cookie.special-cookies.areas.bakery_plaza.min.z", -8);
+        v5.set("main-cookie.special-cookies.areas.bakery_plaza.max.x", -42);
+        v5.set("main-cookie.special-cookies.areas.bakery_plaza.max.y", 46);
+        v5.set("main-cookie.special-cookies.areas.bakery_plaza.max.z", 32);
+
+        List<String> changes = CookieConfiguration.migrate(v5);
+        assertEquals(3, changes.size(), changes.toString());
+        assertEquals(12.5, v5.getDouble("main-cookie.location.z"), 1e-9, "the first cookie stays where it is");
+        assertEquals(-19.5, v5.getDouble("main-cookie.extra-locations.plaza_south.z"), 1e-9, "the second one is added");
+        assertEquals(-62.5, v5.getDouble("main-cookie.extra-locations.plaza_south.x"), 1e-9);
+        assertEquals(-19.5, v5.getDouble("pois.main_cookie_south.z"), 1e-9, "and gets its own POI");
+        assertEquals("MAIN_COOKIE", v5.getString("pois.main_cookie_south.type"));
+        assertTrue(!v5.isConfigurationSection("main-cookie.special-cookies.areas.bakery_plaza"),
+                "that box only covered the first cookie - the zone radius gates specials now");
+        assertEquals(CookieConfiguration.CURRENT_VERSION, v5.getInt("config-version"));
+        assertTrue(CookieConfiguration.migrate(v5).isEmpty(), "migration is idempotent");
+
+        // a customised position is the operator's: no second cookie is pushed into their layout
+        YamlConfiguration custom = new YamlConfiguration();
+        custom.set("config-version", 5);
+        custom.set("main-cookie.location.x", -10.5);
+        custom.set("main-cookie.location.y", 40.0);
+        custom.set("main-cookie.location.z", 12.5);
+        List<String> customChanges = CookieConfiguration.migrate(custom);
+        assertEquals(1, customChanges.size(), customChanges.toString());
+        assertEquals(12.5, custom.getDouble("main-cookie.location.z"), 1e-9, "own layout values are kept");
+        assertTrue(!custom.isConfigurationSection("main-cookie.extra-locations"), "and no cookie is added to it");
     }
 
     @Test

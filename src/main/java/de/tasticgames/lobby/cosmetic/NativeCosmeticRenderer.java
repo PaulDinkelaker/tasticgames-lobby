@@ -13,18 +13,31 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
  * Native renderer without external plugins: hats (helmet slot with a PDC marker), auras/trails/
  * join effects via particles. renderData formats:
- * HAT: {@code material:PUMPKIN[;model:namespace:key]} – AURA/TRAIL: {@code particle:FLAME[;count:6][;color:RRGGBB]}.
+ * HAT: {@code material:PUMPKIN[;model:namespace:key]} – AURA/TRAIL: {@code particle:FLAME[;count:6][;color:RRGGBB][;value:1.0]}.
+ * <p>
+ * Which extra data a particle needs is decided by the server version, not by us: {@code DUST} wants a colour,
+ * {@code DRAGON_BREATH} a float, others nothing at all. {@link #data} asks the particle itself, so a Minecraft
+ * update that adds a requirement does not turn the cosmetic tick into an exception per tick.
  */
 public final class NativeCosmeticRenderer implements CosmeticRenderer {
 
+    /** Particles whose data we cannot build; warned about once, then rendered as END_ROD. */
+    private static final Object UNSUPPORTED = new Object();
+
     private final NamespacedKey hatKey;
+    private final Logger logger;
+    private final Set<String> warned = ConcurrentHashMap.newKeySet();
 
     public NativeCosmeticRenderer(Plugin plugin) {
         this.hatKey = new NamespacedKey(plugin, "cosmetic-hat");
+        this.logger = plugin.getLogger();
     }
 
     @Override
@@ -108,12 +121,69 @@ public final class NativeCosmeticRenderer implements CosmeticRenderer {
         } catch (IllegalArgumentException e) {
             particle = Particle.END_ROD;
         }
-        if (particle == Particle.DUST) {
-            String hex = value(definition.renderData(), "color", "FFFFFF");
-            Color color = Color.fromRGB(Integer.parseInt(hex, 16));
-            location.getWorld().spawnParticle(particle, location, count, dx, dy, dz, 0, new Particle.DustOptions(color, 1.0f));
-        } else {
-            location.getWorld().spawnParticle(particle, location, count, dx, dy, dz, 0.01);
+        Object data = data(particle, definition);
+        if (data == UNSUPPORTED) {
+            warnOnce(definition, particle, "needs " + particle.getDataType().getSimpleName() + " data we cannot build");
+            particle = Particle.END_ROD;
+            data = null;
+        }
+        try {
+            if (data == null) {
+                location.getWorld().spawnParticle(particle, location, count, dx, dy, dz, 0.01);
+            } else {
+                location.getWorld().spawnParticle(particle, location, count, dx, dy, dz, 0, data);
+            }
+        } catch (RuntimeException exception) {
+            warnOnce(definition, particle, exception.getClass().getSimpleName() + ": " + exception.getMessage());
+        }
+    }
+
+    /** The extra data a particle requires, {@code null} when it needs none. */
+    private Object data(Particle particle, CosmeticDefinition definition) {
+        Class<?> type = particle.getDataType();
+        if (type == Void.class) {
+            return null;
+        }
+        if (type == Particle.DustOptions.class) {
+            return new Particle.DustOptions(color(definition), 1.0f);
+        }
+        if (type == Color.class) {
+            return color(definition);
+        }
+        if (type == Float.class) {
+            return (float) number(definition, 1.0);
+        }
+        if (type == Double.class) {
+            return number(definition, 1.0);
+        }
+        if (type == Integer.class) {
+            return (int) number(definition, 0);
+        }
+        return UNSUPPORTED;
+    }
+
+    private static Color color(CosmeticDefinition definition) {
+        String hex = value(definition.renderData(), "color", "FFFFFF");
+        try {
+            return Color.fromRGB(Integer.parseInt(hex, 16));
+        } catch (NumberFormatException exception) {
+            return Color.WHITE;
+        }
+    }
+
+    private static double number(CosmeticDefinition definition, double fallback) {
+        try {
+            return Double.parseDouble(value(definition.renderData(), "value", Double.toString(fallback)));
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
+    /** One line per cosmetic, not one per tick. */
+    private void warnOnce(CosmeticDefinition definition, Particle particle, String reason) {
+        if (warned.add(definition.id())) {
+            logger.warning("Cosmetic " + definition.id() + " uses particle " + particle.name() + " which " + reason
+                    + " – it is rendered as END_ROD, further failures are silent.");
         }
     }
 

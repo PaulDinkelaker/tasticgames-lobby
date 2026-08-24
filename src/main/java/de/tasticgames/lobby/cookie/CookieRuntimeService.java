@@ -195,9 +195,15 @@ public final class CookieRuntimeService implements Service {
             CookieProfile profile = session.profile();
             try {
                 boolean active = productionGate.test(session);
+                // the very first evaluation of a session only records the state: a player who joins
+                // outside the cookie zone never had running generators, so there is nothing to announce
+                boolean firstEvaluation = !session.productionStateKnown();
+                session.markProductionStateKnown();
                 if (active != session.productionActive()) {
                     session.productionActive(active);
-                    productionStateListener.accept(session, active);
+                    if (!firstEvaluation) {
+                        productionStateListener.accept(session, active);
+                    }
                 }
                 if (active) {
                     productionListener.accept(session, engine.produce(profile, session.lastTickAt(), now));

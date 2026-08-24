@@ -36,6 +36,11 @@ import java.util.logging.Logger;
  */
 public final class CosmeticService implements Service {
 
+    /** Announces the network title a player wears now; {@code title} is {@code null} when none is worn. */
+    public interface TitleAnnouncer {
+        void announce(Player player, CosmeticDefinition title);
+    }
+
     public record PlayerCosmetics(Set<String> owned, Map<CosmeticCategory, String> equipped) {
         public boolean owns(CosmeticDefinition definition) {
             return definition.defaultOwned() || owned.contains(definition.id());
@@ -53,6 +58,7 @@ public final class CosmeticService implements Service {
     private final List<CosmeticRenderer> renderers = new ArrayList<>();
     private final Map<UUID, PlayerCosmetics> cache = new ConcurrentHashMap<>();
     private volatile CosmeticCatalog catalog;
+    private volatile TitleAnnouncer titleAnnouncer;
     private BukkitTask tickTask;
 
     public CosmeticService(Plugin plugin, TasticCoreApi coreApi, LobbyConfigurationService configurationService, LobbyApiService api,
@@ -107,6 +113,11 @@ public final class CosmeticService implements Service {
         return catalog;
     }
 
+    /** Titles are network wide, so every change is announced - see {@code LobbyTitleService}. */
+    public void setTitleAnnouncer(TitleAnnouncer announcer) {
+        this.titleAnnouncer = announcer;
+    }
+
     public boolean available() {
         return api.enabled();
     }
@@ -135,7 +146,12 @@ public final class CosmeticService implements Service {
                 new CosmeticEquipRequest(definition.category().name(), definition.id()))).thenApply(response -> {
             cache.put(player.getUniqueId(), map(response.cosmetics()));
             telemetry.event("lobby.cosmetic_equip", player.getUniqueId(), Map.of("cosmetic", definition.id(), "outcome", response.outcome()));
-            mainThread.run(() -> render(player));
+            mainThread.run(() -> {
+                render(player);
+                if (response.changed() && definition.category() == CosmeticCategory.TITLE) {
+                    syncTitle(player);
+                }
+            });
             return response;
         });
     }
@@ -144,7 +160,12 @@ public final class CosmeticService implements Service {
         return api.call("cosmetics.unequip", c -> c.lobby().equipCosmetic(player.getUniqueId(),
                 new CosmeticEquipRequest(category.name(), null))).thenApply(response -> {
             cache.put(player.getUniqueId(), map(response.cosmetics()));
-            mainThread.run(() -> render(player));
+            mainThread.run(() -> {
+                render(player);
+                if (response.changed() && category == CosmeticCategory.TITLE) {
+                    syncTitle(player);
+                }
+            });
             return response;
         });
     }
@@ -163,7 +184,11 @@ public final class CosmeticService implements Service {
             cache.put(player, map(response.cosmetics()));
             Player online = Bukkit.getPlayer(player);
             if (online != null) {
-                mainThread.run(() -> render(online));
+                mainThread.run(() -> {
+                    render(online);
+                    // Revoking can take away the title that was worn.
+                    syncTitle(online);
+                });
             }
             return response;
         });
@@ -185,6 +210,14 @@ public final class CosmeticService implements Service {
                     renderer.apply(player, category, definitionFor(renderer, definition), reduced);
                 }
             }
+        }
+    }
+
+    /** Reports the currently equipped title (main thread). */
+    private void syncTitle(Player player) {
+        TitleAnnouncer announcer = titleAnnouncer;
+        if (announcer != null) {
+            announcer.announce(player, equipped(player.getUniqueId(), CosmeticCategory.TITLE).orElse(null));
         }
     }
 

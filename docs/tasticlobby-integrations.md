@@ -19,6 +19,50 @@ weiter und `/tasticlobby status` zeigt pro Integration `hooked (Version)` / `not
 | **WorldEdit / FastAsyncWorldEdit** | Regionen aus der `//wand`-Auswahl: `/tasticlobby region …`, `/cookieadmin golden add …`, `/cookieadmin zone <id> fromselection` | Regionen manuell in YAML |
 | **Multiverse-Core** | Welten `spawn` und `cookie` müssen vor TasticLobby geladen sein (Softdepend) | Bukkit-Weltladung |
 
+## UI-Icon-Packs
+
+Gekaufte Icon-Packs legt der Betreiber in `plugins/TasticLobby/icon-packs/` ab – als ZIP oder als
+entpackten Ordner. Bei jedem Start installiert TasticLobby sie nach
+`plugins/ItemsAdder/contents/<namensraum>/`:
+
+```
+configs/<namensraum>.yml                                   Font-Image-Definitionen
+textures/font/<icon>.png                                   ItemsAdder 3.x
+resourcepack/assets/<namensraum>/textures/font/<icon>.png   ItemsAdder 4.x
+```
+
+Beide Herstellerformate werden verstanden: ein fertiger ItemsAdder-Ordner
+(`itemsadder/contents/<pack>/…` mit `font_images:`) und die vereinfachte Fassung
+(`configs/ItemsAdder/icons.yml` mit `textures:` plus lose `icons/*.png`). Vorschaubilder,
+312-Pixel-Exporte, Aseprite-Quellen und `needs_review`-Ordner werden übersprungen; ein Icon ohne
+passendes PNG kommt gar nicht erst in die Konfiguration, weil ItemsAdder sonst beim Packen abbricht.
+
+Ein Pack wird nur neu geschrieben, wenn sich seine Prüfsumme geändert hat; danach baut der HUD-Dienst
+das Resource Pack neu (`/iazip`). Aktuell zugeordnet in `hud.yml`:
+
+| Pack | Namensraum | Icons | Benutzt für |
+|---|---|---|---|
+| Minimal UI Icons | `minimalui` | 20 | schlichte Oberflächenzeichen (`home`, `settings`) |
+| 90+ UI Icons & Items | `narra_icons_items` | 116 | farbige Pixel-Icons (Kronen, Edelsteine, Pokale, Münzen) |
+| Moon Disciples | `moon_ranks` | – | Rangzeile im HUD (unverändert) |
+
+Fehlt ein Pack, greift für jeden Schlüssel das Unicode-Zeichen aus `unicode-icons` – das kostet
+Aussehen, keine Funktion.
+
+## Vorgefertigte Bauten (Schematics)
+
+`plugins/TasticLobby/schematics/` nimmt `.schem`-Dateien auf. Die offene Cookie-Welt wird darüber
+gebaut (`open-world.schematic` in `cookie-clicker.yml`).
+
+**FastAsyncWorldEdit ist Pflicht.** Gekaufte Karten sind groß – die Candyland-Vorlage misst
+879 × 338 × 862 Blöcke, also gut 250 Millionen Blockpositionen. FAWE verarbeitet das gestreamt und
+nebenläufig; gewöhnliches WorldEdit lädt die Zwischenablage vollständig in den Speicher. Bauten über
+fünf Millionen Blöcken werden deshalb ohne FAWE mit einer klaren Meldung abgelehnt, statt den Server
+einzufrieren.
+
+Jedes Einfügen wird in `schematics/.pasted.properties` vermerkt und nie wiederholt – ein Neustart
+würde sonst überschreiben, was Spieler dort gebaut haben. Zum erneuten Einfügen die Zeile löschen.
+
 ## Placeholders (`%tastic_<key>%`)
 
 Rohwerte ohne Farben – das Display-Plugin (UltimateUI/TAB) formatiert.
@@ -26,6 +70,7 @@ Rohwerte ohne Farben – das Display-Plugin (UltimateUI/TAB) formatiert.
 | Key | Wert |
 |---|---|
 | `rank`, `rank_display`, `rank_prefix`, `rank_suffix` | LuckPerms Primary Group / Display-Name / Prefix / Suffix |
+| `title` | Netzwerk-Title des Spielers (MiniMessage, in seiner Sprache; leer ohne Title) |
 | `language`, `language_code` | Sprache des Spielers (Deutsch/English/हिन्दी, de/en/hi) |
 | `visibility` | ALL / FRIENDS / PARTY / FRIENDS_AND_PARTY / NONE |
 | `server` | Backend-ID dieser Lobby (`api.yml server-id`) |

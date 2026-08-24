@@ -37,7 +37,7 @@ public record CookieConfiguration(
         boolean legacyFile
 ) {
 
-    public static final int CURRENT_VERSION = 5;
+    public static final int CURRENT_VERSION = 6;
     /** First version with the current layout (main cookie in the lobby); older files are replaced by the bundled defaults. */
     public static final int LAYOUT_VERSION = 2;
     /** NPC ids removed with config-version 3 (only the baker and the merchant remain). */
@@ -79,16 +79,20 @@ public record CookieConfiguration(
      * @param mythicMobsType   MythicMobs mob type used as visual (empty = skip)
      * @param clickSkill       MythicMobs skill cast on the mob for every bake click (hit animation), empty = none
      * @param model            ModelEngine model id used when MythicMobs is not available (empty = skip)
+     * @param extraLocations   further cookies of the same kind; each one carries its own zone of
+     *                         {@code zoneRadius} blocks, so players spread out instead of crowding one spot
      * @param zoneRadius       cookie zone radius: generators produce and the actionbar shows only inside it
      * @param specialAreas     special cookies only trigger inside these regions (empty = anywhere in the cookie's world)
      * @param specialMode      {@code auto} = the special cookie activates for the player directly, {@code spawn} = it appears
      *                         nearby in the world and has to be clicked
      */
-    public record MainCookie(Point location, String mythicMobsType, String clickSkill, String model, double hitboxWidth, double hitboxHeight, boolean label,
+    public record MainCookie(Point location, List<Point> extraLocations, String mythicMobsType, String clickSkill, String model,
+                             double hitboxWidth, double hitboxHeight, boolean label,
                              double zoneRadius, long actionbarIntervalMillis, boolean specialEnabled,
                              List<LobbyConfiguration.Region> specialAreas, String specialMode) {
         public MainCookie {
             Objects.requireNonNull(location);
+            extraLocations = extraLocations == null ? List.of() : List.copyOf(extraLocations);
             mythicMobsType = mythicMobsType == null ? "" : mythicMobsType.trim();
             clickSkill = clickSkill == null ? "" : clickSkill.trim();
             model = model == null ? "" : model.trim();
@@ -111,15 +115,47 @@ public record CookieConfiguration(
             return MODE_AUTO.equals(specialMode);
         }
 
-        /** Whether the location lies inside the cookie zone (same world, within zoneRadius). */
-        public boolean inZone(org.bukkit.Location other) {
-            if (other == null || other.getWorld() == null || !other.getWorld().getName().equals(location.world())) {
-                return false;
+        /** Every cookie of the lobby: the main one first, then the additional ones. */
+        public List<Point> locations() {
+            if (extraLocations.isEmpty()) {
+                return List.of(location);
             }
-            double dx = other.getX() - location.x();
-            double dy = other.getY() - location.y();
-            double dz = other.getZ() - location.z();
-            return dx * dx + dy * dy + dz * dz <= zoneRadius * zoneRadius;
+            List<Point> all = new ArrayList<>(extraLocations.size() + 1);
+            all.add(location);
+            all.addAll(extraLocations);
+            return List.copyOf(all);
+        }
+
+        /**
+         * Whether the location lies inside a cookie zone. Each cookie has its own circle of
+         * {@code zoneRadius} blocks; standing at any of them counts.
+         */
+        public boolean inZone(org.bukkit.Location other) {
+            return nearest(other).isPresent();
+        }
+
+        /** The cookie whose zone contains this location, if any. */
+        public java.util.Optional<Point> nearest(org.bukkit.Location other) {
+            if (other == null || other.getWorld() == null) {
+                return java.util.Optional.empty();
+            }
+            String worldName = other.getWorld().getName();
+            Point closest = null;
+            double best = Double.MAX_VALUE;
+            for (Point point : locations()) {
+                if (!worldName.equals(point.world())) {
+                    continue;
+                }
+                double dx = other.getX() - point.x();
+                double dy = other.getY() - point.y();
+                double dz = other.getZ() - point.z();
+                double distance = dx * dx + dy * dy + dz * dz;
+                if (distance <= zoneRadius * zoneRadius && distance < best) {
+                    best = distance;
+                    closest = point;
+                }
+            }
+            return java.util.Optional.ofNullable(closest);
         }
     }
 
@@ -235,6 +271,40 @@ public record CookieConfiguration(
             // the section itself is switched off; an operator who wants NPCs back turns it on again
             yaml.set("npcs.enabled", false);
         }
+        if (version < 6) {
+            // v6: a second cookie on the plaza so players spread out instead of crowding one spot,
+            // and special cookies follow the zone radius instead of one hand-drawn box (which would
+            // only ever cover the first cookie). Only untouched defaults are migrated - whoever moved
+            // the cookie or drew their own area keeps what they have.
+            boolean defaultLocation = yaml.getDouble("main-cookie.location.x") == -62.5
+                    && yaml.getDouble("main-cookie.location.y") == 35.0
+                    && yaml.getDouble("main-cookie.location.z") == 12.5;
+            if (defaultLocation && !yaml.isConfigurationSection("main-cookie.extra-locations")) {
+                yaml.set("main-cookie.extra-locations.plaza_south.x", -62.5);
+                yaml.set("main-cookie.extra-locations.plaza_south.y", 35.0);
+                yaml.set("main-cookie.extra-locations.plaza_south.z", -19.5);
+                yaml.set("main-cookie.extra-locations.plaza_south.yaw", 0.0);
+                yaml.set("main-cookie.extra-locations.plaza_south.pitch", 0.0);
+                changes.add("added the second cookie at -62.5/35/-19.5 (facing south)");
+                if (yaml.isConfigurationSection("pois.main_cookie") && !yaml.isConfigurationSection("pois.main_cookie_south")) {
+                    yaml.set("pois.main_cookie_south.world", yaml.getString("pois.main_cookie.world", "spawn"));
+                    yaml.set("pois.main_cookie_south.x", -62.5);
+                    yaml.set("pois.main_cookie_south.y", 35.0);
+                    yaml.set("pois.main_cookie_south.z", -19.5);
+                    yaml.set("pois.main_cookie_south.radius", yaml.getDouble("pois.main_cookie.radius", 6.0));
+                    yaml.set("pois.main_cookie_south.type", "MAIN_COOKIE");
+                }
+            }
+            String area = "main-cookie.special-cookies.areas.bakery_plaza";
+            boolean defaultArea = yaml.getInt(area + ".min.x") == -82 && yaml.getInt(area + ".min.y") == 30
+                    && yaml.getInt(area + ".min.z") == -8 && yaml.getInt(area + ".max.x") == -42
+                    && yaml.getInt(area + ".max.y") == 46 && yaml.getInt(area + ".max.z") == 32;
+            if (defaultArea) {
+                // that box only ever covered the first cookie; the zone radius is the gate now
+                yaml.set(area, null);
+                changes.add("removed the bakery_plaza special area (special cookies follow the zone radius of each cookie now)");
+            }
+        }
         yaml.set("config-version", CURRENT_VERSION);
         changes.add("config-version " + version + " -> " + CURRENT_VERSION);
         return changes;
@@ -303,8 +373,18 @@ public record CookieConfiguration(
         ConfigurationSection mainSection = req(source, "main-cookie");
         String mainWorld = mainSection.getString("world", lobbyWorldName);
         Point mainLocation = point(req(mainSection, "location"), mainWorld);
+        List<Point> extraCookies = new ArrayList<>();
+        ConfigurationSection extraSection = mainSection.getConfigurationSection("extra-locations");
+        if (extraSection != null) {
+            for (String key : extraSection.getKeys(false)) {
+                ConfigurationSection extra = extraSection.getConfigurationSection(key);
+                if (extra != null) {
+                    extraCookies.add(point(extra, mainWorld));
+                }
+            }
+        }
         ConfigurationSection specialMain = specialSection(mainSection);
-        MainCookie mainCookie = new MainCookie(mainLocation,
+        MainCookie mainCookie = new MainCookie(mainLocation, extraCookies,
                 mainSection.getString("mythicmobs-type", ""), mainSection.getString("click-skill", ""), mainSection.getString("model", ""),
                 mainSection.getDouble("hitbox.width", 2.2), mainSection.getDouble("hitbox.height", 2.4), mainSection.getBoolean("label", false),
                 mainSection.getDouble("zone-radius", 8.0), mainSection.getLong("actionbar.interval-millis", 1000),

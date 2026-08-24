@@ -136,6 +136,10 @@ public final class LobbyBootstrap {
         items = start(new LobbyItemService(plugin, configurationService, messages, coreApi, visibility::modeOf, integrations.customItems()));
         initialization = start(new LobbyPlayerInitializationService(coreApi, configurationService, players, spawn, items, visibility, telemetry, logger));
         cosmetics = start(new CosmeticService(plugin, coreApi, configurationService, api, telemetry, mainThread, integrations, logger));
+        // the lobby owns the title catalog: it is published here and every title change is announced
+        de.tasticgames.lobby.title.LobbyTitleService titles =
+                start(new de.tasticgames.lobby.title.LobbyTitleService(coreApi, api, messages, cosmetics::catalog, logger));
+        cosmetics.setTitleAnnouncer(titles::announce);
         de.tasticgames.lobby.music.MusicAssetInstaller soundtrack =
                 start(new de.tasticgames.lobby.music.MusicAssetInstaller(plugin, integrations.customItems(),
                         configurationService.configuration().music().ostEnabled(),
@@ -177,12 +181,22 @@ public final class LobbyBootstrap {
                 () -> pass.configuration().npcEnabled(), pass::openOverview, cookie.dialogs()::openOverview, logger));
         register(serviceNpcs);
 
+        // prepared builds: the open cookie world is a bought map, pasted once by FastAsyncWorldEdit
+        de.tasticgames.lobby.integration.schematic.SchematicPasteService schematics =
+                start(new de.tasticgames.lobby.integration.schematic.SchematicPasteService(plugin, logger));
+        pasteOpenWorldSchematic(schematics);
+
         // cosmetic asset packs (ItemsAdder content + HMCCosmetics definitions) dropped in by the operator
         org.bukkit.configuration.file.YamlConfiguration cosmeticsYaml = configurationService.raw("cosmetics");
         de.tasticgames.lobby.cosmetic.pack.CosmeticPackInstaller cosmeticPacks =
                 start(new de.tasticgames.lobby.cosmetic.pack.CosmeticPackInstaller(plugin, integrations.customItems(),
                         cosmeticsYaml.getBoolean("packs.enabled", true),
                         cosmeticsYaml.getBoolean("packs.reload-hmccosmetics", true), logger));
+
+        // UI icon packs the operator dropped in (ItemsAdder font images used by the HUD icon map)
+        de.tasticgames.lobby.hud.pack.UiIconPackInstaller iconPacks =
+                start(new de.tasticgames.lobby.hud.pack.UiIconPackInstaller(plugin,
+                        configurationService.raw("hud").getBoolean("icon-packs.enabled", true), logger));
 
         // native top-screen HUD (boss bars) fed by the context provider
         // the HUD shows the players on every proxy, not just the ones on this server
@@ -194,7 +208,7 @@ public final class LobbyBootstrap {
         hud = start(new de.tasticgames.lobby.hud.HudService(plugin, coreApi, configurationService, hudContext, integrations.customItems(), players,
                 p -> ranks.rank(p).displayName(), player -> formatTicks(player.getStatistic(org.bukkit.Statistic.PLAY_ONE_MINUTE)),
                 networkOnline::onlinePlayers,
-                () -> cosmeticPacks.installedContent() || soundtrack.installedContent(), logger));
+                () -> cosmeticPacks.installedContent() || soundtrack.installedContent() || iconPacks.installedContent(), logger));
         items.setProfileHeadModel(hud::profileHeadModel);
         socialActions.setAfterAction(p -> {
             visibility.apply(p);
@@ -340,11 +354,49 @@ public final class LobbyBootstrap {
 
     // ------------------------------------------------------------------ helpers
 
+    /**
+     * Baut die offene Cookie-Welt aus der Vorlage, sobald die Welt geladen ist – genau einmal, und nur
+     * wenn der Betreiber es in cookie-clicker.yml eingeschaltet hat. Die Karte selbst liegt in
+     * plugins/TasticLobby/schematics/ und gehört ihm, nicht dem Plugin.
+     */
+    private void pasteOpenWorldSchematic(de.tasticgames.lobby.integration.schematic.SchematicPasteService schematics) {
+        org.bukkit.configuration.file.YamlConfiguration cookieYaml = configurationService.raw("cookie-clicker");
+        if (!cookieYaml.getBoolean("open-world.schematic.enabled", false)) {
+            return;
+        }
+        String file = cookieYaml.getString("open-world.schematic.file", "");
+        String world = cookieYaml.getString("open-world.world", "cookie");
+        if (file == null || file.isBlank()) {
+            logger.warning("Cookie open world: schematic is enabled but no file is configured.");
+            return;
+        }
+        var request = new de.tasticgames.lobby.integration.schematic.SchematicPasteService.Request(
+                world, file,
+                cookieYaml.getInt("open-world.schematic.origin.x", 0),
+                cookieYaml.getInt("open-world.schematic.origin.y", -64),
+                cookieYaml.getInt("open-world.schematic.origin.z", 0),
+                cookieYaml.getBoolean("open-world.schematic.paste-air", false));
+        schematics.paste(request, false).thenAccept(outcome -> {
+            switch (outcome) {
+                case PASTED -> logger.info("Cookie open world built from " + file + ".");
+                case ALREADY_DONE -> logger.info("Cookie open world was already built from " + file
+                        + " (delete the entry in schematics/.pasted.properties to paste it again).");
+                case NEEDS_FAWE -> logger.severe("Cookie open world: " + file + " is too large for plain WorldEdit -"
+                        + " install FastAsyncWorldEdit.");
+                case NO_WORLDEDIT -> logger.warning("Cookie open world: no WorldEdit available, " + file + " stays unused.");
+                case MISSING_FILE -> logger.warning("Cookie open world: " + file + " is missing in plugins/TasticLobby/schematics/.");
+                case MISSING_WORLD -> logger.warning("Cookie open world: world '" + world + "' is not loaded.");
+                default -> logger.warning("Cookie open world: " + file + " could not be pasted.");
+            }
+        });
+    }
+
     private LobbyPlaceholders buildPlaceholders(RankProvider ranks) {
         LobbyPlaceholders p = new LobbyPlaceholders(plugin, integrations.tab());
         p.add("rank", player -> ranks.rank(player).group());
         p.add("rank_display", player -> ranks.rank(player).displayName());
         p.add("rank_prefix", player -> ranks.rank(player).prefix());
+        p.add("title", player -> coreApi.playerTitleService().titleOrNone(player.getUniqueId()).text(messages.languageOf(player)));
         p.add("rank_suffix", player -> ranks.rank(player).suffix());
         p.add("language", player -> messages.languageOf(player).displayName());
         p.add("language_code", player -> messages.languageOf(player).code());

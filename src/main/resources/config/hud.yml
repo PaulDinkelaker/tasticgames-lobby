@@ -34,46 +34,57 @@ itemsadder:
   # their text (text starts left of the box) – then the client adds the 1 px glyph spacing itself.
   glyph-spacing: 0
   # semantic icon key -> ItemsAdder font image (namespace:id). Unknown ids fall back to the unicode icon.
+  # These point at the two UI icon packs installed from plugins/TasticLobby/icon-packs/:
+  #   minimalui            20 plain interface glyphs (settings, search, lock, home, ...)
+  #   narra_icons_items   116 coloured pixel icons (crowns, gems, trophies, coins, ...)
+  # Every key also has a unicode fallback below, so a missing pack costs looks, not function.
   icons-map:
-    lobby: "cuboide:iconic_earth"
-    cookie: "toxlyusefuliconsvol4:coinstackicon"
-    social: "cuboide:iconic_heart"
-    gateway: "cuboide:iconic_compass"
-    profile: "cuboide:iconic_crown"
-    cosmetics: "cuboide:iconic_gem"
-    settings: "cuboide:iconic_cogwheel"
-    visibility: "toxlyusefuliconsvol4:eyeicon"
-    cookies: "toxlyusefuliconsvol4:coin1"
-    cps: "toxlyusefuliconsvol4:fireicon"
-    prestige: "cuboide:iconic_upgrade"
-    generators: "cuboide:iconic_shop"
-    friends: "cuboide:iconic_heart"
-    party: "toxlyusefuliconsvol4:blueorbicon"
-    clan: "cuboide:iconic_shield"
-    requests: "cuboide:iconic_envelope"
-    survival: "toxlyusefuliconsvol4:grassblock"
-    modes: "cuboide:iconic_island"
-    # the Moon Disciples rank pack ships real font images (namespace moon_ranks) - perfect for the status row
+    lobby: "minimalui:home"
+    cookie: "narra_icons_items:gold_coin"
+    social: "narra_icons_items:group_users"
+    gateway: "narra_icons_items:compass_badge"
+    profile: "narra_icons_items:id_card"
+    cosmetics: "narra_icons_items:purple_gem"
+    settings: "minimalui:settings"
+    visibility: "narra_icons_items:eye_view"
+    cookies: "narra_icons_items:coin_pile"
+    cps: "narra_icons_items:flame"
+    prestige: "narra_icons_items:gold_star"
+    generators: "narra_icons_items:wrench"
+    friends: "narra_icons_items:profile_pair"
+    party: "narra_icons_items:group_users"
+    clan: "narra_icons_items:blue_shield_badge"
+    requests: "narra_icons_items:sealed_letter"
+    survival: "narra_icons_items:sprout_hand"
+    modes: "narra_icons_items:island_marker"
+    # the Moon Disciples rank pack ships real font images (namespace moon_ranks) - kept for the status row
     rank: "moon_ranks:moon_rank_blue_moon_1"
-    playtime: "cuboide:iconic_hourglass"
-    session: "toxlyusefuliconsvol4:clockicon"
-    kills: "cuboide:iconic_sword"
-    deaths: "cuboide:iconic_skull"
-    orders: "cuboide:iconic_scroll"
-    creative: "cuboide:iconic_pickaxe"
-    duels: "cuboide:iconic_sword"
-    lifetime: "toxlyusefuliconsvol4:coinstackicon"
-    achievements: "cuboide:iconic_star"
-    visible: "toxlyusefuliconsvol4:eyeicon"
-    cosmetics_owned: "cuboide:iconic_gem"
-    hat: "toxlyusefuliconsvol4:helmeticon"
-    aura: "toxlyusefuliconsvol4:greenorbicon"
-    trail: "toxlyusefuliconsvol4:fireicon2"
-    title: "cuboide:iconic_scroll"
-    language: "cuboide:iconic_scroll_open"
-    music: "cuboide:iconic_bell"
-    sounds: "cuboide:iconic_bell"
-    online: "cuboide:iconic_earth"
+    playtime: "narra_icons_items:stopwatch"
+    session: "narra_icons_items:stopwatch"
+    kills: "narra_icons_items:crossed_swords"
+    deaths: "narra_icons_items:red_cross_token"
+    orders: "narra_icons_items:scroll_document"
+    creative: "narra_icons_items:magic_wand"
+    duels: "narra_icons_items:crossed_swords"
+    lifetime: "narra_icons_items:cash_stack"
+    achievements: "narra_icons_items:gold_trophy"
+    visible: "narra_icons_items:eye_view"
+    cosmetics_owned: "narra_icons_items:purple_gem"
+    hat: "narra_icons_items:gold_crown"
+    aura: "narra_icons_items:green_orb"
+    trail: "narra_icons_items:blue_orb_core"
+    title: "narra_icons_items:parchment_map"
+    language: "narra_icons_items:blue_book"
+    music: "narra_icons_items:volume_on"
+    sounds: "narra_icons_items:volume_on"
+    online: "narra_icons_items:globe"
+
+# UI icon packs the operator drops into plugins/TasticLobby/icon-packs/ (.zip or unpacked folder).
+# They are installed into plugins/ItemsAdder/contents/<namespace>/ on every start and only rewritten
+# when the source changed; afterwards the ItemsAdder pack is regenerated (/iazip).
+icon-packs:
+  enabled: true
+
 # unicode fallback icons (no ItemsAdder or unknown image)
 unicode-icons:
   lobby: "☀"

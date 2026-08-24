@@ -142,6 +142,11 @@ public final class SpecialCookieService implements Service, Listener {
         Location location = player.getLocation();
         String worldName = player.getWorld().getName();
         if (config.mainCookie().specialEnabled() && worldName.equals(config.mainCookie().world())) {
+            // Special cookies belong to the cookie, not to the whole lobby: they follow the same
+            // zone radius as the generators. Whoever stands at the fountain gets none - by design.
+            if (!config.mainCookie().inZone(location)) {
+                return false;
+            }
             List<LobbyConfiguration.Region> areas = config.mainCookie().specialAreas();
             return areas.isEmpty() || areas.stream().anyMatch(r -> r.contains(location));
         }

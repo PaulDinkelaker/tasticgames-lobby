@@ -26,6 +26,8 @@ public final class CookieSession {
     private volatile Instant sessionStartedAt = Instant.now();
     private volatile java.util.concurrent.CompletableFuture<Boolean> inFlightSave;
     private volatile boolean productionActive = true;
+    /** false until the production gate was evaluated once - the first evaluation is silent. */
+    private volatile boolean productionStateKnown;
 
     public CookieSession(UUID player, CookieProfile profile) {
         this.player = player;
@@ -53,6 +55,8 @@ public final class CookieSession {
     public Instant sessionStartedAt() { return sessionStartedAt; }
     public boolean productionActive() { return productionActive; }
     public void productionActive(boolean value) { productionActive = value; }
+    public boolean productionStateKnown() { return productionStateKnown; }
+    public void markProductionStateKnown() { productionStateKnown = true; }
     public java.util.concurrent.CompletableFuture<Boolean> inFlightSave() { return inFlightSave; }
     public void inFlightSave(java.util.concurrent.CompletableFuture<Boolean> value) { inFlightSave = value; }
 }

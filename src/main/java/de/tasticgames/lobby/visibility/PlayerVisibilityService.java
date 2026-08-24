@@ -93,6 +93,22 @@ public final class PlayerVisibilityService implements Service {
             } else if (!visible && viewer.canSee(other)) {
                 viewer.hidePlayer(plugin, other);
             }
+            applyToTitle(viewer, other, visible);
+        }
+    }
+
+    /**
+     * The title under a name is an own entity: hiding the player alone would leave the line
+     * floating where they stand.
+     */
+    private void applyToTitle(Player viewer, Player other, boolean visible) {
+        // one line per language, so hiding a player has to cover all of them
+        for (var display : coreApi.playerTitleService().nameTags(other.getUniqueId())) {
+            if (!visible && viewer.canSee(display)) {
+                viewer.hideEntity(plugin, display);
+            }
+            // showing again is left to the title service: it alone knows which language line this
+            // viewer may see, and re-showing all of them here would leak the other languages
         }
     }
 

@@ -29,6 +29,14 @@ import java.util.function.Function;
  */
 public final class LobbyConfigurationService implements Service {
 
+    /**
+     * Every bundled {@code config/*.yml}. A file that is not listed here cannot be read through
+     * {@link #raw(String)} - {@code LobbyConfigurationServiceTest} keeps the list and the bundled
+     * resources in sync.
+     */
+    public static final List<String> FILES =
+            List.of("lobby", "items", "music", "api", "cookie-clicker", "cosmetics", "hud", "pass", "npcs", "daily");
+
     private final TasticLobbyPlugin plugin;
     private final Function<String, String> environment;
     private final File coreApiFile;
@@ -66,7 +74,7 @@ public final class LobbyConfigurationService implements Service {
     public synchronized void reload() throws IOException {
         files.clear();
         coreApi = null;
-        for (String name : List.of("lobby", "items", "music", "api", "cookie-clicker", "cosmetics", "hud", "pass", "npcs")) {
+        for (String name : FILES) {
             files.put(name, load(name));
         }
         configuration = parse();
